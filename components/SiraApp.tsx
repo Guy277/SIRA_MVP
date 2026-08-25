@@ -22,6 +22,7 @@ type ApiJourney = Partial<Pick<Journey, "id" | "duration" | "price" | "comfort" 
   id: string;
   walking_minutes?: number;
   shape?: string | null;
+  geometry?: Coordinates[] | null;
 };
 
 const modeMeta: Record<TravelStep["mode"], { icon: typeof Footprints; label: string }> = {
@@ -245,7 +246,7 @@ export default function SiraApp() {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"}/mobility/journeys`, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(3500), body: JSON.stringify({ origin: { lat: origin.coordinates[1], lon: origin.coordinates[0], name: origin.name }, destination: { lat: destination.coordinates[1], lon: destination.coordinates[0], name: destination.name }, budget, preference }) });
       if (!response.ok) throw new Error("backend unavailable");
       const data = await response.json() as { journeys?: ApiJourney[] };
-      if (data.journeys?.length) next = data.journeys.map((apiJourney) => { const base = next.find((journey) => journey.id === apiJourney.id) ?? next[0]; return { ...base, duration: apiJourney.duration ?? base.duration, price: apiJourney.price ?? base.price, walking: apiJourney.walking_minutes ?? base.walking, comfort: apiJourney.comfort ?? base.comfort, reliability: apiJourney.reliability ?? base.reliability, geometry: apiJourney.shape ? decodeValhallaShape(apiJourney.shape) : base.geometry }; });
+      if (data.journeys?.length) next = data.journeys.map((apiJourney) => { const base = next.find((journey) => journey.id === apiJourney.id) ?? next[0]; return { ...base, duration: apiJourney.duration ?? base.duration, price: apiJourney.price ?? base.price, walking: apiJourney.walking_minutes ?? base.walking, comfort: apiJourney.comfort ?? base.comfort, reliability: apiJourney.reliability ?? base.reliability, geometry: apiJourney.geometry?.length ? apiJourney.geometry : apiJourney.shape ? decodeValhallaShape(apiJourney.shape) : base.geometry }; });
     } catch { if (origin.id === originDefault.id && destination.id === destinationDefault.id) next = demoJourneys(); }
     setJourneys(next); setSelectedJourneyId("recommended"); setCalculating(false); setScreen("results");
   };

@@ -23,6 +23,7 @@ class Journey(BaseModel):
     profile: str | None = None
     distance_km: float | None = None
     shape: str | None = None
+    geometry: list[tuple[float, float]] | None = None
 
 
 class RankingRequest(BaseModel):
