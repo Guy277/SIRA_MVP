@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
+import type { FilterSpecification, LineLayerSpecification, Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
 import type { Journey, Place } from "@/lib/sira-data";
 import { ABIDJAN_CENTER, REPORTS } from "@/lib/sira-data";
 
@@ -84,10 +84,21 @@ export default function SiraMap({ origin, destination, journeys, selectedJourney
         node.className = "user-marker";
         markersRef.current.push(new maplibregl.Marker({ element: node }).setLngLat(userLocation).addTo(map));
       }
+
+      const selectedJourney = journeys.find((journey) => journey.id === selectedJourneyId);
+      selectedJourney?.legs
+        .filter((leg) => !["walk", "wait", "transfer"].includes(leg.mode) && leg.geometry.length)
+        .forEach((leg, index) => {
+          const node = document.createElement("div");
+          node.className = "leg-marker";
+          node.textContent = String(index + 1);
+          node.title = leg.label;
+          markersRef.current.push(new maplibregl.Marker({ element: node }).setLngLat(leg.geometry[0]).addTo(map));
+        });
     });
 
     return () => { active = false; };
-  }, [origin, destination, userLocation, mapStatus]);
+  }, [origin, destination, journeys, selectedJourneyId, userLocation, mapStatus]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -96,33 +107,44 @@ export default function SiraMap({ origin, destination, journeys, selectedJourney
     const drawRoutes = () => {
       journeys.forEach((journey) => {
         const sourceId = `journey-${journey.id}`;
-        const layerId = `journey-line-${journey.id}`;
-        const data: GeoJSON.Feature<GeoJSON.LineString> = {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: journey.geometry },
+        const data: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+          type: "FeatureCollection",
+          features: journey.legs.filter((leg) => leg.geometry.length >= 2).map((leg) => ({
+            type: "Feature",
+            properties: { mode: leg.mode, color: journey.color },
+            geometry: { type: "LineString", coordinates: leg.geometry },
+          })),
         };
-        const source = map.getSource(sourceId) as { setData: (value: GeoJSON.Feature<GeoJSON.LineString>) => void } | undefined;
+        const source = map.getSource(sourceId) as { setData: (value: GeoJSON.FeatureCollection<GeoJSON.LineString>) => void } | undefined;
         if (source) source.setData(data);
-        else {
-          map.addSource(sourceId, { type: "geojson", data });
-          map.addLayer({
-            id: layerId,
-            type: "line",
-            source: sourceId,
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: {
-              "line-color": journey.color,
-              "line-width": journey.id === selectedJourneyId ? 7 : 4,
-              "line-opacity": journey.id === selectedJourneyId ? 0.95 : 0.32,
-            },
-          });
-        }
-        if (map.getLayer(layerId)) {
-          map.setPaintProperty(layerId, "line-width", journey.id === selectedJourneyId ? 7 : 4);
-          map.setPaintProperty(layerId, "line-opacity", journey.id === selectedJourneyId ? 0.95 : 0.3);
-          if (journey.id === selectedJourneyId) map.moveLayer(layerId);
-        }
+        else map.addSource(sourceId, { type: "geojson", data });
+
+        const selected = journey.id === selectedJourneyId;
+        const layers: Array<{ suffix: string; filter: FilterSpecification; paint: NonNullable<LineLayerSpecification["paint"]> }> = [
+          {
+            suffix: "transit",
+            filter: ["!in", ["get", "mode"], ["literal", ["walk", "transfer"]]],
+            paint: { "line-color": journey.color, "line-width": selected ? 7 : 4, "line-opacity": selected ? 0.95 : 0.25 },
+          },
+          {
+            suffix: "walk",
+            filter: ["==", ["get", "mode"], "walk"],
+            paint: { "line-color": "#263238", "line-width": selected ? 5 : 3, "line-opacity": selected ? 0.85 : 0.18, "line-dasharray": [1, 1.4] },
+          },
+          {
+            suffix: "transfer",
+            filter: ["==", ["get", "mode"], "transfer"],
+            paint: { "line-color": "#7b61ff", "line-width": selected ? 5 : 3, "line-opacity": selected ? 0.85 : 0.18, "line-dasharray": [2, 1.4] },
+          },
+        ];
+
+        layers.forEach(({ suffix, filter, paint }) => {
+          const layerId = `journey-line-${suffix}-${journey.id}`;
+          if (!map.getLayer(layerId)) map.addLayer({ id: layerId, type: "line", source: sourceId, filter, layout: { "line-cap": "round", "line-join": "round" }, paint });
+          map.setPaintProperty(layerId, "line-width", paint["line-width"]);
+          map.setPaintProperty(layerId, "line-opacity", paint["line-opacity"]);
+          if (selected) map.moveLayer(layerId);
+        });
       });
 
       const coordinates = journeys.flatMap((journey) => journey.geometry);
@@ -152,8 +174,9 @@ export default function SiraMap({ origin, destination, journeys, selectedJourney
         </div>
       )}
       <div className="map-key" aria-label="Légende de la carte">
-        <span><i className="key-dot key-dot--route" />Itinéraire choisi</span>
-        <span><i className="key-dot key-dot--alert" />Signalement</span>
+        <span><i className="key-line key-line--transit" />Transport</span>
+        <span><i className="key-line key-line--walk" />Marche</span>
+        <span><i className="key-dot key-dot--alert" />Alerte</span>
       </div>
     </div>
   );

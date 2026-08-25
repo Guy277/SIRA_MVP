@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  ArrowLeft, ArrowRight, Bell, Bot, BriefcaseBusiness, BusFront, Camera,
+  ArrowLeft, ArrowRight, Bell, Bot, BusFront, Camera,
   Check, ChevronDown, CircleEllipsis, Clock3, CloudRain, Construction,
   Crosshair, Footprints, Heart, Home, LocateFixed, MapPin, Mic, Navigation,
   Route, Send, Sparkles, Star, TrafficCone, TriangleAlert, UserRound, Users,
   WalletCards, Waves, X,
 } from "lucide-react";
 import {
-  buildJourneys, PLACES, type Coordinates, type Journey, type Place,
+  buildJourneys, PILOT_CORRIDORS, PLACES, type Coordinates, type Journey, type Place,
   type TravelStep,
 } from "@/lib/sira-data";
 
@@ -19,10 +19,15 @@ const SiraMap = dynamic(() => import("@/components/SiraMap"), { ssr: false });
 type Screen = "home" | "results" | "detail" | "active" | "report";
 type Preference = "balanced" | "fast" | "cheap" | "comfort";
 type ApiJourney = Partial<Pick<Journey, "id" | "duration" | "price" | "comfort" | "reliability">> & {
-  id: string;
+  id: Journey["id"];
+  label?: string;
+  description?: string;
   walking_minutes?: number;
   shape?: string | null;
   geometry?: Coordinates[] | null;
+  legs?: TravelStep[];
+  reasons?: string[];
+  data_notice?: string;
 };
 
 const modeMeta: Record<TravelStep["mode"], { icon: typeof Footprints; label: string }> = {
@@ -31,17 +36,17 @@ const modeMeta: Record<TravelStep["mode"], { icon: typeof Footprints; label: str
   sotra: { icon: BusFront, label: "Bus" },
   taxi: { icon: Navigation, label: "Taxi" },
   boat: { icon: Waves, label: "Bateau-bus" },
+  wait: { icon: Clock3, label: "Attente" },
+  transfer: { icon: Route, label: "Correspondance" },
+  woro: { icon: Navigation, label: "Wôrô-wôrô" },
 };
 
-const originDefault = PLACES.find((place) => place.id === "plateau") ?? PLACES[0];
-const destinationDefault = PLACES.find((place) => place.id === "riviera-2") ?? PLACES[1];
+const placeById = (id: string) => PLACES.find((place) => place.id === id) ?? PLACES[0];
+const originDefault = placeById("yopougon");
+const destinationDefault = placeById("plateau-admin");
 
 function demoJourneys(): Journey[] {
-  return buildJourneys(originDefault, destinationDefault, 1000).map((journey) => {
-    if (journey.id === "recommended") return { ...journey, duration: 44, price: 900, walking: 11, badge: "Recommandée" };
-    if (journey.id === "fast") return { ...journey, duration: 38, price: 1500, walking: 4 };
-    return { ...journey, duration: 55, price: 600, walking: 13 };
-  });
+  return buildJourneys(originDefault, destinationDefault, 1000);
 }
 
 function decodeValhallaShape(encoded: string): Coordinates[] {
@@ -100,7 +105,6 @@ function PlaceField({ value, placeholder, origin, onSelect, onLocate }: {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => setQuery(value.name), [value]);
   useEffect(() => {
     const timer = window.setTimeout(async () => {
       if (!open || query === value.name || query.trim().length < 2) return;
@@ -160,41 +164,40 @@ function Splash() {
   return <section className="splash-screen" aria-label="Chargement de SIRA"><div className="splash-brand"><strong>SIRA</strong><span>On trace sans stress</span></div><div className="city-line" aria-hidden="true"><span /><span /><span /><span /><span /></div><div className="splash-loader"><span className="splash-bus"><BusFront size={27} /></span><p>Chargement de votre trajet…</p><i><b /></i></div></section>;
 }
 
-function HomeScreen({ origin, destination, onOrigin, onDestination, onLocate, onSearch, calculating, onAssistant }: {
-  origin: Place; destination: Place; onOrigin: (place: Place) => void; onDestination: (place: Place) => void; onLocate: () => void; onSearch: () => void; calculating: boolean; onAssistant: () => void;
+function HomeScreen({ origin, destination, onOrigin, onDestination, onLocate, onSearch, onCorridor, calculating, onAssistant }: {
+  origin: Place; destination: Place; onOrigin: (place: Place) => void; onDestination: (place: Place) => void; onLocate: () => void; onSearch: () => void; onCorridor: (from: string, to: string) => void; calculating: boolean; onAssistant: () => void;
 }) {
-  return <section className="app-screen home-screen"><header className="home-brand"><strong>SIRA</strong><span>On trace sans stress</span></header><div className="home-card"><h1>Où voulez-vous aller&nbsp;?</h1><div className="route-fields"><PlaceField value={origin} placeholder="Ma position" origin onSelect={onOrigin} onLocate={onLocate} /><PlaceField value={destination} placeholder="Destination" onSelect={onDestination} /></div><div className="quick-places"><button type="button"><Home size={18} />Maison</button><button type="button"><BriefcaseBusiness size={18} />Travail</button><button type="button"><Star size={18} />Favoris</button><button type="button"><Clock3 size={18} />Récents</button></div></div><div className="home-map"><SiraMap origin={origin} destination={destination} journeys={[]} selectedJourneyId="" /><div className="map-place-label">Abidjan</div><button type="button" className="assistant-map-button" onClick={onAssistant} aria-label="Ouvrir l'assistant SIRA"><Bot size={20} /></button></div><div className="home-action-wrap"><button className="primary-button" type="button" onClick={onSearch} disabled={calculating}>{calculating ? "Recherche en cours…" : "Rechercher un trajet"}<ArrowRight size={22} /></button></div></section>;
+  return <section className="app-screen home-screen"><header className="home-brand"><strong>SIRA</strong><span>On trace sans stress</span></header><div className="home-card"><h1>Où voulez-vous aller&nbsp;?</h1><div className="route-fields"><PlaceField key={origin.id} value={origin} placeholder="Ma position" origin onSelect={onOrigin} onLocate={onLocate} /><PlaceField key={destination.id} value={destination} placeholder="Destination" onSelect={onDestination} /></div><div className="pilot-corridors"><small>5 corridors pilotes</small>{PILOT_CORRIDORS.map((corridor, index) => <button type="button" key={corridor.id} onClick={() => onCorridor(corridor.from, corridor.to)}><b>{index + 1}</b><span>{corridor.name}</span></button>)}</div></div><div className="home-map"><SiraMap origin={origin} destination={destination} journeys={[]} selectedJourneyId="" /><div className="map-place-label">Abidjan</div><button type="button" className="assistant-map-button" onClick={onAssistant} aria-label="Ouvrir l'assistant SIRA"><Bot size={20} /></button></div><div className="home-action-wrap"><button className="primary-button" type="button" onClick={onSearch} disabled={calculating}>{calculating ? "Recherche en cours…" : "Rechercher un trajet"}<ArrowRight size={22} /></button></div></section>;
 }
 
 function ResultCard({ journey, selected, budget, onSelect }: { journey: Journey; selected: boolean; budget: number; onSelect: () => void }) {
-  const modes = journey.steps.filter((step, index, all) => all.findIndex((item) => item.mode === step.mode) === index).slice(0, 3);
-  return <article className={`result-card ${selected ? "recommended" : ""}`}><div className="result-icon">{journey.id === "fast" ? <Clock3 /> : journey.id === "cheap" ? <WalletCards /> : <Star />}</div><div className="result-copy"><span className="result-label">{journey.id === "fast" ? "Plus rapide" : journey.id === "cheap" ? "Moins chère" : "Recommandée"}</span><div className="result-numbers"><strong>{journey.duration} <small>min</small></strong><strong>{journey.price.toLocaleString("fr-FR")} <small>FCFA</small></strong></div>{journey.price > budget && <em>Dépasse votre budget</em>}{selected && <><div className="mode-strip">{modes.map((step, index) => <span key={`${step.mode}-${index}`}><ModeIcon mode={step.mode} /><small>{modeMeta[step.mode].label}<b>{step.duration} min</b></small>{index < modes.length - 1 && <ArrowRight size={14} />}</span>)}</div><button type="button" className="inline-primary" onClick={onSelect}>Voir le trajet<ArrowRight size={20} /></button></>}</div>{!selected && <button className="card-hit" aria-label={`Choisir ${journey.label}`} type="button" onClick={onSelect} />}</article>;
+  const modes = journey.steps.filter((step, index, all) => all.findIndex((item) => item.mode === step.mode) === index).slice(0, 4);
+  return <article className={`result-card ${selected ? "recommended" : ""}`}><div className="result-icon">{journey.id === "fast" ? <Clock3 /> : journey.id === "cheap" ? <WalletCards /> : <Star />}</div><div className="result-copy"><span className="result-label">{journey.label}</span><small className="result-description">{journey.description}</small><div className="result-numbers"><strong>{journey.duration} <small>min</small></strong><strong>{journey.price.toLocaleString("fr-FR")} <small>FCFA</small></strong></div>{journey.price > budget && <em>Dépasse votre budget</em>}{selected && <><div className="mode-strip">{modes.map((step, index) => <span key={`${step.mode}-${index}`}><ModeIcon mode={step.mode} /><small>{modeMeta[step.mode].label}<b>{step.duration} min</b></small>{index < modes.length - 1 && <ArrowRight size={14} />}</span>)}</div><div className="recommendation-reasons">{journey.reasons.map((reason) => <span key={reason}><Check size={12} />{reason}</span>)}</div><button type="button" className="inline-primary" onClick={onSelect}>Voir le trajet<ArrowRight size={20} /></button></>}</div>{!selected && <button className="card-hit" aria-label={`Choisir ${journey.label}`} type="button" onClick={onSelect} />}</article>;
 }
 
 function ResultsScreen({ origin, destination, budget, preference, journeys, selectedId, onSelect, onBack }: {
   origin: Place; destination: Place; budget: number; preference: Preference; journeys: Journey[]; selectedId: string; onSelect: (journey: Journey) => void; onBack: () => void;
 }) {
   const ordered = [...journeys].sort((a, b) => a.id === "recommended" ? 1 : b.id === "recommended" ? -1 : a.duration - b.duration);
-  return <section className="app-screen content-screen"><ScreenHeader title="Trajets proposés" onBack={onBack} /><div className="route-summary"><span><Crosshair /><b>Départ</b><em>{origin.name}</em></span><span><MapPin /><b>Destination</b><em>{destination.name}</em></span><span><WalletCards /><b>Budget max</b><em>{budget.toLocaleString("fr-FR")} FCFA</em></span><span><Star /><b>Préférence</b><em>{preference === "fast" ? "Le plus rapide" : preference === "cheap" ? "Le moins cher" : preference === "comfort" ? "Confort" : "Meilleur compromis"}</em></span></div><div className="results-map"><SiraMap origin={origin} destination={destination} journeys={journeys} selectedJourneyId={selectedId} /></div><div className="results-list">{ordered.map((journey) => <ResultCard key={journey.id} journey={journey} selected={journey.id === "recommended"} budget={budget} onSelect={() => onSelect(journey)} />)}</div></section>;
+  return <section className="app-screen content-screen"><ScreenHeader title="Trajets proposés" onBack={onBack} /><div className="route-summary"><span><Crosshair /><b>Départ</b><em>{origin.name}</em></span><span><MapPin /><b>Destination</b><em>{destination.name}</em></span><span><WalletCards /><b>Budget max</b><em>{budget.toLocaleString("fr-FR")} FCFA</em></span><span><Star /><b>Préférence</b><em>{preference === "fast" ? "Le plus rapide" : preference === "cheap" ? "Le moins cher" : preference === "comfort" ? "Confort" : "Meilleur compromis"}</em></span></div><div className="results-map"><SiraMap origin={origin} destination={destination} journeys={journeys} selectedJourneyId={selectedId} /></div><p className="data-banner"><Route size={15} />Tracés historiques data.gouv.ci · temps, attente et prix estimés pour le MVP</p><div className="results-list">{ordered.map((journey) => <ResultCard key={journey.id} journey={journey} selected={journey.id === selectedId} budget={budget} onSelect={() => onSelect(journey)} />)}</div></section>;
 }
 
 function DetailScreen({ journey, destination, onBack, onStart }: { journey: Journey; destination: Place; onBack: () => void; onStart: () => void }) {
-  const times = ["09:10", "09:14", "09:32", "09:34", "09:36", "09:53", "09:55", "10:00"];
-  const detailSteps = [
-    { mode: "walk" as const, title: "Marche 4 min (300 m)", sub: "jusqu’au point d’embarquement · Plateau", active: false },
-    { mode: "sotra" as const, title: "Bus 81 direction Cathédrale", sub: "18 min · Coût : 200 FCFA", active: true },
-    { mode: "walk" as const, title: "Descendre à Cathédrale", sub: "", active: false },
-    { mode: "walk" as const, title: "Marche 2 min (150 m)", sub: "", active: false },
-    { mode: "gbaka" as const, title: "Gbaka A7 vers Riviera 3", sub: "17 min · Coût : 500 FCFA", active: true },
-    { mode: "walk" as const, title: "Descendre à Riviera 3", sub: "", active: false },
-    { mode: "walk" as const, title: "Marche 5 min (350 m)", sub: "jusqu’à la destination", active: false },
-    { mode: "walk" as const, title: "Arrivée à destination", sub: destination.name, active: true, finish: true },
-  ];
-  return <section className="app-screen content-screen detail-screen"><ScreenHeader title="Détail du trajet" onBack={onBack} /><div className="detail-summary"><p><Star size={16} fill="currentColor" /> Option recommandée</p><div><span><strong>{journey.duration}</strong> min<small>Durée totale</small></span><i /><span><strong>{journey.price.toLocaleString("fr-FR")}</strong> FCFA<small>Coût total</small></span></div></div><div className="timeline">{detailSteps.map((step, index) => <div className="timeline-row" key={`${step.title}-${index}`}><time>{times[index]}</time><span className={`timeline-icon ${step.active ? "active" : ""}`}>{step.finish ? <Navigation size={19} fill="currentColor" /> : <ModeIcon mode={step.mode} size={19} />}</span><span className="timeline-copy"><strong>{step.title}</strong>{step.sub && <small>{step.sub}</small>}</span></div>)}</div><div className="sticky-action"><button type="button" className="primary-button" onClick={onStart}>Démarrer le trajet<ArrowRight size={22} /></button></div></section>;
+  const departure = new Date();
+  departure.setSeconds(0, 0);
+  const times = journey.legs.map((_, index) => {
+    const elapsed = journey.legs.slice(0, index).reduce((sum, leg) => sum + leg.duration, 0);
+    const time = new Date(departure.getTime() + elapsed * 60_000);
+    return time.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  });
+  const arrival = new Date(departure.getTime() + journey.duration * 60_000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return <section className="app-screen content-screen detail-screen"><ScreenHeader title="Détail du trajet" onBack={onBack} /><div className="detail-summary"><p><Star size={16} fill="currentColor" /> {journey.label} · {journey.corridorName}</p><div><span><strong>{journey.duration}</strong> min<small>Durée totale estimée</small></span><i /><span><strong>{journey.price.toLocaleString("fr-FR")}</strong> FCFA<small>Coût total estimé</small></span></div></div><div className="timeline">{journey.legs.map((step, index) => <div className="timeline-row" key={step.id}><time>{times[index]}</time><span className={`timeline-icon ${!["walk", "wait", "transfer"].includes(step.mode) ? "active" : ""}`}><ModeIcon mode={step.mode} size={19} /></span><span className="timeline-copy"><strong>{step.label}</strong><small>{step.detail}</small><em className={`source-tag source-tag--${step.dataStatus}`}>{step.dataStatus === "historical_open_data" ? "Tracé open data 2021" : "Estimation MVP"}</em></span></div>)}<div className="timeline-row"><time>{arrival}</time><span className="timeline-icon active"><Navigation size={19} fill="currentColor" /></span><span className="timeline-copy"><strong>Arrivée à destination</strong><small>{destination.name}</small></span></div></div><p className="method-note">{journey.dataNotice}</p><div className="sticky-action"><button type="button" className="primary-button" onClick={onStart}>Démarrer le trajet<ArrowRight size={22} /></button></div></section>;
 }
 
 function ActiveScreen({ origin, destination, journey, onBack, notify }: { origin: Place; destination: Place; journey: Journey; onBack: () => void; notify: (message: string) => void }) {
-  return <section className="app-screen active-screen"><ScreenHeader title="Trajet en cours" onBack={onBack} bell={() => notify("Aucune nouvelle alerte sur ce trajet.")} /><div className="active-map"><SiraMap origin={origin} destination={destination} journeys={[journey]} selectedJourneyId={journey.id} /></div><div className="active-sheet"><div className="next-step"><span><BusFront /></span><p><strong>Prochaine étape : Bus 81</strong><small>Descendre à <b>Cathédrale</b> dans 4 arrêts</small></p><button type="button" aria-label="Afficher les étapes"><ChevronDown /></button></div><div className="live-stats"><span><Clock3 /><small>Temps restant</small><strong>32 min</strong></span><span><WalletCards /><small>Budget estimé</small><strong>{journey.price} FCFA</strong></span><span><Route /><small>Correspondance</small><strong>1</strong></span></div><article className="incident-card"><span><TriangleAlert size={25} /></span><p><strong>Accident signalé au Pont De Gaulle</strong><small><Users size={14} /> Confirmé par 5 utilisateurs</small><b>Retard estimé : +17 min</b></p><ArrowRight /></article><article className="alternative-card"><span><Route /></span><div><h2>Alternative disponible</h2><div><p>Nouveau délai<strong>49 min</strong></p><p>Nouveau coût<strong>950 FCFA</strong></p><p>Budget respecté<strong><Check /></strong></p></div></div><footer><button type="button" onClick={() => notify("Nouvel itinéraire appliqué. Arrivée estimée dans 49 min.")}>Changer d’itinéraire</button><button type="button" onClick={() => notify("Trajet actuel conservé.")}>Garder mon trajet</button></footer></article></div></section>;
+  const nextLeg = journey.legs.find((leg) => !["walk", "wait", "transfer"].includes(leg.mode)) ?? journey.legs[0];
+  const transfers = journey.legs.filter((leg) => leg.mode === "transfer").length;
+  return <section className="app-screen active-screen"><ScreenHeader title="Trajet en cours" onBack={onBack} bell={() => notify("Aucune nouvelle alerte sur ce trajet.")} /><div className="active-map"><SiraMap origin={origin} destination={destination} journeys={[journey]} selectedJourneyId={journey.id} /></div><div className="active-sheet"><div className="next-step"><span><ModeIcon mode={nextLeg.mode} /></span><p><strong>Prochaine étape : {nextLeg.label}</strong><small>{nextLeg.detail}</small></p><button type="button" aria-label="Afficher les étapes"><ChevronDown /></button></div><div className="live-stats"><span><Clock3 /><small>Temps restant</small><strong>{journey.duration} min</strong></span><span><WalletCards /><small>Budget estimé</small><strong>{journey.price} FCFA</strong></span><span><Route /><small>Correspondance</small><strong>{transfers}</strong></span></div><article className="incident-card"><span><TriangleAlert size={25} /></span><p><strong>Les incidents temps réel ne sont pas encore connectés</strong><small><Users size={14} /> Module communautaire en préparation</small><b>Aucun retard réel injecté dans cette estimation</b></p><ArrowRight /></article></div></section>;
 }
 
 const incidentTypes = [
@@ -242,13 +245,64 @@ export default function SiraApp() {
   const calculate = async () => {
     setCalculating(true);
     let next = buildJourneys(origin, destination, budget);
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "/api/v1"}/mobility/journeys`, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(3500), body: JSON.stringify({ origin: { lat: origin.coordinates[1], lon: origin.coordinates[0], name: origin.name }, destination: { lat: destination.coordinates[1], lon: destination.coordinates[0], name: destination.name }, budget, preference }) });
-      if (!response.ok) throw new Error("backend unavailable");
-      const data = await response.json() as { journeys?: ApiJourney[] };
-      if (data.journeys?.length) next = data.journeys.map((apiJourney) => { const base = next.find((journey) => journey.id === apiJourney.id) ?? next[0]; return { ...base, duration: apiJourney.duration ?? base.duration, price: apiJourney.price ?? base.price, walking: apiJourney.walking_minutes ?? base.walking, comfort: apiJourney.comfort ?? base.comfort, reliability: apiJourney.reliability ?? base.reliability, geometry: apiJourney.geometry?.length ? apiJourney.geometry : apiJourney.shape ? decodeValhallaShape(apiJourney.shape) : base.geometry }; });
-    } catch { if (origin.id === originDefault.id && destination.id === destinationDefault.id) next = demoJourneys(); }
-    setJourneys(next); setSelectedJourneyId("recommended"); setCalculating(false); setScreen("results");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!next.length && !apiUrl) {
+      setCalculating(false);
+      notify("Le moteur Grand Abidjan nécessite l’API SIRA. En aperçu local, choisissez l’un des 5 corridors de référence.");
+      return;
+    }
+    let apiRecommendedId: Journey["id"] | undefined;
+    if (apiUrl) {
+      try {
+        const response = await fetch(`${apiUrl}/mobility/journeys`, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(8000), body: JSON.stringify({ origin: { lat: origin.coordinates[1], lon: origin.coordinates[0], name: origin.name }, destination: { lat: destination.coordinates[1], lon: destination.coordinates[0], name: destination.name }, budget, preference }) });
+        if (!response.ok) throw new Error("backend unavailable");
+        const data = await response.json() as { journeys?: ApiJourney[]; recommended_id?: Journey["id"] };
+        apiRecommendedId = data.recommended_id;
+        if (data.journeys?.length) next = data.journeys.flatMap((apiJourney) => {
+          const base = next.find((journey) => journey.id === apiJourney.id);
+          const geometry = apiJourney.geometry?.length ? apiJourney.geometry : apiJourney.shape ? decodeValhallaShape(apiJourney.shape) : base?.geometry ?? [];
+          const legs = apiJourney.legs?.length ? apiJourney.legs : base?.legs ?? [];
+          if (!base && (!geometry.length || !legs.length)) return [];
+          return [{
+            ...(base ?? {
+              id: apiJourney.id,
+              label: apiJourney.label ?? "Itinéraire SIRA",
+              description: apiJourney.description ?? "Calcul sur le réseau du Grand Abidjan",
+              walking: apiJourney.walking_minutes ?? 0,
+              color: apiJourney.id === "fast" ? "#2458d6" : apiJourney.id === "cheap" ? "#15966f" : "#f05a28",
+              badge: apiJourney.id === "recommended" ? "Choix SIRA" : undefined,
+              reasons: apiJourney.reasons ?? [],
+              corridorId: "grand-abidjan",
+              corridorName: "Réseau du Grand Abidjan",
+              steps: legs,
+              legs,
+              geometry,
+              dataNotice: apiJourney.data_notice ?? "Tracés historiques et estimations MVP.",
+              recommended: false,
+            }),
+            duration: apiJourney.duration ?? base?.duration ?? 0,
+            price: apiJourney.price ?? base?.price ?? 0,
+            walking: apiJourney.walking_minutes ?? base?.walking ?? 0,
+            comfort: apiJourney.comfort ?? base?.comfort ?? 3,
+            reliability: apiJourney.reliability ?? base?.reliability ?? 65,
+            description: apiJourney.description ?? base?.description ?? "Calcul sur le réseau du Grand Abidjan",
+            reasons: apiJourney.reasons ?? base?.reasons ?? [],
+            dataNotice: apiJourney.data_notice ?? base?.dataNotice ?? "Tracés historiques et estimations MVP.",
+            steps: legs,
+            legs,
+            geometry,
+            recommended: apiJourney.id === data.recommended_id,
+          }];
+        });
+      } catch { notify("Moteur temps réel indisponible : affichage du scénario pilote local."); }
+    }
+    if (!next.length) {
+      setCalculating(false);
+      notify("Aucun parcours exploitable n’a été trouvé sur le réseau disponible.");
+      return;
+    }
+    const recommendedId = apiRecommendedId ?? next.find((journey) => journey.recommended)?.id ?? next[0].id;
+    setJourneys(next); setSelectedJourneyId(recommendedId); setCalculating(false); setScreen("results");
   };
 
   const askAssistant = (preset?: string) => {
@@ -261,6 +315,11 @@ export default function SiraApp() {
   };
 
   const selectJourney = (journey: Journey) => { setSelectedJourneyId(journey.id); setScreen("detail"); };
+  const selectCorridor = (from: string, to: string) => {
+    setOrigin(placeById(from));
+    setDestination(placeById(to));
+    notify("Corridor pilote sélectionné.");
+  };
 
-  return <main className="sira-stage"><div className="phone-app">{showSplash ? <Splash /> : <>{screen === "home" && <HomeScreen origin={origin} destination={destination} onOrigin={setOrigin} onDestination={setDestination} onLocate={locateUser} onSearch={calculate} calculating={calculating} onAssistant={() => setAssistantOpen(true)} />}{screen === "results" && <ResultsScreen origin={origin} destination={destination} budget={budget} preference={preference} journeys={journeys} selectedId={selectedJourneyId} onSelect={selectJourney} onBack={() => setScreen("home")} />}{screen === "detail" && selectedJourney && <DetailScreen journey={selectedJourney} destination={destination} onBack={() => setScreen("results")} onStart={() => setScreen("active")} />}{screen === "active" && selectedJourney && <ActiveScreen origin={origin} destination={destination} journey={selectedJourney} onBack={() => setScreen("detail")} notify={notify} />}{screen === "report" && <ReportScreen onBack={() => setScreen("home")} onSubmit={(message) => { notify(message); setScreen("home"); }} />}<BottomNav screen={screen} onChange={setScreen} notify={notify} /></>}{assistantOpen && <AssistantSheet answer={assistantAnswer} value={assistantInput} onValue={setAssistantInput} onAsk={askAssistant} onClose={() => setAssistantOpen(false)} />}{toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}</div></main>;
+  return <main className="sira-stage"><div className="phone-app">{showSplash ? <Splash /> : <>{screen === "home" && <HomeScreen origin={origin} destination={destination} onOrigin={setOrigin} onDestination={setDestination} onLocate={locateUser} onSearch={calculate} onCorridor={selectCorridor} calculating={calculating} onAssistant={() => setAssistantOpen(true)} />}{screen === "results" && <ResultsScreen origin={origin} destination={destination} budget={budget} preference={preference} journeys={journeys} selectedId={selectedJourneyId} onSelect={selectJourney} onBack={() => setScreen("home")} />}{screen === "detail" && selectedJourney && <DetailScreen journey={selectedJourney} destination={destination} onBack={() => setScreen("results")} onStart={() => setScreen("active")} />}{screen === "active" && selectedJourney && <ActiveScreen origin={origin} destination={destination} journey={selectedJourney} onBack={() => setScreen("detail")} notify={notify} />}{screen === "report" && <ReportScreen onBack={() => setScreen("home")} onSubmit={(message) => { notify(message); setScreen("home"); }} />}<BottomNav screen={screen} onChange={setScreen} notify={notify} /></>}{assistantOpen && <AssistantSheet answer={assistantAnswer} value={assistantInput} onValue={setAssistantInput} onAsk={askAssistant} onClose={() => setAssistantOpen(false)} />}{toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}</div></main>;
 }

@@ -11,12 +11,13 @@
     "build": "node scripts/build-verified.mjs",
     "start": "vinext start",
     "build:local": "vite build",
-    "test": "node --test tests/rendered-html.test.mjs",
-    "test:integration": "node --test tests/rendered-html.test.mjs",
-    "lint": "npx eslint . --ignore-pattern dist --ignore-pattern .next",
+    "test": "node --test tests/*.test.mjs",
+    "test:integration": "node --test tests/*.test.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern services/**/dist",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
     "data:audit": "node scripts/audit-transport-data.mjs",
     "data:normalize": "node scripts/normalize-transport-data.mjs",
+    "data:pilot": "node scripts/generate-pilot-corridors.mjs",
     "data:import": "node scripts/import-transport-postgis.mjs"
   },
   "dependencies": {

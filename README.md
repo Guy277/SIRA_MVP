@@ -7,18 +7,20 @@ SIRA est un MVP de mobilité multimodale pour Abidjan. Il compare plusieurs mani
 - carte interactive MapLibre GL JS avec tuiles OpenFreeMap / OpenStreetMap ;
 - recherche de lieux via Photon, avec données locales de secours ;
 - géolocalisation via la Geolocation API du navigateur ;
-- comparaison de trois trajets : recommandé, rapide et économique ;
+- comparaison de trois trajets routés : recommandé, rapide et économique ;
 - réglage du budget et de la préférence utilisateur ;
 - détail étape par étape des modes et correspondances ;
 - signalements communautaires de démonstration ;
 - assistant mobilité texte avec réponses liées au trajet ;
 - interface responsive desktop/mobile ;
 - API NestJS, passerelle Socket.IO et moteur de ranking FastAPI ;
+- graphe transport Grand Abidjan construit sur 325 lignes historiques ;
+- cinq corridors de référence testables sans backend ;
 - schéma PostgreSQL/PostGIS et jeu GTFS pilote ;
 - orchestration Podman Compose, cache Valkey et proxy Nginx ;
 - Valhalla optionnel, avec calcul de secours lorsque le service n’est pas lancé.
 
-> Les lignes, horaires et tarifs du dossier `data/gtfs-demo` constituent un jeu pilote synthétique pour la démonstration. Ils ne doivent pas être présentés comme des données officielles SOTRA.
+> Les géométries de transport proviennent du jeu ouvert data.gouv.ci / DigitalTransport4Africa, mis à jour en octobre 2021. Les durées, attentes, arrêts d’accès et tarifs restent des estimations MVP à valider avec les opérateurs.
 
 ## Architecture
 
@@ -31,6 +33,7 @@ flowchart LR
   A --> P[(PostgreSQL + PostGIS)]
   A --> C[(Valkey)]
   A --> I[FastAPI SIRA]
+  A --> D[325 lignes data.gouv.ci]
   A <--> S[Socket.IO]
   W --> M[MapLibre + OpenFreeMap]
   A --> H[Photon]
@@ -63,7 +66,7 @@ npm install
 npm run dev
 ```
 
-Pour cette visualisation rapide, Podman, PostgreSQL, FastAPI et NestJS ne sont pas obligatoires : le frontend utilise les données de démonstration intégrées.
+Pour cette visualisation rapide, Podman, PostgreSQL, FastAPI et NestJS ne sont pas obligatoires : le frontend propose cinq corridors de référence intégrés. Le calcul libre sur le Grand Abidjan passe par l’API NestJS.
 
 ## Démarrage de toute la stack avec Podman
 
@@ -81,7 +84,24 @@ Pour ajouter Valhalla et construire les tuiles routables de Côte d’Ivoire :
 podman compose --profile routing up --build
 ```
 
-Le premier lancement de Valhalla télécharge le fichier OSM de Côte d’Ivoire et peut être long. Sans Valhalla, l’API reste utilisable grâce au calcul géodésique de secours ; la carte et le moteur SIRA continuent donc de fonctionner pour la démonstration.
+Le premier lancement de Valhalla télécharge le fichier OSM de Côte d’Ivoire et peut être long. Sans Valhalla, le graphe des 325 lignes reste utilisable pour les transports collectifs ; les raccordements routiers utilisent le secours OSRM puis, en dernier recours, une estimation géodésique.
+
+## Couverture et provenance des données
+
+- Source : `https://data.gouv.ci/datasets/abidjantransport-lignes` (licence ouverte).
+- Contenu : 325 lignes SOTRA, gbaka, wôrô-wôrô et bateaux-bus.
+- Graphe généré : environ 18 900 nœuds ; 96,9 % des nœuds appartiennent à la composante principale.
+- Couverture : réseau de transport du Grand Abidjan, et non toutes les rues piétonnes.
+- Complément routier : OpenStreetMap via Valhalla pour la marche, la route et les accès aux lignes.
+- Statut : géométries historiques ; horaires, attentes, durées et tarifs estimés en attendant les flux opérateurs.
+
+Les cinq corridors ci-dessous servent de tests de non-régression, pas de limite au moteur :
+
+1. Yopougon → Adjamé → Plateau ;
+2. Plateau → Adjamé → Cocody / Riviera ;
+3. Plateau → Adjamé → Cocody / Riviera → Bingerville ;
+4. Treichville → Adjamé → Plateau ;
+5. Abobo → Adjamé → Plateau.
 
 ## Services et ports
 
@@ -119,9 +139,9 @@ Exemple de calcul :
 
 ## Scénario de démonstration
 
-1. Ouvrir SIRA : le trajet Cocody Danga → Plateau Gare Sud est préchargé.
-2. Choisir un budget maximal de 1 500 FCFA et la préférence « Équilibré ».
-3. Cliquer sur « Trouver les meilleurs trajets ».
+1. Ouvrir SIRA : le trajet Yopougon → Adjamé → Plateau est préchargé.
+2. Choisir l’un des cinq corridors de référence ou saisir deux lieux avec l’API active.
+3. Cliquer sur « Rechercher un trajet ».
 4. Comparer l’option recommandée, l’option rapide et l’option économique.
 5. Sélectionner une option pour afficher son tracé et ses étapes.
 6. Ouvrir « Assistant SIRA » et demander : « Quel est le trajet le moins cher ? ».
@@ -138,16 +158,18 @@ services/api/           backend NestJS + Socket.IO
 services/ai/            moteur de recommandation FastAPI
 infra/database/init/    schéma et données PostGIS
 infra/nginx/            reverse proxy
+data/raw/               source ouverte des 325 lignes
+data/pilot/             segments de référence générés et traçables
 data/gtfs-demo/         feed GTFS pilote Abidjan
 compose.yaml             orchestration Podman
 ```
 
 ## Limites connues du MVP
 
-- le frontend public emploie un moteur déterministe de secours pour rester démontrable sans infrastructure privée ;
+- le frontend autonome limite son secours aux cinq corridors de référence ; l’API couvre le réseau disponible du Grand Abidjan ;
 - les signalements sont en mémoire dans NestJS : l’écriture PostGIS sera reliée dans l’itération suivante ;
 - l’authentification, la modération avancée et la navigation GPS virage par virage ne sont pas encore destinées à la production ;
-- le transport informel nécessite une collecte terrain et une validation communautaire avant diffusion réelle ;
+- les données ouvertes datent de 2021 : le transport informel nécessite une collecte terrain et une validation communautaire avant diffusion réelle ;
 - le service public OpenFreeMap ne fournit pas de SLA : prévoir un hébergement de tuiles pour la production.
 
 ## Attributions techniques
