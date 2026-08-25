@@ -1,0 +1,17 @@
+{
+  "name": "Lignes de transport à Abidjan",
+  "source_url": "https://data.gouv.ci/datasets/abidjantransport-lignes",
+  "api_url": "https://data.gouv.ci/data-fair/api/v1/datasets/abidjantransport-lignes",
+  "provider": "data.gouv.ci / DigitalTransport4Africa",
+  "license": "Licence Ouverte 2.0",
+  "data_date": "2021-10-12",
+  "downloaded_at": null,
+  "raw_filename": "abidjantransport_lignes.geojson",
+  "raw_path": "data/raw/abidjantransport_lignes.geojson",
+  "status": "historical-open-data",
+  "warning": "This dataset is historical (2021) and must not be presented as current official transport data.",
+  "checksum_sha256": null,
+  "dataset_kind": "official-open-data",
+  "geographic_context": "Abidjan, Côte d'Ivoire",
+  "notes": "The raw file is kept untouched. Processed, normalized, and validated views are generated from this source."
+}

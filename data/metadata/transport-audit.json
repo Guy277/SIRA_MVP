@@ -1,0 +1,48 @@
+{
+  "total_records": 325,
+  "valid_records": 325,
+  "invalid_geometries": 0,
+  "empty_lines": 0,
+  "missing_identifiers": 0,
+  "operators": {
+    "divers": 206,
+    "SOTRA": 115,
+    "STL": 2,
+    "Citrans": 2
+  },
+  "networks": {
+    "monbus": 73,
+    "Woro-woro de Yopougon": 46,
+    "Woro-woro de Cocody": 39,
+    "Gbaka d'Adjamé": 38,
+    "monbus / Navette": 22,
+    "Woro-woro d'Abobo": 21,
+    "Gbaka de Yopougon": 17,
+    "Gbaka d'Abobo": 11,
+    "Woro-woro de Koumassi": 11,
+    "Wibus": 9,
+    "Express": 8,
+    "Woro-woro de Port-Bouët": 7,
+    "Woro-woro de Marcory": 5,
+    "Gbaka de Port-Bouët": 5,
+    "monbato": 3,
+    "STL": 2,
+    "Woro-woro d'Adjamé": 2,
+    "Aqualines": 2,
+    "Gbaka de Treichville": 1,
+    "Woro-woro de Treichville": 1,
+    "Gbaka de Koumassi": 1,
+    "Woro-woro d'Attecoubé": 1
+  },
+  "modes": {
+    "bus": 318,
+    "ferry": 7
+  },
+  "processed_path": "C:\\Users\\user\\Desktop\\sira-mobility-mvp\\data\\processed\\transport-lines-normalized.geojson",
+  "raw_path": "C:\\Users\\user\\Desktop\\sira-mobility-mvp\\data\\raw\\abidjantransport_lignes.geojson",
+  "warnings": [
+    "Cette donnée est historique et date de 2021-10-12.",
+    "Elle ne doit pas être présentée comme une donnée officielle actuelle.",
+    "L’import PostGIS doit conserver la source originale non modifiée."
+  ]
+}

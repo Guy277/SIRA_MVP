@@ -8,12 +8,16 @@
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
     "dev": "vite",
-    "build": "bash scripts/build-verified.sh",
+    "build": "node scripts/build-verified.mjs",
     "start": "vinext start",
     "build:local": "vite build",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
+    "test": "node --test tests/rendered-html.test.mjs",
+    "test:integration": "node --test tests/rendered-html.test.mjs",
+    "lint": "npx eslint . --ignore-pattern dist --ignore-pattern .next",
+    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
+    "data:audit": "node scripts/audit-transport-data.mjs",
+    "data:normalize": "node scripts/normalize-transport-data.mjs",
+    "data:import": "node scripts/import-transport-postgis.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
