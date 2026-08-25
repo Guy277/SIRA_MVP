@@ -24,6 +24,9 @@ class Journey(BaseModel):
     distance_km: float | None = None
     shape: str | None = None
     geometry: list[tuple[float, float]] | None = None
+    description: str | None = None
+    legs: list[dict] = Field(default_factory=list)
+    data_notice: str | None = None
 
 
 class RankingRequest(BaseModel):

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { TransportGraph, type NetworkJourney, type TransportFeature } from "./transport-graph";
 
 type Point = { lat: number; lon: number; name?: string };
 export type JourneyRequest = {
@@ -40,8 +41,10 @@ type ValhallaTrip = {
 export class MobilityService {
   private readonly valhallaUrl = process.env.VALHALLA_URL ?? "http://valhalla:8002";
   private readonly photonUrl = process.env.PHOTON_URL ?? "https://photon.komoot.io";
+  private readonly osrmUrl = process.env.OSRM_URL ?? "https://router.project-osrm.org";
   private readonly aiUrl = process.env.AI_URL ?? "http://ai:8000";
-  private readonly dataRoot = join(process.cwd(), "data");
+  private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
+  private transportGraph?: TransportGraph;
 
   async searchPlaces(query: string) {
     if (!query || query.trim().length < 2) throw new BadRequestException("La recherche doit contenir au moins 2 caractères.");
@@ -127,12 +130,19 @@ export class MobilityService {
   async buildJourneys(request: JourneyRequest) {
     this.validatePoint(request.origin);
     this.validatePoint(request.destination);
-    const modes = ["multimodal", "auto", "auto"] as const;
-    const routed = await Promise.all(modes.map((mode) => this.route(request.origin, request.destination, mode)));
-    const candidates = [
-      this.toCandidate("recommended", "Recommandé", "multimodal", routed[0], 700, 4, ["walk", "sotra", "walk"], 1, 7),
-      this.toCandidate("fast", "Le plus rapide", "taxi", routed[1], 1700, 5, ["walk", "taxi"], 1, 2),
-      this.toCandidate("cheap", "Le moins cher", "gbaka", routed[2], 500, 2, ["walk", "gbaka", "walk"], 1.7, 12),
+    const graph = this.getTransportGraph();
+    const roadPromise = this.route(request.origin, request.destination, "auto");
+    const balancedNetwork = graph.route(request.origin, request.destination, "balanced");
+    const cheapNetwork = graph.route(request.origin, request.destination, "cheap");
+    const road = await roadPromise;
+    const candidates = balancedNetwork && cheapNetwork ? [
+      this.toNetworkCandidate("recommended", "Recommandé", balancedNetwork, 4, 78),
+      this.toRoadCandidate("fast", "Le plus rapide", road, 5, 82),
+      this.toNetworkCandidate("cheap", "Le moins cher", cheapNetwork, 2, 68),
+    ] : [
+      this.toRoadCandidate("recommended", "Recommandé", road, 4, 72, 1.15),
+      this.toRoadCandidate("fast", "Le plus rapide", road, 5, 80),
+      this.toRoadCandidate("cheap", "Le moins cher", road, 2, 62, 1.45),
     ];
     try {
       const ranked = await fetch(`${this.aiUrl}/v1/recommendations/rank`, {
@@ -141,15 +151,20 @@ export class MobilityService {
       });
       if (ranked.ok) return ranked.json();
     } catch { /* deterministic fallback below */ }
-    return { journeys: candidates, recommended_id: "recommended", source: "sira-fallback" };
+    return { journeys: candidates, recommended_id: "recommended", source: "sira-citywide-network", graph: graph.stats };
   }
 
-  private readTransportDataset() {
+  private readTransportDataset(): { type: "FeatureCollection"; features: TransportFeature[] } {
     const rawPath = join(this.dataRoot, "processed", "transport-lines-normalized.geojson");
     const fallbackPath = join(this.dataRoot, "LigneArete", "SIRA_Phase1_Dataset_Synthetique_Abidjan_v1.geojson");
     const chosenPath = existsSync(rawPath) ? rawPath : fallbackPath;
     const file = readFileSync(chosenPath, "utf8");
     return JSON.parse(file);
+  }
+
+  private getTransportGraph() {
+    if (!this.transportGraph) this.transportGraph = new TransportGraph(this.readTransportDataset().features);
+    return this.transportGraph;
   }
 
   private toTransportLineRecord(feature: TransportLineRecord) {
@@ -193,12 +208,12 @@ export class MobilityService {
   private async route(origin: Point, destination: Point, costing: string): Promise<ValhallaTrip> {
     const payload = { locations: [origin, destination], costing, units: "kilometers", language: "fr-FR", date_time: { type: 0 }, directions_options: { units: "kilometers" } };
     try {
-      const response = await fetch(`${this.valhallaUrl}/route`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(8000) });
+      const response = await fetch(`${this.valhallaUrl}/route`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(1500) });
       if (response.ok) return response.json() as Promise<ValhallaTrip>;
     } catch { /* use distance fallback */ }
     try {
       const coordinates = `${origin.lon},${origin.lat};${destination.lon},${destination.lat}`;
-      const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=false`, { signal: AbortSignal.timeout(8000) });
+      const response = await fetch(`${this.osrmUrl}/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=false`, { signal: AbortSignal.timeout(2500) });
       if (response.ok) {
         const data = await response.json() as { routes?: Array<{ distance?: number; duration?: number; geometry?: { coordinates?: Array<[number, number]> } }> };
         const route = data.routes?.[0];
@@ -211,9 +226,45 @@ export class MobilityService {
     return { trip: { summary: { length: km, time: km / (costing === "multimodal" ? 18 : 24) * 3600 }, legs: [] } };
   }
 
-  private toCandidate(id: string, label: string, profile: string, route: ValhallaTrip, price: number, comfort: number, modes: string[], durationScale = 1, transferMinutes = 0) {
+  private toNetworkCandidate(id: string, label: string, route: NetworkJourney, comfort: number, reliability: number) {
+    const legs: Array<Record<string, unknown>> = [
+      { id: `${id}-access`, mode: "walk", label: "Rejoindre le réseau de transport", detail: `${route.access.durationMinutes} min · ${(route.access.distanceKm * 1000).toFixed(0)} m`, duration: route.access.durationMinutes, price: 0, geometry: route.access.coordinates, dataStatus: "estimated_mvp" },
+    ];
+    route.legs.forEach((leg, index) => {
+      legs.push({ id: `${id}-wait-${index}`, mode: "wait", label: `Attente estimée — ${leg.mode}`, detail: `${leg.waitMinutes} min · donnée à valider`, duration: leg.waitMinutes, price: 0, geometry: [], dataStatus: "estimated_mvp" });
+      legs.push({ id: `${id}-ride-${index}`, mode: leg.mode, label: leg.name, detail: `${leg.durationMinutes} min · ${leg.price} FCFA estimés`, duration: leg.durationMinutes, price: leg.price, geometry: leg.coordinates, source: `${leg.operator} · ${leg.network} · ${leg.lineId}`, dataStatus: "historical_open_data" });
+      if (index < route.legs.length - 1) legs.push({ id: `${id}-transfer-${index}`, mode: "transfer", label: "Correspondance", detail: "4 min estimées", duration: 4, price: 0, geometry: [leg.coordinates[leg.coordinates.length - 1], route.legs[index + 1].coordinates[0]], dataStatus: "estimated_mvp" });
+    });
+    legs.push({ id: `${id}-egress`, mode: "walk", label: "Terminer à pied", detail: `${route.egress.durationMinutes} min · ${(route.egress.distanceKm * 1000).toFixed(0)} m`, duration: route.egress.durationMinutes, price: 0, geometry: route.egress.coordinates, dataStatus: "estimated_mvp" });
+    return {
+      id,
+      label,
+      profile: "citywide-transport-network",
+      description: id === "cheap" ? "Réseau collectif privilégiant les lignes les moins coûteuses" : "Marche, attente et lignes collectives disponibles",
+      duration: route.durationMinutes,
+      distance_km: route.distanceKm,
+      price: route.price,
+      walking_minutes: route.access.durationMinutes + route.egress.durationMinutes,
+      comfort,
+      reliability,
+      modes: [...new Set(["walk", ...route.legs.map((leg) => leg.mode), "walk"])],
+      geometry: route.geometry,
+      legs,
+      data_notice: "Géométries historiques data.gouv.ci (2021). Marche, attente, durée et tarif estimés pour le MVP.",
+    };
+  }
+
+  private toRoadCandidate(id: string, label: string, route: ValhallaTrip, comfort: number, reliability: number, durationScale = 1) {
     const seconds = route.trip?.summary?.time ?? 1800;
-    return { id, label, profile, duration: Math.max(8, Math.round(seconds / 60 * durationScale + transferMinutes)), distance_km: Number((route.trip?.summary?.length ?? 0).toFixed(1)), price, walking_minutes: id === "cheap" ? 13 : id === "fast" ? 3 : 7, comfort, reliability: id === "recommended" ? 91 : id === "fast" ? 84 : 77, modes, shape: route.trip?.legs?.[0]?.shape ?? null, geometry: route.geometry ?? null };
+    const distance = route.trip?.summary?.length ?? 0;
+    const duration = Math.max(8, Math.round(seconds / 60 * durationScale));
+    const price = Math.round(Math.max(900, distance * 230) / 100) * 100;
+    const geometry = route.geometry ?? [];
+    const legs = [
+      { id: `${id}-wait`, mode: "wait", label: "Attente estimée — taxi", detail: "3 min · donnée à valider", duration: 3, price: 0, geometry: [], dataStatus: "estimated_mvp" },
+      { id: `${id}-taxi`, mode: "taxi", label: "Taxi compteur / partagé", detail: `${duration} min · ${price} FCFA estimés`, duration, price, geometry, source: "OpenStreetMap · Valhalla/OSRM", dataStatus: "estimated_mvp" },
+    ];
+    return { id, label, profile: "road", description: "Trajet routier direct", duration: duration + 3, distance_km: Number(distance.toFixed(1)), price, walking_minutes: 0, comfort, reliability, modes: ["wait", "taxi"], shape: route.trip?.legs?.[0]?.shape ?? null, geometry, legs, data_notice: "Tracé routier OpenStreetMap. Durée et tarif estimés pour le MVP." };
   }
 
   private validatePoint(point: Point) {

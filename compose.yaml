@@ -30,7 +30,10 @@ services:
       VALHALLA_URL: http://valhalla:8002
       PHOTON_URL: https://photon.komoot.io
       AI_URL: http://ai:8000
+      SIRA_DATA_ROOT: /data
       CORS_ORIGIN: http://localhost:8080
+    volumes:
+      - ./data:/data:ro,Z
     expose: ["4000"]
     depends_on:
       postgres: { condition: service_healthy }
