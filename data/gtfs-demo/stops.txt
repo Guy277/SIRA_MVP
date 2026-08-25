@@ -1,0 +1,7 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type,wheelchair_boarding
+STOP-COCODY-DANGA,Cocody Danga,5.3467,-3.9951,0,1
+STOP-INDENIE,Carrefour Indénié,5.3460,-4.0110,0,0
+STOP-PLATEAU-NORD,Plateau Nord,5.3290,-4.0180,0,1
+STOP-GARE-SUD,Plateau Gare Sud,5.3196,-4.0201,0,1
+STOP-ADJAME,Gare d'Adjamé,5.3534,-4.0162,0,0
+STOP-RIVIERA2,Riviera 2,5.3597,-3.9617,0,0

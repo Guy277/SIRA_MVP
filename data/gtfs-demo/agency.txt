@@ -1,0 +1,3 @@
+agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone
+SOTRA,SOTRA (jeu pilote SIRA),https://www.sotra.ci,Africa/Abidjan,fr,+2252175757120
+SIRA-GBAKA,Collectif Gbaka pilote,https://example.invalid/sira,Africa/Abidjan,fr,

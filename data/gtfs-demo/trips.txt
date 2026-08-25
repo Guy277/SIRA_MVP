@@ -1,0 +1,3 @@
+route_id,service_id,trip_id,trip_headsign,direction_id,shape_id
+SIRA-81,DAILY,SIRA-81-MORNING,Plateau Gare Sud,0,SHAPE-81
+GBAKA-R2-ADJ,DAILY,GBAKA-R2-ADJ-MORNING,Gare d'Adjamé,0,SHAPE-GBAKA

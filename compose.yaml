@@ -1,0 +1,96 @@
+name: sira-mvp
+
+services:
+  nginx:
+    image: docker.io/library/nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+    depends_on: [web, api, ai]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Containerfile
+    environment:
+      NEXT_PUBLIC_API_URL: /api/v1
+    expose: ["3000"]
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Containerfile
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://sira:sira_dev_password@postgres:5432/sira
+      VALKEY_URL: redis://valkey:6379/0
+      VALHALLA_URL: http://valhalla:8002
+      PHOTON_URL: https://photon.komoot.io
+      AI_URL: http://ai:8000
+      CORS_ORIGIN: http://localhost:8080
+    expose: ["4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+    restart: unless-stopped
+
+  ai:
+    build:
+      context: ./services/ai
+      dockerfile: Containerfile
+    expose: ["8000"]
+    restart: unless-stopped
+
+  postgres:
+    image: docker.io/postgis/postgis:17-3.5-alpine
+    environment:
+      POSTGRES_DB: sira
+      POSTGRES_USER: sira
+      POSTGRES_PASSWORD: sira_dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:Z
+      - ./infra/database/init:/docker-entrypoint-initdb.d:ro,Z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sira -d sira"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  valkey:
+    image: docker.io/valkey/valkey:8-alpine
+    command: ["valkey-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - valkey_data:/data:Z
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  valhalla:
+    image: ghcr.io/valhalla/valhalla-scripted:latest
+    profiles: ["routing"]
+    environment:
+      tile_urls: https://download.geofabrik.de/africa/ivory-coast-latest.osm.pbf
+      serve_tiles: "True"
+      build_admins: "True"
+      build_time_zones: "True"
+      build_transit: "True"
+      use_tiles_ignore_pbf: "False"
+      force_rebuild: "False"
+    volumes:
+      - valhalla_data:/custom_files:Z
+      - ./data/gtfs-demo:/gtfs_feeds/abidjan:ro,Z
+    ports:
+      - "8002:8002"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  valkey_data:
+  valhalla_data:

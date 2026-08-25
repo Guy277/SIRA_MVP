@@ -1,0 +1,3 @@
+route_id,agency_id,route_short_name,route_long_name,route_type,route_color,route_text_color
+SIRA-81,SOTRA,81,Cocody Danga - Plateau Gare Sud,3,EC5B2A,FFFFFF
+GBAKA-R2-ADJ,SIRA-GBAKA,R2-ADJ,Riviera 2 - Adjamé,3,15966F,FFFFFF
