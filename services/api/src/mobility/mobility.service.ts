@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TransportGraph, type NetworkJourney, type TransportFeature } from "./transport-graph";
+import { combineConfidence } from "./estimators";
+import { routePedestrian, type PedestrianRoute } from "./pedestrian-router";
 
 type Point = { lat: number; lon: number; name?: string };
 export type JourneyRequest = {
@@ -9,6 +11,11 @@ export type JourneyRequest = {
   destination: Point;
   budget?: number;
   preference?: "balanced" | "fast" | "cheap" | "comfort";
+  constraints?: {
+    maxWalkingDistanceM?: number;
+    maxTransfers?: number;
+    excludedModes?: string[];
+  };
 };
 
 type TransportLineRecord = {
@@ -23,6 +30,9 @@ type TransportLineRecord = {
     raw_mode?: string;
     sira_mode?: string;
     colour?: string;
+    frequency?: string;
+    frequency_exceptions?: string;
+    opening_hours?: string;
     frequency_raw?: string;
     opening_hours_raw?: string;
     freshness_status?: string;
@@ -33,7 +43,7 @@ type TransportLineRecord = {
 };
 
 type ValhallaTrip = {
-  trip?: { summary?: { time?: number; length?: number }; legs?: Array<{ shape?: string; maneuvers?: unknown[] }> };
+  trip?: { summary?: { time?: number; length?: number }; legs?: Array<{ shape?: string | { coordinates?: Array<[number, number]> }; maneuvers?: unknown[] }> };
   geometry?: Array<[number, number]>;
 };
 
@@ -131,27 +141,47 @@ export class MobilityService {
     this.validatePoint(request.origin);
     this.validatePoint(request.destination);
     const graph = this.getTransportGraph();
+    const maxWalkingDistanceM = request.constraints?.maxWalkingDistanceM ?? 1500;
     const roadPromise = this.route(request.origin, request.destination, "auto");
-    const balancedNetwork = graph.route(request.origin, request.destination, "balanced");
-    const cheapNetwork = graph.route(request.origin, request.destination, "cheap");
-    const road = await roadPromise;
-    const candidates = balancedNetwork && cheapNetwork ? [
-      this.toNetworkCandidate("recommended", "Recommandé", balancedNetwork, 4, 78),
-      this.toRoadCandidate("fast", "Le plus rapide", road, 5, 82),
-      this.toNetworkCandidate("cheap", "Le moins cher", cheapNetwork, 2, 68),
-    ] : [
-      this.toRoadCandidate("recommended", "Recommandé", road, 4, 72, 1.15),
-      this.toRoadCandidate("fast", "Le plus rapide", road, 5, 80),
-      this.toRoadCandidate("cheap", "Le moins cher", road, 2, 62, 1.45),
-    ];
+    const graphOptions = { maxAccessDistanceM: maxWalkingDistanceM, maxTransferDistanceM: Math.min(800, maxWalkingDistanceM), maxTransfers: request.constraints?.maxTransfers ?? 3 };
+    const balancedNetwork = graph.route(request.origin, request.destination, "balanced", graphOptions);
+    const cheapNetwork = graph.route(request.origin, request.destination, "cheap", graphOptions);
+    const [road, balancedCandidate, cheapCandidate] = await Promise.all([
+      roadPromise,
+      balancedNetwork ? this.toNetworkCandidate("network-balanced", "Transport collectif", balancedNetwork, 4, 78, maxWalkingDistanceM) : null,
+      cheapNetwork ? this.toNetworkCandidate("network-cheap", "Option économique", cheapNetwork, 3, 72, maxWalkingDistanceM) : null,
+    ]);
+    const candidates: Array<Record<string, unknown>> = [];
+    if (balancedCandidate) candidates.push(balancedCandidate);
+    if (cheapCandidate) candidates.push(cheapCandidate);
+    if (road.geometry?.length || road.trip?.legs?.[0]?.shape) candidates.push(this.toRoadCandidate("road-fast", "Taxi / route directe", road, 5, 82));
+    if (!candidates.length) throw new BadRequestException("Aucun itinéraire suivant le réseau disponible n’a été trouvé.");
+    const constraints = {
+      max_budget_fcfa: request.budget ?? 1500,
+      max_walking_distance_m: maxWalkingDistanceM,
+      max_transfers: request.constraints?.maxTransfers ?? 3,
+      excluded_modes: request.constraints?.excludedModes ?? [],
+    };
     try {
       const ranked = await fetch(`${this.aiUrl}/v1/recommendations/rank`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ budget: request.budget ?? 1500, preference: request.preference ?? "balanced", journeys: candidates }),
+        body: JSON.stringify({ budget: request.budget ?? 1500, preference: request.preference ?? "balanced", constraints, journeys: candidates }),
       });
       if (ranked.ok) return ranked.json();
     } catch { /* deterministic fallback below */ }
-    return { journeys: candidates, recommended_id: "recommended", source: "sira-citywide-network", graph: graph.stats };
+    const feasible = candidates.filter((candidate) =>
+      Number(candidate.price) <= constraints.max_budget_fcfa
+      && Number(candidate.walking_distance_m) <= constraints.max_walking_distance_m
+      && Number(candidate.transfer_count) <= constraints.max_transfers
+      && !(candidate.modes as string[]).some((mode) => constraints.excluded_modes.includes(mode)),
+    ).sort((left, right) => Number(left.duration) + Number(left.price) / 50 - (Number(right.duration) + Number(right.price) / 50));
+    return {
+      journeys: feasible.map((candidate, index) => ({ ...candidate, recommended: index === 0, reasons: ["Respecte vos contraintes", "Classement de secours déterministe"] })),
+      recommended_id: feasible[0]?.id ?? null,
+      rejected_count: candidates.length - feasible.length,
+      source: "sira-more-fallback-constraints",
+      graph: graph.stats,
+    };
   }
 
   private readTransportDataset(): { type: "FeatureCollection"; features: TransportFeature[] } {
@@ -180,8 +210,9 @@ export class MobilityService {
       sira_mode: properties.sira_mode ?? "UNKNOWN",
       colour: properties.colour ?? "#7c7c7c",
       geometry: feature.geometry ?? null,
-      frequency_raw: properties.frequency_raw ?? null,
-      opening_hours_raw: properties.opening_hours_raw ?? null,
+      frequency_raw: properties.frequency ?? properties.frequency_raw ?? null,
+      frequency_exceptions: properties.frequency_exceptions ?? null,
+      opening_hours_raw: properties.opening_hours ?? properties.opening_hours_raw ?? null,
       freshness_status: properties.freshness_status ?? "historical_open_data",
       validation_status: properties.validation_status ?? "pending",
       confidence_score: properties.confidence_score ?? 0.5,
@@ -226,32 +257,90 @@ export class MobilityService {
     return { trip: { summary: { length: km, time: km / (costing === "multimodal" ? 18 : 24) * 3600 }, legs: [] } };
   }
 
-  private toNetworkCandidate(id: string, label: string, route: NetworkJourney, comfort: number, reliability: number) {
-    const legs: Array<Record<string, unknown>> = [
-      { id: `${id}-access`, mode: "walk", label: "Rejoindre le réseau de transport", detail: `${route.access.durationMinutes} min · ${(route.access.distanceKm * 1000).toFixed(0)} m`, duration: route.access.durationMinutes, price: 0, geometry: route.access.coordinates, dataStatus: "estimated_mvp" },
-    ];
+  private async toNetworkCandidate(id: string, label: string, route: NetworkJourney, comfort: number, reliabilityPrior: number, maxWalkingDistanceM: number) {
+    const allowEstimatedShortConnector = process.env.SIRA_ALLOW_ESTIMATED_WALK_CONNECTORS === "true";
+    const accessEndpoints = route.access.coordinates;
+    const egressEndpoints = route.egress.coordinates;
+    const access = await this.walkingRoute(accessEndpoints[0], accessEndpoints[accessEndpoints.length - 1], maxWalkingDistanceM, allowEstimatedShortConnector);
+    const egress = await this.walkingRoute(egressEndpoints[0], egressEndpoints[egressEndpoints.length - 1], maxWalkingDistanceM, allowEstimatedShortConnector);
+    if (!access || !egress) return null;
+
+    const routedTransfers: PedestrianRoute[] = [];
+    for (const transfer of route.transfers) {
+      const routed = await this.walkingRoute(transfer.from, transfer.to, Math.min(800, maxWalkingDistanceM), allowEstimatedShortConnector);
+      if (!routed) return null;
+      routedTransfers.push(routed);
+    }
+    const walkingDistanceM = Math.round((access.distanceKm + egress.distanceKm + routedTransfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)) * 1000);
+    if (walkingDistanceM > maxWalkingDistanceM) return null;
+
+    const legs: Array<Record<string, unknown>> = [this.walkingLeg(`${id}-access`, "Rejoindre le réseau de transport", access)];
     route.legs.forEach((leg, index) => {
-      legs.push({ id: `${id}-wait-${index}`, mode: "wait", label: `Attente estimée — ${leg.mode}`, detail: `${leg.waitMinutes} min · donnée à valider`, duration: leg.waitMinutes, price: 0, geometry: [], dataStatus: "estimated_mvp" });
-      legs.push({ id: `${id}-ride-${index}`, mode: leg.mode, label: leg.name, detail: `${leg.durationMinutes} min · ${leg.price} FCFA estimés`, duration: leg.durationMinutes, price: leg.price, geometry: leg.coordinates, source: `${leg.operator} · ${leg.network} · ${leg.lineId}`, dataStatus: "historical_open_data" });
-      if (index < route.legs.length - 1) legs.push({ id: `${id}-transfer-${index}`, mode: "transfer", label: "Correspondance", detail: "4 min estimées", duration: 4, price: 0, geometry: [leg.coordinates[leg.coordinates.length - 1], route.legs[index + 1].coordinates[0]], dataStatus: "estimated_mvp" });
+      legs.push({
+        id: `${id}-wait-${index}`, mode: "wait", label: `Attente estimée — ${leg.mode}`,
+        detail: `${leg.waitMinutes} min (P90 ${leg.waitP90} min) · ${leg.waitMethod.startsWith("historical_") ? "fréquence déclarée 2021" : "valeur-type à calibrer"}`,
+        duration: leg.waitMinutes, duration_p90: leg.waitP90, price: 0, geometry: [], dataStatus: "estimated_mvp",
+        estimate_method: leg.waitMethod, confidence: leg.waitConfidence,
+      });
+      legs.push({
+        id: `${id}-ride-${index}`, mode: leg.mode, label: leg.name,
+        detail: `${leg.durationMinutes} min (P90 ${leg.durationP90}) · ${leg.price}–${leg.priceP90} FCFA estimés`,
+        duration: leg.durationMinutes, duration_p90: leg.durationP90, price: leg.price, price_p90: leg.priceP90,
+        geometry: leg.coordinates, line_id: leg.lineId, source: `${leg.operator} · ${leg.network} · ${leg.lineId}`,
+        dataStatus: "historical_open_data", estimate_method: leg.durationMethod, confidence: leg.sourceConfidence,
+      });
+      const transfer = route.transfers.find((candidate) => candidate.afterLegIndex === index);
+      const routedTransfer = transfer ? routedTransfers[route.transfers.indexOf(transfer)] : null;
+      if (transfer && routedTransfer) {
+        const duration = routedTransfer.durationMinutes + transfer.interchangeBufferMinutes;
+        legs.push({
+          id: `${id}-transfer-${index}`, mode: "transfer", label: "Correspondance à pied",
+          detail: `${duration} min · ${Math.round(routedTransfer.distanceKm * 1000)} m${routedTransfer.guidanceAvailable ? " · chemin OSM" : " · sans guidage"}`,
+          duration, duration_p90: routedTransfer.durationP90 + transfer.interchangeBufferMinutes, price: 0,
+          geometry: routedTransfer.coordinates, dataStatus: routedTransfer.guidanceAvailable ? "routed_osm" : "estimated_mvp",
+          estimate_method: routedTransfer.method, confidence: routedTransfer.confidence, guidance_available: routedTransfer.guidanceAvailable,
+        });
+      }
     });
-    legs.push({ id: `${id}-egress`, mode: "walk", label: "Terminer à pied", detail: `${route.egress.durationMinutes} min · ${(route.egress.distanceKm * 1000).toFixed(0)} m`, duration: route.egress.durationMinutes, price: 0, geometry: route.egress.coordinates, dataStatus: "estimated_mvp" });
+    legs.push(this.walkingLeg(`${id}-egress`, "Terminer à pied", egress));
+
+    const walkingMinutes = access.durationMinutes + egress.durationMinutes + routedTransfers.reduce((sum, transfer) => sum + transfer.durationMinutes, 0);
+    const transferBufferMinutes = route.transfers.reduce((sum, transfer) => sum + transfer.interchangeBufferMinutes, 0);
+    const waitingMinutes = route.legs.reduce((sum, leg) => sum + leg.waitMinutes, 0);
+    const inVehicleMinutes = route.legs.reduce((sum, leg) => sum + leg.durationMinutes, 0);
+    const duration = walkingMinutes + transferBufferMinutes + waitingMinutes + inVehicleMinutes;
+    const durationP90 = access.durationP90 + egress.durationP90 + routedTransfers.reduce((sum, transfer) => sum + transfer.durationP90, 0) + transferBufferMinutes + route.legs.reduce((sum, leg) => sum + leg.waitP90 + leg.durationP90, 0);
+    const confidence = combineConfidence([
+      access.confidence, egress.confidence, ...routedTransfers.map((transfer) => transfer.confidence),
+      ...route.legs.flatMap((leg) => [leg.sourceConfidence, leg.waitConfidence, leg.priceConfidence]),
+    ]);
+    const reliability = Math.min(reliabilityPrior, Math.round(confidence * 100));
+    const geometry = legs.flatMap((leg) => (leg.geometry as Array<[number, number]> | undefined) ?? []);
     return {
-      id,
-      label,
-      profile: "citywide-transport-network",
-      description: id === "cheap" ? "Réseau collectif privilégiant les lignes les moins coûteuses" : "Marche, attente et lignes collectives disponibles",
-      duration: route.durationMinutes,
-      distance_km: route.distanceKm,
-      price: route.price,
-      walking_minutes: route.access.durationMinutes + route.egress.durationMinutes,
-      comfort,
-      reliability,
-      modes: [...new Set(["walk", ...route.legs.map((leg) => leg.mode), "walk"])],
-      geometry: route.geometry,
-      legs,
-      data_notice: "Géométries historiques data.gouv.ci (2021). Marche, attente, durée et tarif estimés pour le MVP.",
+      id, label, profile: "citywide-transport-network",
+      description: id === "network-cheap" ? "Réseau collectif privilégiant le coût et des correspondances piétonnes vérifiées" : "Marche routée, attente et lignes collectives du Grand Abidjan",
+      duration, duration_p90: durationP90, distance_km: Number((route.legs.reduce((sum, leg) => sum + leg.distanceKm, 0) + walkingDistanceM / 1000).toFixed(2)),
+      price: route.price, price_p90: route.priceP90, walking_minutes: walkingMinutes, walking_distance_m: walkingDistanceM,
+      waiting_minutes: waitingMinutes, in_vehicle_minutes: inVehicleMinutes, boarding_count: route.legs.length,
+      transfer_count: route.transfers.length, comfort, reliability, confidence, uncertainty: Number((1 - confidence).toFixed(2)),
+      incident_risk: Number(((100 - reliability) / 100).toFixed(2)), modes: [...new Set(["walk", ...route.legs.map((leg) => leg.mode), "walk"])],
+      line_ids: route.legs.map((leg) => leg.lineId), geometry, legs,
+      data_notice: "Tracés de transport historiques data.gouv.ci (2021). Accès, sorties et correspondances calculés sur le réseau piéton OpenStreetMap/Valhalla. Attentes, temps en véhicule et tarifs restent des estimations avec P90 et confiance.",
     };
+  }
+
+  private walkingLeg(id: string, label: string, route: PedestrianRoute) {
+    return {
+      id, mode: "walk", label,
+      detail: `${route.durationMinutes} min · ${Math.round(route.distanceKm * 1000)} m${route.guidanceAvailable ? " · chemin OSM" : " · estimation sans guidage"}`,
+      duration: route.durationMinutes, duration_p90: route.durationP90, price: 0, geometry: route.coordinates,
+      dataStatus: route.guidanceAvailable ? "routed_osm" : "estimated_mvp", estimate_method: route.method,
+      confidence: route.confidence, guidance_available: route.guidanceAvailable,
+    };
+  }
+
+  private walkingRoute(from: [number, number], to: [number, number], maxDistanceM: number, allowEstimatedShortConnector: boolean) {
+    return routePedestrian(this.valhallaUrl, { lon: from[0], lat: from[1] }, { lon: to[0], lat: to[1] }, { maxDistanceM, allowEstimatedShortConnector });
   }
 
   private toRoadCandidate(id: string, label: string, route: ValhallaTrip, comfort: number, reliability: number, durationScale = 1) {
@@ -264,7 +353,7 @@ export class MobilityService {
       { id: `${id}-wait`, mode: "wait", label: "Attente estimée — taxi", detail: "3 min · donnée à valider", duration: 3, price: 0, geometry: [], dataStatus: "estimated_mvp" },
       { id: `${id}-taxi`, mode: "taxi", label: "Taxi compteur / partagé", detail: `${duration} min · ${price} FCFA estimés`, duration, price, geometry, source: "OpenStreetMap · Valhalla/OSRM", dataStatus: "estimated_mvp" },
     ];
-    return { id, label, profile: "road", description: "Trajet routier direct", duration: duration + 3, distance_km: Number(distance.toFixed(1)), price, walking_minutes: 0, comfort, reliability, modes: ["wait", "taxi"], shape: route.trip?.legs?.[0]?.shape ?? null, geometry, legs, data_notice: "Tracé routier OpenStreetMap. Durée et tarif estimés pour le MVP." };
+    return { id, label, profile: "road", description: "Trajet routier calculé sur la voirie OpenStreetMap", duration: duration + 3, duration_p90: Math.round((duration + 3) * 1.18), distance_km: Number(distance.toFixed(1)), price, walking_minutes: 0, walking_distance_m: 0, waiting_minutes: 3, in_vehicle_minutes: duration, boarding_count: 1, transfer_count: 0, comfort, reliability, uncertainty: 0.28, incident_risk: Number(((100 - reliability) / 100).toFixed(2)), modes: ["wait", "taxi"], line_ids: ["road-osm"], shape: route.trip?.legs?.[0]?.shape ?? null, geometry, legs, data_notice: "Tracé routier OpenStreetMap. Durée et tarif estimés pour le MVP." };
   }
 
   private validatePoint(point: Point) {

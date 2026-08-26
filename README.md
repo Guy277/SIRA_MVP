@@ -7,18 +7,19 @@ SIRA est un MVP de mobilité multimodale pour Abidjan. Il compare plusieurs mani
 - carte interactive MapLibre GL JS avec tuiles OpenFreeMap / OpenStreetMap ;
 - recherche de lieux via Photon, avec données locales de secours ;
 - géolocalisation via la Geolocation API du navigateur ;
-- comparaison de trois trajets routés : recommandé, rapide et économique ;
+- recommandations Grand Abidjan calculées sur le réseau, sans zone prédéfinie ;
 - réglage du budget et de la préférence utilisateur ;
 - détail étape par étape des modes et correspondances ;
 - signalements communautaires de démonstration ;
 - assistant mobilité texte avec réponses liées au trajet ;
 - interface responsive desktop/mobile ;
-- API NestJS, passerelle Socket.IO et moteur de ranking FastAPI ;
+- API NestJS, passerelle Socket.IO et moteur SIRA-MORE FastAPI ;
 - graphe transport Grand Abidjan construit sur 325 lignes historiques ;
-- cinq corridors de référence testables sans backend ;
 - schéma PostgreSQL/PostGIS et jeu GTFS pilote ;
 - orchestration Podman Compose, cache Valkey et proxy Nginx ;
-- Valhalla optionnel, avec calcul de secours lorsque le service n’est pas lancé.
+- Valhalla obligatoire pour afficher les accès et correspondances piétonnes comme chemins praticables ;
+- attentes calculées à partir des fréquences/tranches horaires historiques lorsqu’elles existent, avec P50, P90 et confiance ;
+- tarifs et temps en véhicule présentés comme estimations, jamais comme données temps réel.
 
 > Les géométries de transport proviennent du jeu ouvert data.gouv.ci / DigitalTransport4Africa, mis à jour en octobre 2021. Les durées, attentes, arrêts d’accès et tarifs restent des estimations MVP à valider avec les opérateurs.
 
@@ -66,7 +67,7 @@ npm install
 npm run dev
 ```
 
-Pour cette visualisation rapide, Podman, PostgreSQL, FastAPI et NestJS ne sont pas obligatoires : le frontend propose cinq corridors de référence intégrés. Le calcul libre sur le Grand Abidjan passe par l’API NestJS.
+Le frontend n’utilise plus de trajets codés en dur. Pour obtenir une recommandation, lancez aussi l’API NestJS et le moteur FastAPI avec la stack ci-dessous.
 
 ## Démarrage de toute la stack avec Podman
 
@@ -76,7 +77,7 @@ Prérequis : Podman et `podman compose`.
 podman compose up --build
 ```
 
-Cette commande lance l’interface, NestJS, FastAPI, PostgreSQL/PostGIS, Valkey et Nginx. Accès principal : `http://localhost:8080`.
+Cette commande lance l’interface, NestJS, FastAPI, PostgreSQL/PostGIS, Valkey et Nginx. Accès principal : `http://localhost:8080`. Elle ne lance pas Valhalla, placé dans le profil `routing`.
 
 Pour ajouter Valhalla et construire les tuiles routables de Côte d’Ivoire :
 
@@ -84,7 +85,7 @@ Pour ajouter Valhalla et construire les tuiles routables de Côte d’Ivoire :
 podman compose --profile routing up --build
 ```
 
-Le premier lancement de Valhalla télécharge le fichier OSM de Côte d’Ivoire et peut être long. Sans Valhalla, le graphe des 325 lignes reste utilisable pour les transports collectifs ; les raccordements routiers utilisent le secours OSRM puis, en dernier recours, une estimation géodésique.
+Le premier lancement de Valhalla télécharge le fichier OSM de Côte d’Ivoire et peut être long. Sans Valhalla, SIRA peut analyser le graphe des 325 lignes, mais rejette les propositions dont l’accès, la sortie ou la correspondance piétonne ne peut pas être confirmée. Il ne dessine donc plus de ligne droite trompeuse. Pour des essais techniques seulement, `SIRA_ALLOW_ESTIMATED_WALK_CONNECTORS=true` autorise une liaison de 150 m maximum, sans géométrie et explicitement marquée « sans guidage ».
 
 ## Couverture et provenance des données
 
@@ -95,13 +96,16 @@ Le premier lancement de Valhalla télécharge le fichier OSM de Côte d’Ivoire
 - Complément routier : OpenStreetMap via Valhalla pour la marche, la route et les accès aux lignes.
 - Statut : géométries historiques ; horaires, attentes, durées et tarifs estimés en attendant les flux opérateurs.
 
-Les cinq corridors ci-dessous servent de tests de non-régression, pas de limite au moteur :
+### Logique de raccordement et d’estimation
 
-1. Yopougon → Adjamé → Plateau ;
-2. Plateau → Adjamé → Cocody / Riviera ;
-3. Plateau → Adjamé → Cocody / Riviera → Bingerville ;
-4. Treichville → Adjamé → Plateau ;
-5. Abobo → Adjamé → Plateau.
+1. Le moteur utilise la distance géodésique uniquement pour repérer les nœuds de transport proches.
+2. Une correspondance entre deux lignes distinctes est admise dans le graphe jusqu’à 350 m, puis doit être confirmée sur le réseau piéton OpenStreetMap par Valhalla.
+3. La marche d’accès, la marche de sortie et les correspondances sont additionnées et comparées à la contrainte utilisateur.
+4. Une ligne dont les horaires historiques indiquent qu’elle est fermée est exclue du calcul.
+5. L’attente médiane vaut la moitié de l’intervalle déclaré ; le P90 vaut 90 % de cet intervalle. Si la fréquence manque, un a priori par mode est utilisé avec une confiance plus faible.
+6. Les durées en véhicule utilisent une vitesse moyenne par mode et les tarifs utilisent des règles MVP. Chaque valeur conserve sa méthode, son P90 et son niveau de confiance afin d’être remplacée plus tard par GTFS, GPS opérateur ou observations terrain.
+
+La sélection d’itinéraire suit le pipeline SIRA-MORE Phase 1 : contraintes strictes (budget, marche, correspondances et modes), frontière de Pareto, contrôle de diversité, score selon la préférence, puis explications. Les anciens axes de démonstration restent uniquement des fixtures internes de non-régression et ne sont ni affichés ni utilisés comme limite géographique.
 
 ## Services et ports
 
@@ -133,16 +137,21 @@ Exemple de calcul :
   "origin": { "lat": 5.3467, "lon": -3.9951, "name": "Cocody Danga" },
   "destination": { "lat": 5.3196, "lon": -4.0201, "name": "Plateau Gare Sud" },
   "budget": 1500,
-  "preference": "balanced"
+  "preference": "balanced",
+  "constraints": {
+    "maxWalkingDistanceM": 1500,
+    "maxTransfers": 3,
+    "excludedModes": []
+  }
 }
 ```
 
 ## Scénario de démonstration
 
-1. Ouvrir SIRA : le trajet Yopougon → Adjamé → Plateau est préchargé.
-2. Choisir l’un des cinq corridors de référence ou saisir deux lieux avec l’API active.
+1. Ouvrir SIRA avec la stack active.
+2. Saisir librement deux lieux du Grand Abidjan.
 3. Cliquer sur « Rechercher un trajet ».
-4. Comparer l’option recommandée, l’option rapide et l’option économique.
+4. Comparer les alternatives conformes et non dominées proposées par SIRA-MORE.
 5. Sélectionner une option pour afficher son tracé et ses étapes.
 6. Ouvrir « Assistant SIRA » et demander : « Quel est le trajet le moins cher ? ».
 7. Consulter le trafic en direct et les signalements communautaires.
@@ -153,20 +162,21 @@ Exemple de calcul :
 ```text
 app/                    interface Next.js
 components/             composants fonctionnels SIRA
-lib/                    modèles et moteur de démonstration
+lib/                    modèles d’interface
 services/api/           backend NestJS + Socket.IO
 services/ai/            moteur de recommandation FastAPI
 infra/database/init/    schéma et données PostGIS
 infra/nginx/            reverse proxy
 data/raw/               source ouverte des 325 lignes
-data/pilot/             segments de référence générés et traçables
+data/pilot/             fixtures internes de non-régression
 data/gtfs-demo/         feed GTFS pilote Abidjan
 compose.yaml             orchestration Podman
 ```
 
 ## Limites connues du MVP
 
-- le frontend autonome limite son secours aux cinq corridors de référence ; l’API couvre le réseau disponible du Grand Abidjan ;
+- le calcul d’itinéraire exige les services API et IA ; aucun trajet statique n’est présenté en secours ;
+- la couverture correspond aux 325 lignes historiques disponibles et à leurs raccordements ; elle n’implique pas encore une couverture exhaustive de chaque rue piétonne ;
 - les signalements sont en mémoire dans NestJS : l’écriture PostGIS sera reliée dans l’itération suivante ;
 - l’authentification, la modération avancée et la navigation GPS virage par virage ne sont pas encore destinées à la production ;
 - les données ouvertes datent de 2021 : le transport informel nécessite une collecte terrain et une validation communautaire avant diffusion réelle ;

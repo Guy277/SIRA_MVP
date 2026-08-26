@@ -28,6 +28,7 @@ services:
       DATABASE_URL: postgresql://sira:sira_dev_password@postgres:5432/sira
       VALKEY_URL: redis://valkey:6379/0
       VALHALLA_URL: http://valhalla:8002
+      SIRA_ALLOW_ESTIMATED_WALK_CONNECTORS: "false"
       PHOTON_URL: https://photon.komoot.io
       AI_URL: http://ai:8000
       SIRA_DATA_ROOT: /data
