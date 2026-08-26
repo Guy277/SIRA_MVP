@@ -87,6 +87,14 @@ podman compose --profile routing up --build
 
 Le premier lancement de Valhalla télécharge le fichier OSM de Côte d’Ivoire et peut être long. Sans Valhalla, SIRA peut analyser le graphe des 325 lignes, mais rejette les propositions dont l’accès, la sortie ou la correspondance piétonne ne peut pas être confirmée. Il ne dessine donc plus de ligne droite trompeuse. Pour des essais techniques seulement, `SIRA_ALLOW_ESTIMATED_WALK_CONNECTORS=true` autorise une liaison de 150 m maximum, sans géométrie et explicitement marquée « sans guidage ».
 
+Après le démarrage de Valhalla, lancer le contrôle réel des accès piétons :
+
+```bash
+npm run test:routing:live
+```
+
+Pour un contrôle ponctuel avec le serveur public FOSSGIS — jamais comme dépendance de production — utiliser `VALHALLA_URL=https://valhalla1.openstreetmap.de npm run test:routing:live`. Le script respecte la cadence publique et vérifie notamment qu’un point proche à vol d’oiseau peut être rejeté lorsque le chemin praticable dépasse la limite SIRA.
+
 ## Couverture et provenance des données
 
 - Source : `https://data.gouv.ci/datasets/abidjantransport-lignes` (licence ouverte).
