@@ -167,10 +167,10 @@ function Splash() {
   return <section className="splash-screen" aria-label="Chargement de SIRA"><div className="splash-brand"><strong>SIRA</strong><span>On trace sans stress</span></div><div className="city-line" aria-hidden="true"><span /><span /><span /><span /><span /></div><div className="splash-loader"><span className="splash-bus"><BusFront size={27} /></span><p>Chargement de votre trajet…</p><i><b /></i></div></section>;
 }
 
-function HomeScreen({ origin, destination, budget, preference, maxWalking, onOrigin, onDestination, onBudget, onPreference, onMaxWalking, onLocate, onSearch, calculating, onAssistant }: {
-  origin: Place; destination: Place; budget: number; preference: Preference; maxWalking: number; onOrigin: (place: Place) => void; onDestination: (place: Place) => void; onBudget: (value: number) => void; onPreference: (value: Preference) => void; onMaxWalking: (value: number) => void; onLocate: () => void; onSearch: () => void; calculating: boolean; onAssistant: () => void;
+function HomeScreen({ origin, destination, budget, preference, maxWalking, onOrigin, onDestination, onBudget, onPreference, onMaxWalking, onLocate, onSearch, calculating, searchStatus, onAssistant }: {
+  origin: Place; destination: Place; budget: number; preference: Preference; maxWalking: number; onOrigin: (place: Place) => void; onDestination: (place: Place) => void; onBudget: (value: number) => void; onPreference: (value: Preference) => void; onMaxWalking: (value: number) => void; onLocate: () => void; onSearch: () => void; calculating: boolean; searchStatus: string | null; onAssistant: () => void;
 }) {
-  return <section className="app-screen home-screen"><header className="home-brand"><strong>SIRA</strong><span>On trace sans stress</span><em>Réseau Grand Abidjan</em></header><div className="home-card"><h1>Où voulez-vous aller&nbsp;?</h1><div className="route-fields"><PlaceField key={origin.id} value={origin} placeholder="Ma position" origin onSelect={onOrigin} onLocate={onLocate} /><PlaceField key={destination.id} value={destination} placeholder="Destination" onSelect={onDestination} /></div><div className="journey-preferences"><label>Budget max<input type="number" min="0" step="100" value={budget} onChange={(event) => onBudget(Math.max(0, Number(event.target.value)))} /><small>FCFA</small></label><label>Priorité<select value={preference} onChange={(event) => onPreference(event.target.value as Preference)}><option value="balanced">Compromis</option><option value="fast">Rapide</option><option value="cheap">Économique</option><option value="comfort">Confort</option></select></label><label>Marche max<select value={maxWalking} onChange={(event) => onMaxWalking(Number(event.target.value))}><option value={600}>600 m</option><option value={1000}>1 km</option><option value={1500}>1,5 km</option><option value={2500}>2,5 km</option></select></label></div></div><div className="home-map"><SiraMap origin={origin} destination={destination} journeys={[]} selectedJourneyId="" /><div className="map-place-label">Grand Abidjan</div><button type="button" className="assistant-map-button" onClick={onAssistant} aria-label="Ouvrir l'assistant SIRA"><Bot size={20} /></button></div><div className="home-action-wrap"><button className="primary-button" type="button" onClick={onSearch} disabled={calculating}>{calculating ? "Calcul SIRA-MORE…" : "Rechercher un trajet"}<ArrowRight size={22} /></button></div></section>;
+  return <section className="app-screen home-screen"><header className="home-brand"><strong>SIRA</strong><span>On trace sans stress</span><em>Réseau Grand Abidjan</em></header><div className="home-card"><h1>Où voulez-vous aller&nbsp;?</h1><div className="route-fields"><PlaceField key={origin.id} value={origin} placeholder="Ma position" origin onSelect={onOrigin} onLocate={onLocate} /><PlaceField key={destination.id} value={destination} placeholder="Destination" onSelect={onDestination} /></div><div className="journey-preferences"><label>Budget max<input type="number" min="0" step="100" value={budget} onChange={(event) => onBudget(Math.max(0, Number(event.target.value)))} /><small>FCFA</small></label><label>Priorité<select value={preference} onChange={(event) => onPreference(event.target.value as Preference)}><option value="balanced">Compromis</option><option value="fast">Rapide</option><option value="cheap">Économique</option><option value="comfort">Confort</option></select></label><label>Marche max<select value={maxWalking} onChange={(event) => onMaxWalking(Number(event.target.value))}><option value={600}>600 m</option><option value={1000}>1 km</option><option value={1500}>1,5 km</option><option value={2500}>2,5 km</option></select></label></div></div><div className="home-map"><SiraMap origin={origin} destination={destination} journeys={[]} selectedJourneyId="" /><div className="map-place-label">Grand Abidjan</div><button type="button" className="assistant-map-button" onClick={onAssistant} aria-label="Ouvrir l'assistant SIRA"><Bot size={20} /></button></div><div className="home-action-wrap">{searchStatus && <p className={`search-status ${calculating ? "loading" : "error"}`}>{searchStatus}</p>}<button className="primary-button" type="button" onClick={onSearch} disabled={calculating}>{calculating ? "Calcul SIRA-MORE…" : "Rechercher un trajet"}<ArrowRight size={22} /></button></div></section>;
 }
 
 function ResultCard({ journey, selected, onSelect }: { journey: Journey; selected: boolean; onSelect: () => void }) {
@@ -233,6 +233,7 @@ export default function SiraApp() {
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [selectedJourneyId, setSelectedJourneyId] = useState("");
   const [calculating, setCalculating] = useState(false);
+  const [searchStatus, setSearchStatus] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantInput, setAssistantInput] = useState("");
@@ -249,8 +250,9 @@ export default function SiraApp() {
 
   const calculate = async () => {
     setCalculating(true);
-    const localFrontend = ["3000", "5173"].includes(window.location.port);
-    const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? (localFrontend ? "http://localhost:4000/api/v1" : "/api/v1")).replace(/\/$/, "");
+    setSearchStatus("Connexion au moteur SIRA…");
+    const progressTimer = window.setTimeout(() => setSearchStatus("Recherche des lignes et raccordements piétons…"), 5000);
+    const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "/api/v1").replace(/\/$/, "");
     try {
       const response = await fetch(`${apiUrl}/mobility/journeys`, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(30_000), body: JSON.stringify({ origin: { lat: origin.coordinates[1], lon: origin.coordinates[0], name: origin.name }, destination: { lat: destination.coordinates[1], lon: destination.coordinates[0], name: destination.name }, budget, preference, constraints: { maxWalkingDistanceM: maxWalking, maxTransfers: 3, excludedModes: [] } }) });
       if (!response.ok) {
@@ -297,16 +299,21 @@ export default function SiraApp() {
         }];
       });
       if (!next.length) {
-        notify(data.rejected?.length ? "Aucun trajet ne respecte toutes vos contraintes. Augmentez le budget ou la marche maximale." : "Aucun parcours suivant le réseau n’a été trouvé entre ces deux points.");
+        const message = data.rejected?.length ? "Aucun trajet ne respecte toutes vos contraintes. Augmentez le budget ou la marche maximale." : "Aucun parcours suivant le réseau n’a été trouvé entre ces deux points.";
+        setSearchStatus(message);
+        notify(message);
         return;
       }
       const recommendedId = data.recommended_id ?? next[0].id;
-      setJourneys(next); setSelectedJourneyId(recommendedId); setScreen("results");
+      setJourneys(next); setSelectedJourneyId(recommendedId); setSearchStatus(null); setScreen("results");
     } catch (error) {
-      notify(error instanceof Error && error.message !== "Failed to fetch"
+      const message = error instanceof Error && error.message !== "Failed to fetch"
         ? error.message
-        : "API SIRA inaccessible. Lancez la stack complète avec npm run dev:stack.");
+        : "API SIRA inaccessible. Vérifiez que la stack complète est toujours ouverte sur le PC.";
+      setSearchStatus(message);
+      notify(message);
     } finally {
+      window.clearTimeout(progressTimer);
       setCalculating(false);
     }
   };
@@ -323,5 +330,5 @@ export default function SiraApp() {
   };
 
   const selectJourney = (journey: Journey) => { setSelectedJourneyId(journey.id); setScreen("detail"); };
-  return <main className="sira-stage"><div className="phone-app">{showSplash ? <Splash /> : <>{screen === "home" && <HomeScreen origin={origin} destination={destination} budget={budget} preference={preference} maxWalking={maxWalking} onOrigin={setOrigin} onDestination={setDestination} onBudget={setBudget} onPreference={setPreference} onMaxWalking={setMaxWalking} onLocate={locateUser} onSearch={calculate} calculating={calculating} onAssistant={() => setAssistantOpen(true)} />}{screen === "results" && <ResultsScreen origin={origin} destination={destination} budget={budget} preference={preference} journeys={journeys} selectedId={selectedJourneyId} onSelect={selectJourney} onBack={() => setScreen("home")} />}{screen === "detail" && selectedJourney && <DetailScreen journey={selectedJourney} destination={destination} onBack={() => setScreen("results")} onStart={() => setScreen("active")} />}{screen === "active" && selectedJourney && <ActiveScreen origin={origin} destination={destination} journey={selectedJourney} onBack={() => setScreen("detail")} notify={notify} />}{screen === "report" && <ReportScreen onBack={() => setScreen("home")} onSubmit={(message) => { notify(message); setScreen("home"); }} />}<BottomNav screen={screen} onChange={setScreen} notify={notify} /></>}{assistantOpen && <AssistantSheet answer={assistantAnswer} value={assistantInput} onValue={setAssistantInput} onAsk={askAssistant} onClose={() => setAssistantOpen(false)} />}{toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}</div></main>;
+  return <main className="sira-stage"><div className="phone-app">{showSplash ? <Splash /> : <>{screen === "home" && <HomeScreen origin={origin} destination={destination} budget={budget} preference={preference} maxWalking={maxWalking} onOrigin={setOrigin} onDestination={setDestination} onBudget={setBudget} onPreference={setPreference} onMaxWalking={setMaxWalking} onLocate={locateUser} onSearch={calculate} calculating={calculating} searchStatus={searchStatus} onAssistant={() => setAssistantOpen(true)} />}{screen === "results" && <ResultsScreen origin={origin} destination={destination} budget={budget} preference={preference} journeys={journeys} selectedId={selectedJourneyId} onSelect={selectJourney} onBack={() => setScreen("home")} />}{screen === "detail" && selectedJourney && <DetailScreen journey={selectedJourney} destination={destination} onBack={() => setScreen("results")} onStart={() => setScreen("active")} />}{screen === "active" && selectedJourney && <ActiveScreen origin={origin} destination={destination} journey={selectedJourney} onBack={() => setScreen("detail")} notify={notify} />}{screen === "report" && <ReportScreen onBack={() => setScreen("home")} onSubmit={(message) => { notify(message); setScreen("home"); }} />}<BottomNav screen={screen} onChange={setScreen} notify={notify} /></>}{assistantOpen && <AssistantSheet answer={assistantAnswer} value={assistantInput} onValue={setAssistantInput} onAsk={askAssistant} onClose={() => setAssistantOpen(false)} />}{toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}</div></main>;
 }

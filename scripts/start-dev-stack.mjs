@@ -92,11 +92,10 @@ const apiEnv = {
 
 if (smokeTest) {
   start("API NestJS", process.execPath, [join(root, "services", "api", "dist", "main.js")], apiEnv);
+  start("interface SIRA de test", npm, ["run", "dev"], { PORT: "3010", SIRA_WEB_HOST: "127.0.0.1" });
 } else {
   start("API NestJS", npm, ["--prefix", "services/api", "run", "start:dev"], apiEnv);
-  start("interface SIRA", npm, ["run", "dev"], {
-    NEXT_PUBLIC_API_URL: "http://localhost:4000/api/v1",
-  });
+  start("interface SIRA", npm, ["run", "dev"]);
 }
 
 const stop = (exitCode = 0) => {
@@ -136,6 +135,9 @@ try {
   if (!smokeTest) {
     console.log("[SIRA] Application prête sur http://localhost:3000");
   } else {
+    const proxyHealth = await waitForJson("http://127.0.0.1:3010/api/v1/health", 45_000);
+    if (proxyHealth?.service !== "sira-api") throw new Error("Le proxy frontend /api n'atteint pas NestJS.");
+    console.log("[SIRA] Proxy frontend prêt : /api atteint bien NestJS.");
     const journeyRequest = {
       origin: { lat: 5.294081, lon: -3.9553985, name: "Départ test réseau" },
       destination: { lat: 5.3534368, lon: -4.0151186, name: "Arrivée test réseau" },
@@ -143,7 +145,7 @@ try {
       preference: "balanced",
       constraints: { maxWalkingDistanceM: 1500, maxTransfers: 3, excludedModes: [] },
     };
-    const response = await fetch("http://127.0.0.1:4000/api/v1/mobility/journeys", {
+    const response = await fetch("http://127.0.0.1:3010/api/v1/mobility/journeys", {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal: AbortSignal.timeout(60_000),
@@ -161,7 +163,7 @@ try {
     aiProcess.siraExpectedExit = true;
     aiProcess.kill("SIGTERM");
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 750));
-    const unavailableResponse = await fetch("http://127.0.0.1:4000/api/v1/mobility/journeys", {
+    const unavailableResponse = await fetch("http://127.0.0.1:3010/api/v1/mobility/journeys", {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal: AbortSignal.timeout(60_000),

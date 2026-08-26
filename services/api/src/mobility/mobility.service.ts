@@ -56,6 +56,7 @@ export class MobilityService {
   private readonly allowRankingFallback = process.env.SIRA_ALLOW_RANKING_FALLBACK === "true";
   private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
   private transportGraph?: TransportGraph;
+  private readonly pedestrianRouteCache = new Map<string, Promise<PedestrianRoute | null>>();
 
   async searchPlaces(query: string) {
     if (!query || query.trim().length < 2) throw new BadRequestException("La recherche doit contenir au moins 2 caractères.");
@@ -350,7 +351,12 @@ export class MobilityService {
   }
 
   private walkingRoute(from: [number, number], to: [number, number], maxDistanceM: number, allowEstimatedShortConnector: boolean) {
-    return routePedestrian(this.valhallaUrl, { lon: from[0], lat: from[1] }, { lon: to[0], lat: to[1] }, { maxDistanceM, allowEstimatedShortConnector });
+    const cacheKey = `${from.join(",")}|${to.join(",")}|${maxDistanceM}|${allowEstimatedShortConnector}`;
+    const cached = this.pedestrianRouteCache.get(cacheKey);
+    if (cached) return cached;
+    const pending = routePedestrian(this.valhallaUrl, { lon: from[0], lat: from[1] }, { lon: to[0], lat: to[1] }, { maxDistanceM, allowEstimatedShortConnector });
+    this.pedestrianRouteCache.set(cacheKey, pending);
+    return pending;
   }
 
   private toRoadCandidate(id: string, label: string, route: ValhallaTrip, comfort: number, reliability: number, durationScale = 1) {
