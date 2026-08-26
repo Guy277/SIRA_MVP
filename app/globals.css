@@ -71,6 +71,9 @@ button { color: inherit; -webkit-tap-highlight-color: transparent; }
 .map-place-label { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 5; padding: 5px 10px; border-radius: 8px; background: rgba(255,255,255,.84); font-size: 18px; font-weight: 750; pointer-events: none; }
 .assistant-map-button { position: absolute; z-index: 7; right: 20px; bottom: 20px; width: 48px; height: 48px; display: grid; place-items: center; border: 0; border-radius: 15px; color: #fff; background: var(--orange); box-shadow: 0 10px 24px rgba(255,90,10,.28); cursor: pointer; }
 .home-action-wrap { position: absolute; z-index: 10; left: 16px; right: 16px; bottom: 78px; padding: 13px; border-radius: 25px 25px 0 0; background: rgba(255,255,255,.95); }
+.search-status { margin: 0 4px 9px; padding: 8px 10px; border-radius: 10px; font-size: 10px; line-height: 1.35; text-align: center; }
+.search-status.loading { color: #8a430f; background: #fff1e8; }
+.search-status.error { color: #9b2525; background: #fff0f0; }
 .primary-button { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: center; gap: 20px; padding: 0 20px; border: 0; border-radius: 17px; color: #fff; background: var(--orange); box-shadow: 0 10px 24px rgba(255,90,10,.22); font-size: 17px; font-weight: 720; cursor: pointer; transition: .18s ease; }
 .primary-button:hover { background: var(--orange-dark); transform: translateY(-1px); }
 .primary-button:disabled { opacity: .7; cursor: wait; }
