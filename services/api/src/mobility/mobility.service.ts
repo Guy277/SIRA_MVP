@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TransportGraph, type NetworkJourney, type TransportFeature } from "./transport-graph";
@@ -53,6 +53,7 @@ export class MobilityService {
   private readonly photonUrl = process.env.PHOTON_URL ?? "https://photon.komoot.io";
   private readonly osrmUrl = process.env.OSRM_URL ?? "https://router.project-osrm.org";
   private readonly aiUrl = process.env.AI_URL ?? "http://ai:8000";
+  private readonly allowRankingFallback = process.env.SIRA_ALLOW_RANKING_FALLBACK === "true";
   private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
   private transportGraph?: TransportGraph;
 
@@ -165,10 +166,19 @@ export class MobilityService {
     try {
       const ranked = await fetch(`${this.aiUrl}/v1/recommendations/rank`, {
         method: "POST", headers: { "content-type": "application/json" },
+        signal: AbortSignal.timeout(10_000),
         body: JSON.stringify({ budget: request.budget ?? 1500, preference: request.preference ?? "balanced", constraints, journeys: candidates }),
       });
       if (ranked.ok) return ranked.json();
-    } catch { /* deterministic fallback below */ }
+      if (!this.allowRankingFallback) {
+        throw new ServiceUnavailableException(`Le moteur SIRA-MORE a répondu avec le statut ${ranked.status}.`);
+      }
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      if (!this.allowRankingFallback) {
+        throw new ServiceUnavailableException("Le moteur SIRA-MORE est indisponible. Démarrez le service FastAPI sur le port 8000.");
+      }
+    }
     const feasible = candidates.filter((candidate) =>
       Number(candidate.price) <= constraints.max_budget_fcfa
       && Number(candidate.walking_distance_m) <= constraints.max_walking_distance_m

@@ -253,7 +253,15 @@ export default function SiraApp() {
     const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? (localFrontend ? "http://localhost:4000/api/v1" : "/api/v1")).replace(/\/$/, "");
     try {
       const response = await fetch(`${apiUrl}/mobility/journeys`, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(30_000), body: JSON.stringify({ origin: { lat: origin.coordinates[1], lon: origin.coordinates[0], name: origin.name }, destination: { lat: destination.coordinates[1], lon: destination.coordinates[0], name: destination.name }, budget, preference, constraints: { maxWalkingDistanceM: maxWalking, maxTransfers: 3, excludedModes: [] } }) });
-      if (!response.ok) throw new Error("backend unavailable");
+      if (!response.ok) {
+        let message = `Le calcul SIRA a échoué (${response.status}).`;
+        try {
+          const errorPayload = await response.json() as { message?: string | string[] };
+          if (Array.isArray(errorPayload.message)) message = errorPayload.message.join(" ");
+          else if (errorPayload.message) message = errorPayload.message;
+        } catch { /* réponse non JSON */ }
+        throw new Error(message);
+      }
       const data = await response.json() as { journeys?: ApiJourney[]; recommended_id?: string | null; rejected?: unknown[] };
       const next: Journey[] = (data.journeys ?? []).flatMap((apiJourney) => {
         const geometry = apiJourney.geometry?.length ? apiJourney.geometry : apiJourney.shape ? decodeValhallaShape(apiJourney.shape) : [];
@@ -294,8 +302,10 @@ export default function SiraApp() {
       }
       const recommendedId = data.recommended_id ?? next[0].id;
       setJourneys(next); setSelectedJourneyId(recommendedId); setScreen("results");
-    } catch {
-      notify("Moteur SIRA indisponible. Démarrez les services API et IA pour calculer le Grand Abidjan.");
+    } catch (error) {
+      notify(error instanceof Error && error.message !== "Failed to fetch"
+        ? error.message
+        : "API SIRA inaccessible. Lancez la stack complète avec npm run dev:stack.");
     } finally {
       setCalculating(false);
     }

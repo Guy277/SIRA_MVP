@@ -41,6 +41,7 @@ next-env.d.ts
 /dist/
 **/dist/
 **/__pycache__/
+**/.venv/
 /.wrangler/
 /.sites-runtime/
 /outputs/
