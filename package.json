@@ -12,6 +12,7 @@
     "start": "vinext start",
     "build:local": "vite build",
     "test": "node --test tests/*.test.mjs",
+    "test:ai": "python3 -m unittest discover -s services/ai/tests -v",
     "test:integration": "node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern services/**/dist",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
