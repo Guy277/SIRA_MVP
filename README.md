@@ -40,23 +40,26 @@ flowchart LR
   A --> H[Photon]
 ```
 
-## Démarrage rapide de l’interface
+## Démarrage rapide de la stack fonctionnelle
 
 Prérequis : Node.js 22 ou version supérieure.
 
 ```bash
 npm install
-npm run dev
+npm run dev:stack
 ```
 
-L’application est ensuite disponible sur `http://localhost:3000`.
+Cette commande démarre l’interface, l’API NestJS et le moteur SIRA-MORE FastAPI. L’application est ensuite disponible sur `http://localhost:3000`. `npm run dev` ne lance que l’interface et ne permet pas de calculer un trajet.
+
+SIRA-MORE est obligatoire par défaut : si FastAPI est arrêté, NestJS renvoie une erreur explicite au lieu d’afficher un classement de secours sous le nom SIRA-MORE. Le secours déterministe ne peut être activé volontairement qu’avec `SIRA_ALLOW_RANKING_FALLBACK=true`.
 
 ### Sur Windows
 
 1. Installer **Node.js 22 LTS** depuis `https://nodejs.org/`.
 2. Décompresser le projet dans un dossier simple, par exemple `C:\Projets\sira-mobility-mvp`.
-3. Double-cliquer sur `LANCER_SIRA_WINDOWS.bat`.
-4. Attendre l’ouverture du serveur, puis aller sur `http://localhost:3000`.
+3. Installer également **Python 3**, nécessaire au moteur SIRA-MORE.
+4. Double-cliquer sur `LANCER_SIRA_WINDOWS.bat`.
+5. Attendre le message `Moteur prêt`, puis aller sur `http://localhost:3000`.
 
 La première exécution installe automatiquement les dépendances. Pour arrêter le serveur, revenir dans la fenêtre noire et appuyer sur `Ctrl + C`.
 
@@ -64,10 +67,16 @@ Si le fichier `.bat` ne démarre pas, ouvrir PowerShell dans le dossier du proje
 
 ```powershell
 npm install
-npm run dev
+npm run dev:stack
 ```
 
-Le frontend n’utilise plus de trajets codés en dur. Pour obtenir une recommandation, lancez aussi l’API NestJS et le moteur FastAPI avec la stack ci-dessous.
+Le frontend n’utilise plus de trajets codés en dur. Le lanceur complet démarre donc obligatoirement l’API NestJS et le moteur FastAPI. En développement sans `VALHALLA_URL`, il utilise le serveur public Valhalla uniquement pour les essais ; la production doit héberger sa propre instance.
+
+Pour vérifier automatiquement que NestJS appelle réellement SIRA-MORE :
+
+```bash
+npm run test:runtime
+```
 
 ## Démarrage de toute la stack avec Podman
 
