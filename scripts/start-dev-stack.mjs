@@ -87,7 +87,7 @@ const apiEnv = {
   VALHALLA_URL: routingUrl,
   OSRM_URL: process.env.OSRM_URL || (smokeTest ? "http://127.0.0.1:9" : "https://router.project-osrm.org"),
   SIRA_DATA_ROOT: join(root, "data"),
-  CORS_ORIGIN: "http://localhost:3000,http://localhost:5173,http://localhost:8080",
+  CORS_ORIGIN: "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080",
 };
 
 if (smokeTest) {
@@ -133,7 +133,7 @@ try {
   console.log(`[SIRA] API prête : ${apiHealth.service}`);
 
   if (!smokeTest) {
-    console.log("[SIRA] Application prête sur http://localhost:3000");
+    console.log("[SIRA] Application prête sur http://localhost:3001");
   } else {
     const proxyHealth = await waitForJson("http://127.0.0.1:3010/api/v1/health", 45_000);
     if (proxyHealth?.service !== "sira-api") throw new Error("Le proxy frontend /api n'atteint pas NestJS.");
