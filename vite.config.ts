@@ -51,7 +51,7 @@ export default defineConfig(async () => {
   return {
     server: {
       host: process.env.SIRA_WEB_HOST ?? "0.0.0.0",
-      port: Number(process.env.PORT ?? 3000),
+      port: Number(process.env.PORT ?? 3001),
       strictPort: true,
       allowedHosts: ["terminal.local"],
       proxy: {

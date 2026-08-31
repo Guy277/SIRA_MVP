@@ -252,7 +252,9 @@ export default function SiraApp() {
     setCalculating(true);
     setSearchStatus("Connexion au moteur SIRA…");
     const progressTimer = window.setTimeout(() => setSearchStatus("Recherche des lignes et raccordements piétons…"), 5000);
-    const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "/api/v1").replace(/\/$/, "");
+      const localFrontend = ["3000", "3001", "5173"].includes(window.location.port);
+    const localApiUrl = `${window.location.protocol}//${window.location.hostname}:4000/api/v1`;
+    const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? (localFrontend ? localApiUrl : "/api/v1")).replace(/\/$/, "");
     try {
       const response = await fetch(`${apiUrl}/mobility/journeys`, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(30_000), body: JSON.stringify({ origin: { lat: origin.coordinates[1], lon: origin.coordinates[0], name: origin.name }, destination: { lat: destination.coordinates[1], lon: destination.coordinates[0], name: destination.name }, budget, preference, constraints: { maxWalkingDistanceM: maxWalking, maxTransfers: 3, excludedModes: [] } }) });
       if (!response.ok) {

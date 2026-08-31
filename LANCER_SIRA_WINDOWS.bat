@@ -40,10 +40,11 @@ if errorlevel 1 (
 
 echo.
 echo Demarrage de la stack SIRA complete : interface, API NestJS et moteur SIRA-MORE.
-echo SIRA sera disponible sur http://localhost:3000
+echo SIRA sera disponible sur http://localhost:3001
 echo Le premier lancement installe aussi les dependances de l'API et du moteur IA.
 echo Pour arreter tous les services, appuie sur Ctrl+C.
 echo.
+set PORT=3001
 call npm run dev:stack
 
 if errorlevel 1 (
