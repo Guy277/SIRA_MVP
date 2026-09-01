@@ -6,9 +6,10 @@ const app = readFileSync(new URL("../components/SiraApp.tsx", import.meta.url), 
 const vite = readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
 const launcher = readFileSync(new URL("../scripts/start-dev-stack.mjs", import.meta.url), "utf8");
 
-test("le téléphone utilise le proxy API du serveur frontend", () => {
-  assert.match(app, /NEXT_PUBLIC_API_URL \?\? "\/api\/v1"/);
-  assert.doesNotMatch(app, /http:\/\/localhost:4000\/api\/v1/);
+test("les frontends locaux accèdent à l'API et Docker utilise le proxy", () => {
+  assert.match(app, /const localFrontend = \["3000", "3001", "5173"\]\.includes\(window\.location\.port\)/);
+  assert.match(app, /const localApiUrl = `\$\{window\.location\.protocol\}\/\/\$\{window\.location\.hostname\}:4000\/api\/v1`/);
+  assert.match(app, /NEXT_PUBLIC_API_URL \?\? \(localFrontend \? localApiUrl : "\/api\/v1"\)/);
   assert.match(vite, /"\/api"/);
   assert.match(vite, /http:\/\/127\.0\.0\.1:4000/);
   assert.doesNotMatch(launcher, /NEXT_PUBLIC_API_URL/);
