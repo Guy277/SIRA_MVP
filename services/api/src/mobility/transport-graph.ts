@@ -93,11 +93,16 @@ const lineMode = (properties: NonNullable<TransportFeature["properties"]>): Sira
 
 export class TransportGraph {
   private readonly adjacency = new Map<string, Edge[]>();
+  // Most visited states are already aboard a line. Keeping this secondary index
+  // avoids scanning all overlapping services at every geometry vertex.
+  private readonly lineAdjacency = new Map<string, Map<string, Edge[]>>();
   private readonly coordinates = new Map<string, Coordinate>();
   private readonly nodeLines = new Map<string, Set<string>>();
   private readonly spatialGrid = new Map<string, string[]>();
   private readonly transferCache = new Map<string, Array<{ key: string; distanceKm: number }>>();
+  private readonly nearbyNodeCache = new Map<string, Array<{ key: string; distanceKm: number }>>();
   private readonly gridDegrees = 0.003;
+  private lastExploredStates = 0;
 
   constructor(features: TransportFeature[]) {
     for (const feature of features) this.addFeature(feature);
@@ -109,10 +114,10 @@ export class TransportGraph {
   }
 
   get stats() {
-    return { nodes: this.coordinates.size, directedEdges: Array.from(this.adjacency.values()).reduce((sum, edges) => sum + edges.length, 0), pedestrianTransferRadiusM: 350 };
+    return { nodes: this.coordinates.size, directedEdges: Array.from(this.adjacency.values()).reduce((sum, edges) => sum + edges.length, 0), pedestrianTransferRadiusM: 350, lastExploredStates: this.lastExploredStates };
   }
 
-  route(origin: { lat: number; lon: number }, destination: { lat: number; lon: number }, strategy: "balanced" | "cheap" = "balanced", options: { maxAccessDistanceM?: number; maxTransferDistanceM?: number; maxTransfers?: number } = {}): NetworkJourney | null {
+  route(origin: { lat: number; lon: number }, destination: { lat: number; lon: number }, strategy: "balanced" | "cheap" = "balanced", options: { maxAccessDistanceM?: number; maxTransferDistanceM?: number; maxTransfers?: number; serviceDate?: Date } = {}): NetworkJourney | null {
     if (!this.coordinates.size) return null;
     const originCoordinate: Coordinate = [origin.lon, origin.lat]; const destinationCoordinate: Coordinate = [destination.lon, destination.lat];
     const start = this.nearestNode(originCoordinate); const finish = this.nearestNode(destinationCoordinate);
@@ -121,7 +126,7 @@ export class TransportGraph {
     if (!start || !finish || start.distanceKm > maxAccessKm || finish.distanceKm > maxAccessKm) return null;
 
     const maxTransfers = options.maxTransfers ?? 3;
-    const serviceDate = new Date();
+    const serviceDate = options.serviceDate ?? new Date();
     const startState = stateOf(start.key, "__start__", 0);
     const distances = new Map<string, number>([[startState, 0]]); const previous = new Map<string, Previous>(); const heap = new MinHeap(); const visited = new Set<string>();
     const heuristic = (nodeKey: string) => distanceKm(this.coordinates.get(nodeKey)!, destinationCoordinate) / 24 * 60;
@@ -134,11 +139,17 @@ export class TransportGraph {
       visited.add(currentState); explored += 1;
       const { node: currentNode, line: currentLine, transfers: currentTransfers } = splitState(currentState);
       if (currentNode === finish.key && !currentLine.startsWith("__")) { finishState = currentState; break; }
-      for (const edge of this.adjacency.get(currentNode) ?? []) {
+      const candidateEdges = currentLine.startsWith("__")
+        ? this.adjacency.get(currentNode) ?? []
+        : this.lineAdjacency.get(currentNode)?.get(currentLine) ?? [];
+      for (const edge of candidateEdges) {
         if (!isServiceOpen(edge.openingHours, serviceDate)) continue;
         const boarding = currentLine === "__start__" || currentLine === "__walk__";
-        const changingAtSameNode = !boarding && currentLine !== edge.lineId;
-        const nextTransfers = currentTransfers + (changingAtSameNode ? 1 : 0);
+        // A line switch is only valid after a distinct, preselected walking
+        // connector. Switching at an identical geometry vertex would otherwise
+        // manufacture a zero-metre WALK_TRANSFER that Valhalla cannot validate.
+        const changingAtSameNode = false;
+        const nextTransfers = currentTransfers;
         if (nextTransfers > maxTransfers) continue;
         const wait = boarding || changingAtSameNode ? estimateWait(edge.mode, edge.frequency, edge.frequencyExceptions, serviceDate).value : 0;
         const transferBuffer = changingAtSameNode ? 2 : 0;
@@ -158,6 +169,7 @@ export class TransportGraph {
         }
       }
     }
+    this.lastExploredStates = explored;
     if (!finishState) return null;
     const path: Previous[] = []; let current = finishState;
     while (current !== startState) { const step = previous.get(current); if (!step) return null; path.push(step); current = step.state; }
@@ -218,23 +230,36 @@ export class TransportGraph {
     const fromKey = keyOf(from); const toKey = keyOf(to); if (fromKey === toKey) return;
     this.coordinates.set(fromKey, from); this.coordinates.set(toKey, to);
     if (!this.adjacency.has(fromKey)) this.adjacency.set(fromKey, []); if (!this.adjacency.has(toKey)) this.adjacency.set(toKey, []);
+    if (!this.lineAdjacency.has(fromKey)) this.lineAdjacency.set(fromKey, new Map()); if (!this.lineAdjacency.has(toKey)) this.lineAdjacency.set(toKey, new Map());
     if (!this.nodeLines.has(fromKey)) this.nodeLines.set(fromKey, new Set()); if (!this.nodeLines.has(toKey)) this.nodeLines.set(toKey, new Set());
     this.nodeLines.get(fromKey)!.add(meta.lineId); this.nodeLines.get(toKey)!.add(meta.lineId);
     const edgeDistance = distanceKm(from, to);
-    this.adjacency.get(fromKey)!.push({ ...meta, to: toKey, distanceKm: edgeDistance }); this.adjacency.get(toKey)!.push({ ...meta, to: fromKey, distanceKm: edgeDistance });
+    const forward = { ...meta, to: toKey, distanceKm: edgeDistance }; const backward = { ...meta, to: fromKey, distanceKm: edgeDistance };
+    this.adjacency.get(fromKey)!.push(forward); this.adjacency.get(toKey)!.push(backward);
+    const fromLines = this.lineAdjacency.get(fromKey)!; const toLines = this.lineAdjacency.get(toKey)!;
+    if (!fromLines.has(meta.lineId)) fromLines.set(meta.lineId, []); if (!toLines.has(meta.lineId)) toLines.set(meta.lineId, []);
+    fromLines.get(meta.lineId)!.push(forward); toLines.get(meta.lineId)!.push(backward);
   }
   private gridKey([lon, lat]: Coordinate) { return `${Math.floor(lon / this.gridDegrees)},${Math.floor(lat / this.gridDegrees)}`; }
   private nearbyTransferNodes(nodeKey: string, currentLine: string, radiusKm: number) {
     const cacheKey = `${nodeKey}|${currentLine}|${radiusKm.toFixed(3)}`; const cached = this.transferCache.get(cacheKey); if (cached) return cached;
-    const coordinate = this.coordinates.get(nodeKey)!; const [cellLon, cellLat] = this.gridKey(coordinate).split(",").map(Number); const candidates: Array<{ key: string; distanceKm: number }> = [];
-    for (let lonOffset = -2; lonOffset <= 2; lonOffset += 1) for (let latOffset = -2; latOffset <= 2; latOffset += 1) {
-      for (const candidateKey of this.spatialGrid.get(`${cellLon + lonOffset},${cellLat + latOffset}`) ?? []) {
-        if (candidateKey === nodeKey || this.nodeLines.get(candidateKey)?.has(currentLine)) continue;
-        const candidateDistance = distanceKm(coordinate, this.coordinates.get(candidateKey)!);
-        if (candidateDistance > 0.005 && candidateDistance <= radiusKm) candidates.push({ key: candidateKey, distanceKm: candidateDistance });
+    const nearbyKey = `${nodeKey}|${radiusKm.toFixed(3)}`;
+    let nearby = this.nearbyNodeCache.get(nearbyKey);
+    if (!nearby) {
+      const coordinate = this.coordinates.get(nodeKey)!; const [cellLon, cellLat] = this.gridKey(coordinate).split(",").map(Number); const candidates: Array<{ key: string; distanceKm: number }> = [];
+      for (let lonOffset = -2; lonOffset <= 2; lonOffset += 1) for (let latOffset = -2; latOffset <= 2; latOffset += 1) {
+        for (const candidateKey of this.spatialGrid.get(`${cellLon + lonOffset},${cellLat + latOffset}`) ?? []) {
+          if (candidateKey === nodeKey) continue;
+          const candidateDistance = distanceKm(coordinate, this.coordinates.get(candidateKey)!);
+          if (candidateDistance > 0.005 && candidateDistance <= radiusKm) candidates.push({ key: candidateKey, distanceKm: candidateDistance });
+        }
       }
+      candidates.sort((left, right) => left.distanceKm - right.distanceKm);
+      nearby = candidates;
+      this.nearbyNodeCache.set(nearbyKey, nearby);
     }
-    candidates.sort((left, right) => left.distanceKm - right.distanceKm); const result = candidates.slice(0, 3); this.transferCache.set(cacheKey, result); return result;
+    const result = nearby.filter((candidate) => !this.nodeLines.get(candidate.key)?.has(currentLine)).slice(0, 3);
+    this.transferCache.set(cacheKey, result); return result;
   }
   private nearestNode(target: Coordinate) {
     let nearest: { key: string; distanceKm: number } | null = null;

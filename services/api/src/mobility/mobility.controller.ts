@@ -20,11 +20,6 @@ export class MobilityController {
     return this.mobility.getTransportLines({ operator, network, siraMode, validationStatus });
   }
 
-  @Get("transport/lines/:id")
-  async getTransportLine(@Param("id") id: string) {
-    return this.mobility.getTransportLine(id);
-  }
-
   @Get("transport/lines/geojson")
   async getTransportGeoJson(
     @Query("bbox") bbox?: string,
@@ -34,6 +29,11 @@ export class MobilityController {
     @Query("validationStatus") validationStatus?: string,
   ) {
     return this.mobility.getTransportGeoJson({ bbox, operator, network, siraMode, validationStatus });
+  }
+
+  @Get("transport/lines/:id")
+  async getTransportLine(@Param("id") id: string) {
+    return this.mobility.getTransportLine(id);
   }
 
   @Get("transport/networks")

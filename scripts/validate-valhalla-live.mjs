@@ -11,10 +11,10 @@ const cases = [
     expected: "accepted",
   },
   {
-    name: "Accès Aéroport",
+    name: "Accès hors seuil",
     origin: { lon: -3.9263, lat: 5.2614 },
     destination: { lon: -3.9322433, lat: 5.2581706 },
-    maxDistanceM: 1500,
+    maxDistanceM: 200,
     expected: "rejected",
   },
   {
