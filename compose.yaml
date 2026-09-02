@@ -4,7 +4,7 @@ services:
   nginx:
     image: docker.io/library/nginx:1.27-alpine
     ports:
-      - "8080:80"
+      - "8081:80"
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
     depends_on: [web, api, ai]
@@ -28,7 +28,7 @@ services:
       DATABASE_URL: postgresql://sira:sira_dev_password@postgres:5432/sira
       VALKEY_URL: redis://valkey:6379/0
       VALHALLA_URL: http://valhalla:8002
-      SIRA_ALLOW_ESTIMATED_WALK_CONNECTORS: "false"
+      SIRA_JOURNEY_PROFILING: "true"
       PHOTON_URL: https://photon.komoot.io
       AI_URL: http://ai:8000
       SIRA_DATA_ROOT: /data
@@ -39,6 +39,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       valkey: { condition: service_healthy }
+      valhalla: { condition: service_healthy }
     restart: unless-stopped
 
   ai:
@@ -78,9 +79,9 @@ services:
 
   valhalla:
     image: ghcr.io/valhalla/valhalla-scripted:latest
-    profiles: ["routing"]
     environment:
-      tile_urls: https://download.geofabrik.de/africa/ivory-coast-latest.osm.pbf
+      # BBBike mirrors the daily OpenStreetMap Côte d'Ivoire PBF and is reachable from the container.
+      tile_urls: https://data.bbbike.org/osm/pbf/region/africa/ivory-coast.osm.pbf
       serve_tiles: "True"
       build_admins: "True"
       build_time_zones: "True"
@@ -92,6 +93,12 @@ services:
       - ./data/gtfs-demo:/gtfs_feeds/abidjan:ro,Z
     ports:
       - "8002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8002/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20m
     restart: unless-stopped
 
 volumes:

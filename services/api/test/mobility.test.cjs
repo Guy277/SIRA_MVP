@@ -12,6 +12,7 @@ const {
 } = require("../dist/mobility/estimators.js");
 const { routePedestrian } = require("../dist/mobility/pedestrian-router.js");
 const { TransportGraph } = require("../dist/mobility/transport-graph.js");
+const { classifyTransferDistance } = require("../dist/mobility/walk-config.js");
 
 test("normalise les fréquences historiques en minutes", () => {
   assert.equal(parseHeadwayMinutes("00:10"), 10);
@@ -56,25 +57,23 @@ test("Valhalla fournit la géométrie piétonne réellement affichable", async (
     }),
   });
   try {
-    const route = await routePedestrian("http://valhalla", { lon: -4.01, lat: 5.33 }, { lon: -4.009, lat: 5.331 }, { maxDistanceM: 500 });
+    const route = await routePedestrian("http://valhalla", { lon: -4.01, lat: 5.33 }, { lon: -4.009, lat: 5.331 }, { maxDistanceM: 500, connectorKind: "access" });
     assert.equal(route.method, "valhalla_pedestrian");
     assert.equal(route.guidanceAvailable, true);
+    assert.equal(route.source, "valhalla_osm");
+    assert.equal(route.connectorKind, "access");
     assert.equal(route.coordinates.length, 3);
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("un raccordement non routé n'est accepté que s'il est court et sans faux tracé", async () => {
+test("un raccordement non routé est strictement rejeté", async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => { throw new Error("offline"); };
   try {
-    const rejected = await routePedestrian("http://valhalla", { lon: -4, lat: 5 }, { lon: -4, lat: 5.001 }, { maxDistanceM: 500 });
+    const rejected = await routePedestrian("http://valhalla", { lon: -4, lat: 5 }, { lon: -4, lat: 5.001 }, { maxDistanceM: 500, connectorKind: "transfer" });
     assert.equal(rejected, null);
-    const fallback = await routePedestrian("http://valhalla", { lon: -4, lat: 5 }, { lon: -4, lat: 5.001 }, { maxDistanceM: 500, allowEstimatedShortConnector: true });
-    assert.equal(fallback.method, "estimated_short_connector");
-    assert.equal(fallback.guidanceAvailable, false);
-    assert.deepEqual(fallback.coordinates, []);
   } finally {
     global.fetch = originalFetch;
   }
@@ -89,9 +88,52 @@ test("le graphe peut proposer une correspondance piétonne entre deux lignes pro
     feature("A", [[-4, 5], [-3.99, 5]]),
     feature("B", [[-3.9895, 5], [-3.98, 5]]),
   ]);
-  const route = graph.route({ lon: -4, lat: 5 }, { lon: -3.98, lat: 5 }, "balanced", { maxAccessDistanceM: 100, maxTransferDistanceM: 200 });
+  const route = graph.route({ lon: -4, lat: 5 }, { lon: -3.98, lat: 5 }, "balanced", { maxAccessDistanceM: 100, maxTransferDistanceM: 200, serviceDate: new Date("2026-09-01T12:00:00Z") });
   assert.ok(route);
   assert.equal(route.legs.length, 2);
   assert.equal(route.transfers.length, 1);
   assert.ok(route.transfers[0].distanceKm > 0);
+  assert.equal(route.legs.length, 2);
+  assert.equal(route.price, route.legs.reduce((sum, leg) => sum + leg.price, 0));
+  const computedDuration = route.access.durationMinutes + route.egress.durationMinutes
+    + route.legs.reduce((sum, leg) => sum + leg.waitMinutes + leg.durationMinutes, 0)
+    + route.transfers.reduce((sum, transfer) => sum + transfer.durationMinutes + transfer.interchangeBufferMinutes, 0);
+  assert.equal(route.durationMinutes, computedDuration);
+});
+
+test("classe les correspondances selon les distances SIRA-TRANSFER", () => {
+  assert.equal(classifyTransferDistance(114), "FACILE");
+  assert.equal(classifyTransferDistance(400), "NORMALE");
+  assert.equal(classifyTransferDistance(800), "DIFFICILE");
+  assert.equal(classifyTransferDistance(801), "IMPOSSIBLE");
+});
+
+test("le graphe compte trois embarquements et deux correspondances", () => {
+  const feature = (lineId, coordinates) => ({
+    properties: { line_id: lineId, name: lineId, operator: "test", network: "test", sira_mode: "SOTRA_BUS", frequency: "10" },
+    geometry: { type: "LineString", coordinates },
+  });
+  const graph = new TransportGraph([
+    feature("A", [[-4, 5], [-3.99, 5]]),
+    feature("B", [[-3.9895, 5], [-3.98, 5]]),
+    feature("C", [[-3.9795, 5], [-3.97, 5]]),
+  ]);
+  const route = graph.route({ lon: -4, lat: 5 }, { lon: -3.97, lat: 5 }, "balanced", { maxAccessDistanceM: 100, maxTransferDistanceM: 800, maxTransfers: 2, serviceDate: new Date("2026-09-02T12:00:00Z") });
+  assert.ok(route);
+  assert.equal(route.legs.length, 3);
+  assert.equal(route.transfers.length, 2);
+  assert.equal(route.price, route.legs.reduce((sum, leg) => sum + leg.price, 0));
+});
+
+test("rejette une correspondance au-delà de 800 mètres", () => {
+  const feature = (lineId, coordinates) => ({
+    properties: { line_id: lineId, name: lineId, operator: "test", network: "test", sira_mode: "SOTRA_BUS", frequency: "10" },
+    geometry: { type: "LineString", coordinates },
+  });
+  const graph = new TransportGraph([
+    feature("A", [[-4, 5], [-3.99, 5]]),
+    feature("B", [[-3.98, 5], [-3.97, 5]]),
+  ]);
+  const route = graph.route({ lon: -4, lat: 5 }, { lon: -3.97, lat: 5 }, "balanced", { maxAccessDistanceM: 100, maxTransferDistanceM: 800, maxTransfers: 1, serviceDate: new Date("2026-09-02T12:00:00Z") });
+  assert.equal(route, null);
 });

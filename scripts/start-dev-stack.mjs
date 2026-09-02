@@ -11,7 +11,7 @@ const children = [];
 let stopping = false;
 
 const run = (command, args, options = {}) => {
-  const result = spawnSync(command, args, { cwd: root, stdio: "inherit", ...options });
+  const result = spawnSync(command, args, { cwd: root, stdio: "inherit", shell: isWindows && command.endsWith(".cmd"), ...options });
   if (result.error || result.status !== 0) {
     throw new Error(`La commande ${command} ${args.join(" ")} a échoué.`);
   }
@@ -60,6 +60,7 @@ const start = (name, command, args, env = {}) => {
     cwd: root,
     env: { ...process.env, ...env },
     stdio: "inherit",
+    shell: isWindows && command.endsWith(".cmd"),
   });
   child.siraName = name;
   children.push(child);
@@ -110,7 +111,7 @@ const stop = (exitCode = 0) => {
 process.on("SIGINT", () => stop(0));
 process.on("SIGTERM", () => stop(0));
 
-const waitForJson = async (url, timeoutMs = 30_000) => {
+const waitForJson = async (url, timeoutMs = 90_000) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {

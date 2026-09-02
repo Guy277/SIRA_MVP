@@ -1,5 +1,6 @@
-import { estimateWalkingDuration, WALKING_SPEEDS_KMH } from "./estimators";
+import { WALKING_SPEEDS_KMH } from "./estimators";
 import type { Coordinate } from "./transport-graph";
+import type { WalkConnectorKind } from "./walk-config";
 
 export type RoutingPoint = { lat: number; lon: number };
 
@@ -8,9 +9,12 @@ export type PedestrianRoute = {
   durationMinutes: number;
   durationP90: number;
   coordinates: Coordinate[];
-  method: "valhalla_pedestrian" | "estimated_short_connector";
+  method: "valhalla_pedestrian";
   confidence: number;
   guidanceAvailable: boolean;
+  connectorKind: WalkConnectorKind;
+  source: "valhalla_osm";
+  walkingDurationS: number;
 };
 
 type ValhallaResponse = {
@@ -68,30 +72,30 @@ export const routePedestrian = async (
   valhallaUrl: string,
   origin: RoutingPoint,
   destination: RoutingPoint,
-  options: { maxDistanceM: number; allowEstimatedShortConnector?: boolean; timeoutMs?: number },
+  options: { maxDistanceM: number; connectorKind: WalkConnectorKind; walkingSpeedKmh?: number; timeoutMs?: number; onValhallaTiming?: (durationMs: number) => void },
 ): Promise<PedestrianRoute | null> => {
   const directKm = haversineKm(origin, destination);
   if (directKm * 1000 > options.maxDistanceM) return null;
-  if (directKm < 0.005) {
-    return { distanceKm: 0, durationMinutes: 1, durationP90: 1, coordinates: [], method: "estimated_short_connector", confidence: 0.7, guidanceAvailable: false };
-  }
+  if (directKm < 0.005) return null;
 
   const payload = {
     locations: [origin, destination],
     costing: "pedestrian",
-    costing_options: { pedestrian: { walking_speed: WALKING_SPEEDS_KMH.standard } },
+    costing_options: { pedestrian: { walking_speed: options.walkingSpeedKmh ?? WALKING_SPEEDS_KMH.standard } },
     units: "kilometers",
     language: "fr-FR",
     shape_format: "geojson",
     directions_options: { units: "kilometers" },
   };
   try {
+    const startedAt = performance.now();
     const response = await fetch(`${valhallaUrl}/route`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(options.timeoutMs ?? 3500),
     });
+    options.onValhallaTiming?.(performance.now() - startedAt);
     if (response.ok) {
       const data = await response.json() as ValhallaResponse;
       const distanceKm = data.trip?.summary?.length ?? 0;
@@ -107,22 +111,15 @@ export const routePedestrian = async (
           method: "valhalla_pedestrian",
           confidence: 0.82,
           guidanceAvailable: true,
+          connectorKind: options.connectorKind,
+          source: "valhalla_osm",
+          walkingDurationS: Math.round(seconds),
         };
       }
     }
-  } catch { /* controlled fallback below */ }
-
-  if (options.allowEstimatedShortConnector && directKm <= 0.15) {
-    const duration = estimateWalkingDuration(directKm);
-    return {
-      distanceKm: Number(directKm.toFixed(3)),
-      durationMinutes: duration.value,
-      durationP90: duration.p90,
-      coordinates: [],
-      method: "estimated_short_connector",
-      confidence: 0.22,
-      guidanceAvailable: false,
-    };
+  } catch {
+    options.onValhallaTiming?.(0);
   }
+
   return null;
 };

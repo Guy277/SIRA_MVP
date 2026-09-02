@@ -1,15 +1,18 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TransportGraph, type NetworkJourney, type TransportFeature } from "./transport-graph";
 import { combineConfidence } from "./estimators";
-import { routePedestrian, type PedestrianRoute } from "./pedestrian-router";
+import { decodeValhallaShape, routePedestrian, type PedestrianRoute } from "./pedestrian-router";
+import { classifyTransferDistance, SIRA_WALK, type WalkConnectorKind } from "./walk-config";
+import { JourneyProfiler } from "./journey-profiler";
 
 type Point = { lat: number; lon: number; name?: string };
 export type JourneyRequest = {
   origin: Point;
   destination: Point;
   budget?: number;
+  departureAt?: string;
   preference?: "balanced" | "fast" | "cheap" | "comfort";
   constraints?: {
     maxWalkingDistanceM?: number;
@@ -48,15 +51,20 @@ type ValhallaTrip = {
 };
 
 @Injectable()
-export class MobilityService {
+export class MobilityService implements OnModuleInit {
   private readonly valhallaUrl = process.env.VALHALLA_URL ?? "http://valhalla:8002";
   private readonly photonUrl = process.env.PHOTON_URL ?? "https://photon.komoot.io";
   private readonly osrmUrl = process.env.OSRM_URL ?? "https://router.project-osrm.org";
   private readonly aiUrl = process.env.AI_URL ?? "http://ai:8000";
   private readonly allowRankingFallback = process.env.SIRA_ALLOW_RANKING_FALLBACK === "true";
+  private readonly profileJourneys = process.env.SIRA_JOURNEY_PROFILING === "true";
   private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
   private transportGraph?: TransportGraph;
   private readonly pedestrianRouteCache = new Map<string, Promise<PedestrianRoute | null>>();
+
+  onModuleInit() {
+    this.getTransportGraph();
+  }
 
   async searchPlaces(query: string) {
     if (!query || query.trim().length < 2) throw new BadRequestException("La recherche doit contenir au moins 2 caractères.");
@@ -140,18 +148,29 @@ export class MobilityService {
   }
 
   async buildJourneys(request: JourneyRequest) {
+    const profiler = new JourneyProfiler(this.profileJourneys);
     this.validatePoint(request.origin);
     this.validatePoint(request.destination);
-    const graph = this.getTransportGraph();
-    const maxWalkingDistanceM = request.constraints?.maxWalkingDistanceM ?? 1500;
-    const roadPromise = this.route(request.origin, request.destination, "auto");
-    const graphOptions = { maxAccessDistanceM: maxWalkingDistanceM, maxTransferDistanceM: Math.min(800, maxWalkingDistanceM), maxTransfers: request.constraints?.maxTransfers ?? 3 };
-    const balancedNetwork = graph.route(request.origin, request.destination, "balanced", graphOptions);
-    const cheapNetwork = graph.route(request.origin, request.destination, "cheap", graphOptions);
+    const serviceDate = request.departureAt ? new Date(request.departureAt) : new Date();
+    if (Number.isNaN(serviceDate.getTime())) throw new BadRequestException("Heure de départ invalide.");
+    const graph = profiler.measure("graph_initialization", () => this.getTransportGraph());
+    const maxWalkingDistanceM = Math.min(request.constraints?.maxWalkingDistanceM ?? SIRA_WALK.maxTotalDistanceM, SIRA_WALK.maxTotalDistanceM);
+    const roadPromise = this.route(request.origin, request.destination, "auto", profiler);
+    const graphOptions = {
+      maxAccessDistanceM: Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM),
+      maxTransferDistanceM: Math.min(SIRA_WALK.maxTransferDistanceM, maxWalkingDistanceM),
+      maxTransfers: request.constraints?.maxTransfers ?? 3,
+      serviceDate,
+    };
+    // A second graph traversal is costly (the historical network contains more than
+    // 300k directed arcs). The request preference selects the transit search needed
+    // for this response; the road candidate remains a genuinely distinct alternative.
+    const transitStrategy = request.preference === "cheap" ? "cheap" : "balanced";
+    const network = profiler.measure("transport_graph_search", () => graph.route(request.origin, request.destination, transitStrategy, graphOptions));
     const [road, balancedCandidate, cheapCandidate] = await Promise.all([
       roadPromise,
-      balancedNetwork ? this.toNetworkCandidate("network-balanced", "Transport collectif", balancedNetwork, 4, 78, maxWalkingDistanceM) : null,
-      cheapNetwork ? this.toNetworkCandidate("network-cheap", "Option économique", cheapNetwork, 3, 72, maxWalkingDistanceM) : null,
+      network ? this.toNetworkCandidate(`network-${transitStrategy}`, transitStrategy === "cheap" ? "Option économique" : "Transport collectif", network, transitStrategy === "cheap" ? 3 : 4, transitStrategy === "cheap" ? 72 : 78, maxWalkingDistanceM, profiler) : null,
+      null,
     ]);
     const candidates: Array<Record<string, unknown>> = [];
     if (balancedCandidate) candidates.push(balancedCandidate);
@@ -165,12 +184,12 @@ export class MobilityService {
       excluded_modes: request.constraints?.excludedModes ?? [],
     };
     try {
-      const ranked = await fetch(`${this.aiUrl}/v1/recommendations/rank`, {
+      const ranked = await profiler.measureAsync("sira_more", () => fetch(`${this.aiUrl}/v1/recommendations/rank`, {
         method: "POST", headers: { "content-type": "application/json" },
         signal: AbortSignal.timeout(10_000),
         body: JSON.stringify({ budget: request.budget ?? 1500, preference: request.preference ?? "balanced", constraints, journeys: candidates }),
-      });
-      if (ranked.ok) return ranked.json();
+      }));
+      if (ranked.ok) return this.withProfile(await ranked.json() as Record<string, unknown>, profiler);
       if (!this.allowRankingFallback) {
         throw new ServiceUnavailableException(`Le moteur SIRA-MORE a répondu avec le statut ${ranked.status}.`);
       }
@@ -186,13 +205,13 @@ export class MobilityService {
       && Number(candidate.transfer_count) <= constraints.max_transfers
       && !(candidate.modes as string[]).some((mode) => constraints.excluded_modes.includes(mode)),
     ).sort((left, right) => Number(left.duration) + Number(left.price) / 50 - (Number(right.duration) + Number(right.price) / 50));
-    return {
+    return this.withProfile({
       journeys: feasible.map((candidate, index) => ({ ...candidate, recommended: index === 0, reasons: ["Respecte vos contraintes", "Classement de secours déterministe"] })),
       recommended_id: feasible[0]?.id ?? null,
       rejected_count: candidates.length - feasible.length,
       source: "sira-more-fallback-constraints",
       graph: graph.stats,
-    };
+    }, profiler);
   }
 
   private readTransportDataset(): { type: "FeatureCollection"; features: TransportFeature[] } {
@@ -247,11 +266,15 @@ export class MobilityService {
     };
   }
 
-  private async route(origin: Point, destination: Point, costing: string): Promise<ValhallaTrip> {
-    const payload = { locations: [origin, destination], costing, units: "kilometers", language: "fr-FR", date_time: { type: 0 }, directions_options: { units: "kilometers" } };
+  private async route(origin: Point, destination: Point, costing: string, profiler: JourneyProfiler): Promise<ValhallaTrip> {
+    const payload = { locations: [origin, destination], costing, units: "kilometers", language: "fr-FR", shape_format: "geojson", date_time: { type: 0 }, directions_options: { units: "kilometers" } };
     try {
-      const response = await fetch(`${this.valhallaUrl}/route`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(1500) });
-      if (response.ok) return response.json() as Promise<ValhallaTrip>;
+      const response = await profiler.measureAsync("valhalla_road", () => fetch(`${this.valhallaUrl}/route`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(1500) }));
+      if (response.ok) {
+        const data = await response.json() as ValhallaTrip;
+        const geometry = data.trip?.legs?.flatMap((leg) => typeof leg.shape === "string" ? decodeValhallaShape(leg.shape) : leg.shape?.coordinates ?? []) ?? [];
+        return { ...data, geometry };
+      }
     } catch { /* use distance fallback */ }
     try {
       const coordinates = `${origin.lon},${origin.lat};${destination.lon},${destination.lat}`;
@@ -268,21 +291,19 @@ export class MobilityService {
     return { trip: { summary: { length: km, time: km / (costing === "multimodal" ? 18 : 24) * 3600 }, legs: [] } };
   }
 
-  private async toNetworkCandidate(id: string, label: string, route: NetworkJourney, comfort: number, reliabilityPrior: number, maxWalkingDistanceM: number) {
-    const allowEstimatedShortConnector = process.env.SIRA_ALLOW_ESTIMATED_WALK_CONNECTORS === "true";
+  private async toNetworkCandidate(id: string, label: string, route: NetworkJourney, comfort: number, reliabilityPrior: number, maxWalkingDistanceM: number, profiler: JourneyProfiler) {
     const accessEndpoints = route.access.coordinates;
     const egressEndpoints = route.egress.coordinates;
-    const access = await this.walkingRoute(accessEndpoints[0], accessEndpoints[accessEndpoints.length - 1], maxWalkingDistanceM, allowEstimatedShortConnector);
-    const egress = await this.walkingRoute(egressEndpoints[0], egressEndpoints[egressEndpoints.length - 1], maxWalkingDistanceM, allowEstimatedShortConnector);
+    const [access, egress] = await Promise.all([
+      profiler.measureAsync("access_walk", () => this.walkingRoute(accessEndpoints[0], accessEndpoints[accessEndpoints.length - 1], Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM), "access", profiler)),
+      profiler.measureAsync("egress_walk", () => this.walkingRoute(egressEndpoints[0], egressEndpoints[egressEndpoints.length - 1], Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM), "egress", profiler)),
+    ]);
     if (!access || !egress) return null;
 
-    const routedTransfers: PedestrianRoute[] = [];
-    for (const transfer of route.transfers) {
-      const routed = await this.walkingRoute(transfer.from, transfer.to, Math.min(800, maxWalkingDistanceM), allowEstimatedShortConnector);
-      if (!routed) return null;
-      routedTransfers.push(routed);
-    }
-    const walkingDistanceM = Math.round((access.distanceKm + egress.distanceKm + routedTransfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)) * 1000);
+    const routedTransfers = await Promise.all(route.transfers.map((transfer) => profiler.measureAsync("transfer_walk", () => this.walkingRoute(transfer.from, transfer.to, Math.min(SIRA_WALK.maxTransferDistanceM, maxWalkingDistanceM), "transfer", profiler))));
+    if (routedTransfers.some((transfer) => !transfer)) return null;
+    const confirmedTransfers = routedTransfers as PedestrianRoute[];
+    const walkingDistanceM = Math.round((access.distanceKm + egress.distanceKm + confirmedTransfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)) * 1000);
     if (walkingDistanceM > maxWalkingDistanceM) return null;
 
     const legs: Array<Record<string, unknown>> = [this.walkingLeg(`${id}-access`, "Rejoindre le réseau de transport", access)];
@@ -301,12 +322,12 @@ export class MobilityService {
         dataStatus: "historical_open_data", estimate_method: leg.durationMethod, confidence: leg.sourceConfidence,
       });
       const transfer = route.transfers.find((candidate) => candidate.afterLegIndex === index);
-      const routedTransfer = transfer ? routedTransfers[route.transfers.indexOf(transfer)] : null;
+      const routedTransfer = transfer ? confirmedTransfers[route.transfers.indexOf(transfer)] : null;
       if (transfer && routedTransfer) {
         const duration = routedTransfer.durationMinutes + transfer.interchangeBufferMinutes;
         legs.push({
           id: `${id}-transfer-${index}`, mode: "transfer", label: "Correspondance à pied",
-          detail: `${duration} min · ${Math.round(routedTransfer.distanceKm * 1000)} m${routedTransfer.guidanceAvailable ? " · chemin OSM" : " · sans guidage"}`,
+          detail: `${duration} min · ${Math.round(routedTransfer.distanceKm * 1000)} m · correspondance ${classifyTransferDistance(routedTransfer.distanceKm * 1000).toLowerCase()}${routedTransfer.guidanceAvailable ? " · chemin OSM" : " · sans guidage"}`,
           duration, duration_p90: routedTransfer.durationP90 + transfer.interchangeBufferMinutes, price: 0,
           geometry: routedTransfer.coordinates, dataStatus: routedTransfer.guidanceAvailable ? "routed_osm" : "estimated_mvp",
           estimate_method: routedTransfer.method, confidence: routedTransfer.confidence, guidance_available: routedTransfer.guidanceAvailable,
@@ -315,14 +336,14 @@ export class MobilityService {
     });
     legs.push(this.walkingLeg(`${id}-egress`, "Terminer à pied", egress));
 
-    const walkingMinutes = access.durationMinutes + egress.durationMinutes + routedTransfers.reduce((sum, transfer) => sum + transfer.durationMinutes, 0);
+    const walkingMinutes = access.durationMinutes + egress.durationMinutes + confirmedTransfers.reduce((sum, transfer) => sum + transfer.durationMinutes, 0);
     const transferBufferMinutes = route.transfers.reduce((sum, transfer) => sum + transfer.interchangeBufferMinutes, 0);
     const waitingMinutes = route.legs.reduce((sum, leg) => sum + leg.waitMinutes, 0);
     const inVehicleMinutes = route.legs.reduce((sum, leg) => sum + leg.durationMinutes, 0);
     const duration = walkingMinutes + transferBufferMinutes + waitingMinutes + inVehicleMinutes;
-    const durationP90 = access.durationP90 + egress.durationP90 + routedTransfers.reduce((sum, transfer) => sum + transfer.durationP90, 0) + transferBufferMinutes + route.legs.reduce((sum, leg) => sum + leg.waitP90 + leg.durationP90, 0);
+    const durationP90 = access.durationP90 + egress.durationP90 + confirmedTransfers.reduce((sum, transfer) => sum + transfer.durationP90, 0) + transferBufferMinutes + route.legs.reduce((sum, leg) => sum + leg.waitP90 + leg.durationP90, 0);
     const confidence = combineConfidence([
-      access.confidence, egress.confidence, ...routedTransfers.map((transfer) => transfer.confidence),
+      access.confidence, egress.confidence, ...confirmedTransfers.map((transfer) => transfer.confidence),
       ...route.legs.flatMap((leg) => [leg.sourceConfidence, leg.waitConfidence, leg.priceConfidence]),
     ]);
     const reliability = Math.min(reliabilityPrior, Math.round(confidence * 100));
@@ -350,13 +371,22 @@ export class MobilityService {
     };
   }
 
-  private walkingRoute(from: [number, number], to: [number, number], maxDistanceM: number, allowEstimatedShortConnector: boolean) {
-    const cacheKey = `${from.join(",")}|${to.join(",")}|${maxDistanceM}|${allowEstimatedShortConnector}`;
+  private walkingRoute(from: [number, number], to: [number, number], maxDistanceM: number, connectorKind: WalkConnectorKind, profiler: JourneyProfiler) {
+    const cacheKey = `${from.join(",")}|${to.join(",")}|${maxDistanceM}|${connectorKind}`;
     const cached = this.pedestrianRouteCache.get(cacheKey);
     if (cached) return cached;
-    const pending = routePedestrian(this.valhallaUrl, { lon: from[0], lat: from[1] }, { lon: to[0], lat: to[1] }, { maxDistanceM, allowEstimatedShortConnector });
+    const pending = routePedestrian(this.valhallaUrl, { lon: from[0], lat: from[1] }, { lon: to[0], lat: to[1] }, { maxDistanceM, connectorKind, walkingSpeedKmh: SIRA_WALK.speedsKmh.normal, onValhallaTiming: (durationMs) => profiler.record("valhalla_total", durationMs) });
     this.pedestrianRouteCache.set(cacheKey, pending);
+    void pending.then((result) => { if (!result) this.pedestrianRouteCache.delete(cacheKey); });
     return pending;
+  }
+
+  private withProfile(payload: Record<string, unknown>, profiler: JourneyProfiler) {
+    if (!this.profileJourneys) return payload;
+    const startedAt = performance.now();
+    const response = { ...payload };
+    profiler.record("response_serialization", performance.now() - startedAt);
+    return { ...response, performance: profiler.snapshot() };
   }
 
   private toRoadCandidate(id: string, label: string, route: ValhallaTrip, comfort: number, reliability: number, durationScale = 1) {

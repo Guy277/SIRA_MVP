@@ -14,7 +14,7 @@
     "start": "vinext start",
     "build:local": "vite build",
     "test": "node --test tests/*.test.mjs",
-    "test:ai": "python3 -m unittest discover -s services/ai/tests -v",
+    "test:ai": "py -3 -m unittest discover -s services/ai/tests -v",
     "test:routing:live": "node scripts/validate-valhalla-live.mjs",
     "test:integration": "node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern services/**/dist",
