@@ -137,3 +137,205 @@ test("rejette une correspondance au-delà de 800 mètres", () => {
   const route = graph.route({ lon: -4, lat: 5 }, { lon: -3.97, lat: 5 }, "balanced", { maxAccessDistanceM: 100, maxTransferDistanceM: 800, maxTransfers: 1, serviceDate: new Date("2026-09-02T12:00:00Z") });
   assert.equal(route, null);
 });
+
+test("walk() expose un contrat stable: status, distance, duree, geometrie [lon,lat], provider", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      trip: {
+        summary: { length: 0.463, time: 351 },
+        legs: [{ shape: { coordinates: [[-4.0201, 5.3196], [-4.0199, 5.3197], [-4.0196, 5.3206]] } }],
+      },
+    }),
+  });
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const svc = new MobilityService(new TransportRepository());
+    const result = await svc.walk(
+      { lat: 5.3196, lon: -4.0201 },
+      { lat: 5.3206, lon: -4.0196 },
+      { maxDistanceM: 1000, connectorKind: "access" },
+    );
+    assert.equal(result.status, "found");
+    assert.equal(result.provider, "valhalla_osm");
+    assert.equal(result.distanceM, 463);
+    assert.equal(result.durationSeconds, 351);
+    assert.equal(result.geometry.type, "LineString");
+    assert.ok(Array.isArray(result.geometry.coordinates[0]));
+    assert.equal(typeof result.geometry.coordinates[0][0], "number");
+    assert.equal(typeof result.geometry.coordinates[0][1], "number");
+    assert.ok(result.durationMinutes >= 1);
+    assert.ok(result.guidanceAvailable === true);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("walk() retourne no_walk_path_found quand Valhalla ne trouve pas de route (reponse vide)", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({ ok: true, json: async () => ({}) });
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const svc = new MobilityService(new TransportRepository());
+    const result = await svc.walk(
+      { lat: 5.3196, lon: -4.0201 },
+      { lat: 5.3206, lon: -4.0196 },
+      { maxDistanceM: 1000, connectorKind: "egress" },
+    );
+    assert.equal(result.status, "no_walk_path_found");
+    assert.equal(result.provider, "valhalla");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("walk() respecte maxDistanceM via haversine pre-filtre (retour direct sans appel reseau trop grand)", async () => {
+  let fetchCalled = false;
+  const originalFetch = global.fetch;
+  global.fetch = async () => { fetchCalled = true; return { ok: true, json: async () => ({}) }; };
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const svc = new MobilityService(new TransportRepository());
+    const result = await svc.walk(
+      { lat: 5.0, lon: -4.0 },
+      { lat: 6.0, lon: -4.0 },
+      { maxDistanceM: 50, connectorKind: "access" },
+    );
+    assert.equal(result.status, "no_walk_path_found");
+    assert.equal(fetchCalled, false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("findAccessibleStop choisit l'arret avec la PLUS PETITE distance PIETONNE (pas vol d'oiseau)", async () => {
+  const poolConnectMock = {
+    query: async (sql) => {
+      if (sql.includes("ST_DWithin")) {
+        return {
+          rows: [
+            { id: "near_crow_far_walk", name: "A", code: null, latitude: 5.3201, longitude: -4.0200, distance_m: "55" },
+            { id: "far_crow_near_walk", name: "B", code: null, latitude: 5.3208, longitude: -4.0194, distance_m: "110" },
+          ],
+        };
+      }
+      return { rows: [] };
+    },
+    release: () => undefined,
+  };
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+  const { TransportRepository } = require("../dist/mobility/transport.repository.js");
+  const repo = new TransportRepository();
+  repo.pool.connect = async () => poolConnectMock;
+  const { MobilityService } = require("../dist/mobility/mobility.service.js");
+  const svc = new MobilityService(repo);
+
+  const originalFetch = global.fetch;
+  const fetchByKey = (from, to) => {
+    const key = `${from[0].lat},${from[0].lon}|${from[1].lat},${from[1].lon}`;
+    const routes = {
+      "5.3201,-4.02|5.3201,-4.02": { length: 0.8, time: 640, coords: [[-4.02, 5.3201], [-4.02, 5.3201]] },
+      "5.3201,-4.02|5.3208,-4.0194": { length: 0.12, time: 96, coords: [[-4.02, 5.3201], [-4.0194, 5.3208]] },
+    };
+    const match = routes[key] ?? routes["5.3201,-4.02|5.3208,-4.0194"];
+    return global.fetchBackupResponse(match);
+  };
+  global.fetchBackupResponse = (payload) => Promise.resolve({
+    ok: true,
+    json: async () => ({
+      trip: {
+        summary: { length: payload.length, time: payload.time },
+        legs: [{ shape: { coordinates: payload.coords } }],
+      },
+    }),
+  });
+  global.fetch = async (_u, opts) => {
+    const body = JSON.parse(opts.body);
+    const from = body.locations[0]; const to = body.locations[1];
+    if (from.lat === 5.3201 && from.lon === -4.02 && to.lat === 5.3201 && to.lon === -4.02) {
+      return global.fetchBackupResponse({ length: 0.8, time: 640, coords: [[-4.02, 5.3201], [-4.02, 5.3201]] });
+    }
+    return global.fetchBackupResponse({ length: 0.12, time: 96, coords: [[-4.02, 5.3201], [-4.0194, 5.3208]] });
+  };
+  try {
+    const result = await svc.findAccessibleStop(
+      { lat: 5.3201, lon: -4.02 },
+      { radiusM: 300, maxWalkingDistanceM: 1000, maxCandidates: 5 },
+    );
+    assert.equal(result.status, "found");
+    assert.equal(result.stop.id, "far_crow_near_walk");
+    assert.equal(result.stop.name, "B");
+    assert.ok(result.walk.distanceM < 500);
+    assert.ok(result.candidatesEvaluated === 2);
+  } finally {
+    global.fetch = originalFetch;
+    delete global.fetchBackupResponse;
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+});
+
+test("findAccessibleStop retourne no_accessible_stop_found quand aucun candidat dans le rayon", async () => {
+  const poolConnectMock = {
+    query: async () => ({ rows: [] }),
+    release: () => undefined,
+  };
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+  const { TransportRepository } = require("../dist/mobility/transport.repository.js");
+  const repo = new TransportRepository();
+  repo.pool.connect = async () => poolConnectMock;
+  const { MobilityService } = require("../dist/mobility/mobility.service.js");
+  const svc = new MobilityService(repo);
+  const originalFetch = global.fetch;
+  try {
+    const result = await svc.findAccessibleStop(
+      { lat: 5.0, lon: -4.0 },
+      { radiusM: 10, maxWalkingDistanceM: 500, maxCandidates: 3 },
+    );
+    assert.equal(result.status, "no_accessible_stop_found");
+    assert.equal(result.candidatesEvaluated, 0);
+  } finally {
+    global.fetch = originalFetch;
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+});
+
+test("findEgressWalk expose fromStop + contrat walk", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      trip: {
+        summary: { length: 0.52, time: 416 },
+        legs: [{ shape: { coordinates: [[-4.0196, 5.3206], [-4.0201, 5.3196]] } }],
+      },
+    }),
+  });
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const svc = new MobilityService(new TransportRepository());
+    const result = await svc.findEgressWalk(
+      { lat: 5.3206, lon: -4.0196, id: "n6904171076", name: "Cash Center Plateau" },
+      { lat: 5.3196, lon: -4.0201, name: "Plateau Gare Sud" },
+      { maxWalkingDistanceM: 1000 },
+    );
+    assert.equal(result.status, "found");
+    assert.equal(result.fromStop.id, "n6904171076");
+    assert.equal(result.fromStop.name, "Cash Center Plateau");
+    assert.equal(result.distanceM, 520);
+    assert.equal(result.durationSeconds, 416);
+    assert.equal(result.geometry.type, "LineString");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

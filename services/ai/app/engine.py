@@ -47,7 +47,7 @@ def _motorized_legs(journey: dict[str, Any]) -> list[dict[str, Any]]:
     return [leg for leg in journey.get("legs", []) if str(leg.get("mode", "")).lower() not in IGNORED_MODES]
 
 
-def enrich_metrics(candidate: dict[str, Any]) -> dict[str, Any]:
+def enrich_metrics(candidate: dict[str, Any], is_peak_hour: bool = False) -> dict[str, Any]:
     """Compute canonical SIRA metrics once; the frontend only displays them."""
     journey = deepcopy(candidate)
     legs = journey.get("legs", [])
@@ -68,6 +68,12 @@ def enrich_metrics(candidate: dict[str, Any]) -> dict[str, Any]:
     estimated_legs = sum(1 for leg in legs if leg.get("dataStatus", leg.get("data_status")) != "live")
     uncertainty = min(1., max(0., _number(journey.get("uncertainty"), .15 + estimated_legs / max(len(legs), 1) * .20)))
     risk = min(1., max(0., _number(journey.get("incident_risk"), (100 - reliability) / 100)))
+
+    if is_peak_hour:
+        uncertainty = min(1.0, uncertainty * 1.5)
+        comfort = max(1.0, comfort - 1.0)
+        risk = min(1.0, risk * 1.2)
+
     line_ids = journey.get("line_ids") or [
         str(leg.get("line_id") or leg.get("source") or leg.get("label"))
         for leg in motorized if leg.get("line_id") or leg.get("source") or leg.get("label")
@@ -159,11 +165,17 @@ def _reasons(journey: dict[str, Any], candidates: list[dict[str, Any]], constrai
     return reasons[:4]
 
 
+from datetime import datetime
+
 def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preference: str = "balanced", constraints: dict[str, Any] | None = None, max_results: int = 3) -> dict[str, Any]:
     rules = {**DEFAULT_CONSTRAINTS, **(constraints or {})}
     rules["max_budget_fcfa"] = min(int(rules["max_budget_fcfa"]), int(budget)) if constraints and "max_budget_fcfa" in constraints else int(budget)
     profile = preference if preference in WEIGHTS else "balanced"
-    enriched = [enrich_metrics(candidate) for candidate in candidates]
+    
+    current_hour = datetime.utcnow().hour
+    is_peak_hour = (6 <= current_hour <= 9) or (16 <= current_hour <= 19)
+    
+    enriched = [enrich_metrics(candidate, is_peak_hour) for candidate in candidates]
     feasible, rejected = [], []
     for journey in enriched:
         violations = constraint_violations(journey, rules)
@@ -187,18 +199,30 @@ def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preferenc
         if len(diverse) >= max_results: break
 
     recommended_id = diverse[0]["id"] if diverse else None
-    fastest_id = min(feasible, key=lambda item: (item["duration"], item["price"]))["id"] if feasible else None
-    cheapest_id = min(feasible, key=lambda item: (item["price"], item["duration"]))["id"] if feasible else None
+    
+    # Dynamic Labels Assignment
     for journey in diverse:
         journey["recommended"] = journey["id"] == recommended_id
-        journey["profile_tags"] = [label for label, matches in (("recommended", journey["id"] == recommended_id), ("fastest", journey["id"] == fastest_id), ("cheapest", journey["id"] == cheapest_id)) if matches]
+        tags = []
+        if journey["id"] == recommended_id:
+            tags.append("⭐ Choix SIRA")
+        elif journey["price"] == min(j["price"] for j in diverse):
+            tags.append("💰 Solution économique")
+        elif journey["transfer_count"] == 0:
+            tags.append("🔄 Solution directe")
+        elif journey["walking_distance_m"] == min(j["walking_distance_m"] for j in diverse):
+            tags.append("🚶 Solution accessible")
+        else:
+            tags.append("🛡️ Solution robuste")
+        
+        journey["profile_tags"] = tags[:2]
 
     return {
         "recommended_id": recommended_id,
-        "fastest_id": fastest_id,
-        "cheapest_id": cheapest_id,
+        "fastest_id": None,
+        "cheapest_id": None,
         "journeys": diverse,
         "rejected": [{"id": item["id"], "constraint_violations": item["constraint_violations"]} for item in rejected],
-        "engine": {"name": "SIRA-MORE", "version": "1.1-phase-1", "pipeline": ["constraints", "pareto", "diversity", "scoring", "explanation"], "preference": profile, "constraints": rules, "candidate_count": len(enriched), "feasible_count": len(feasible), "pareto_count": len(frontier), "returned_count": len(diverse)},
-        "source": "sira-more-v1.1-phase-1",
+        "engine": {"name": "SIRA-MORE", "version": "2.0-phase-1", "pipeline": ["constraints", "pareto", "diversity", "scoring", "explanation"], "preference": profile, "constraints": rules, "candidate_count": len(enriched), "feasible_count": len(feasible), "pareto_count": len(frontier), "returned_count": len(diverse)},
+        "source": "sira-more-v2.0",
     }

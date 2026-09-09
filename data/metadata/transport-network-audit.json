@@ -1,0 +1,63 @@
+{
+  "schema_version": "sira-transport-network-audit-v1",
+  "generated_at": "2026-09-08T20:56:44.694Z",
+  "dataset": {
+    "path": "data/processed/transport-network-unified.json",
+    "source_date": "2021-10-12",
+    "data_status": "historical",
+    "validation_status": "pending"
+  },
+  "summary": {
+    "routes": 398,
+    "stops": 3820,
+    "trips": 830,
+    "stop_times": 11084,
+    "frequencies": 1304,
+    "source_line_rows": 325,
+    "normalized_geojson_features": 325,
+    "routes_with_stops": 398,
+    "routes_without_stops": 0,
+    "routes_with_stop_times": 398,
+    "routes_without_stop_times": 0,
+    "routes_with_frequency": 398,
+    "routes_without_frequency": 0,
+    "routes_with_fare": 117,
+    "routes_without_fare": 281,
+    "routes_with_geometry": 398,
+    "routes_without_geometry": 0
+  },
+  "modes": {
+    "WORO_WORO": 168,
+    "SOTRA_BUS": 112,
+    "GBAKA": 109,
+    "FERRY": 9
+  },
+  "coordinate_bounds": {
+    "longitude_min": -4.2517667,
+    "longitude_max": -3.8355428,
+    "latitude_min": 5.2368916,
+    "latitude_max": 5.5133877,
+    "stops_outside_greater_abidjan_bounds": 0
+  },
+  "referential_integrity": {
+    "invalid_trip_route_references": 0,
+    "invalid_stop_time_trip_references": 0,
+    "invalid_stop_time_stop_references": 0,
+    "invalid_frequency_trip_references": 0
+  },
+  "duplicates": {
+    "route_ids": [],
+    "stop_ids": [],
+    "trip_ids": [],
+    "stop_time_keys": []
+  },
+  "source_alignment": {
+    "normalized_geojson_ids_matching_csv_line_ids": 325,
+    "normalized_geojson_ids_not_matching_csv_line_ids": 0,
+    "note": "Les identifiants GTFS route_id et les identifiants OSM line_id ne sont pas du meme espace. La correspondance directe complete doit etre explicitee avant PostGIS."
+  },
+  "quality_flags": [
+    "routes_without_fare",
+    "dataset_not_validated"
+  ]
+}

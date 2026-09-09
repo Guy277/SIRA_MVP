@@ -117,7 +117,7 @@ export class TransportGraph {
     return { nodes: this.coordinates.size, directedEdges: Array.from(this.adjacency.values()).reduce((sum, edges) => sum + edges.length, 0), pedestrianTransferRadiusM: 350, lastExploredStates: this.lastExploredStates };
   }
 
-  route(origin: { lat: number; lon: number }, destination: { lat: number; lon: number }, strategy: "balanced" | "cheap" = "balanced", options: { maxAccessDistanceM?: number; maxTransferDistanceM?: number; maxTransfers?: number; serviceDate?: Date } = {}): NetworkJourney | null {
+  route(origin: { lat: number; lon: number }, destination: { lat: number; lon: number }, strategy: "fast" | "balanced" | "cheap" | "min_transfers" | "min_walking" = "balanced", options: { maxAccessDistanceM?: number; maxTransferDistanceM?: number; maxTransfers?: number; serviceDate?: Date } = {}): NetworkJourney | null {
     if (!this.coordinates.size) return null;
     const originCoordinate: Coordinate = [origin.lon, origin.lat]; const destinationCoordinate: Coordinate = [destination.lon, destination.lat];
     const start = this.nearestNode(originCoordinate); const finish = this.nearestNode(destinationCoordinate);
@@ -152,8 +152,11 @@ export class TransportGraph {
         const nextTransfers = currentTransfers;
         if (nextTransfers > maxTransfers) continue;
         const wait = boarding || changingAtSameNode ? estimateWait(edge.mode, edge.frequency, edge.frequencyExceptions, serviceDate).value : 0;
-        const transferBuffer = changingAtSameNode ? 2 : 0;
-        const pricePenalty = strategy === "cheap" && (boarding || changingAtSameNode) ? estimateFare(edge.mode, 5).value / 100 * 2.5 : 0;
+        let transferBuffer = changingAtSameNode ? 2 : 0;
+        if (strategy === "min_transfers" && boarding && currentLine !== "__start__" && currentLine !== "__walk__") {
+          transferBuffer += 45; // massive penalty for transferring
+        }
+        const pricePenalty = strategy === "cheap" && (boarding || changingAtSameNode) ? estimateFare(edge.mode, 5, edge.lineId).value / 100 * 3.5 : 0;
         const nextDistance = currentDistance + rideMinutesRaw(edge.mode, edge.distanceKm) + wait + transferBuffer + pricePenalty;
         const nextState = stateOf(edge.to, edge.lineId, nextTransfers);
         if (nextDistance < (distances.get(nextState) ?? Number.POSITIVE_INFINITY)) {
@@ -162,7 +165,10 @@ export class TransportGraph {
       }
       if (!currentLine.startsWith("__") && currentTransfers < maxTransfers) {
         for (const transfer of this.nearbyTransferNodes(currentNode, currentLine, maxTransferKm)) {
-          const walking = estimateWalkingDuration(transfer.distanceKm); const nextDistance = currentDistance + walking.value + 2; const nextState = stateOf(transfer.key, "__walk__", currentTransfers + 1);
+          const walking = estimateWalkingDuration(transfer.distanceKm); 
+          const walkingPenalty = strategy === "min_walking" ? walking.value * 8 : 0;
+          const nextDistance = currentDistance + walking.value + 2 + walkingPenalty; 
+          const nextState = stateOf(transfer.key, "__walk__", currentTransfers + 1);
           if (nextDistance < (distances.get(nextState) ?? Number.POSITIVE_INFINITY)) {
             distances.set(nextState, nextDistance); previous.set(nextState, { kind: "walk", state: currentState, fromNode: currentNode, toNode: transfer.key, distanceKm: transfer.distanceKm, durationMinutes: walking.value }); heap.push([nextDistance + heuristic(transfer.key), nextState]);
           }
@@ -192,7 +198,7 @@ export class TransportGraph {
       }
     }
     for (const leg of legs) {
-      leg.distanceKm = Number(leg.distanceKm.toFixed(2)); const price = estimateFare(leg.mode, leg.distanceKm);
+      leg.distanceKm = Number(leg.distanceKm.toFixed(2)); const price = estimateFare(leg.mode, leg.distanceKm, leg.lineId);
       leg.durationMinutes = Math.max(1, Math.round(leg.durationMinutes));
       leg.durationP90 = Math.max(2, Math.round(leg.durationP90));
       leg.price = price.value; leg.priceP90 = price.p90; leg.priceMethod = price.method; leg.priceConfidence = price.confidence;

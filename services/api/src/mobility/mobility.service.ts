@@ -6,6 +6,7 @@ import { combineConfidence } from "./estimators";
 import { decodeValhallaShape, routePedestrian, type PedestrianRoute } from "./pedestrian-router";
 import { classifyTransferDistance, SIRA_WALK, type WalkConnectorKind } from "./walk-config";
 import { JourneyProfiler } from "./journey-profiler";
+import { TransportRepository } from "./transport.repository";
 
 type Point = { lat: number; lon: number; name?: string };
 export type JourneyRequest = {
@@ -50,6 +51,32 @@ type ValhallaTrip = {
   geometry?: Array<[number, number]>;
 };
 
+type WalkFoundResult = {
+  status: "found";
+  origin: Point;
+  destination: Point;
+  maxDistanceM: number;
+  distanceM: number;
+  durationSeconds: number;
+  durationMinutes: number;
+  durationP90: number;
+  geometry: { type: "LineString"; coordinates: [number, number][] };
+  provider: string;
+  method: string;
+  guidanceAvailable: boolean;
+  confidence: number;
+};
+
+type WalkFailedResult = {
+  status: "no_walk_path_found" | "walk_engine_unavailable";
+  origin: Point;
+  destination: Point;
+  maxDistanceM: number;
+  provider: string;
+};
+
+export type WalkResult = WalkFoundResult | WalkFailedResult;
+
 @Injectable()
 export class MobilityService implements OnModuleInit {
   private readonly valhallaUrl = process.env.VALHALLA_URL ?? "http://valhalla:8002";
@@ -61,6 +88,8 @@ export class MobilityService implements OnModuleInit {
   private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
   private transportGraph?: TransportGraph;
   private readonly pedestrianRouteCache = new Map<string, Promise<PedestrianRoute | null>>();
+
+  constructor(private readonly transportRepository: TransportRepository) {}
 
   onModuleInit() {
     this.getTransportGraph();
@@ -147,6 +176,205 @@ export class MobilityService implements OnModuleInit {
     return Array.from(operators.entries()).map(([name, count]) => ({ name, count }));
   }
 
+  async findNearbyStops(latitude: number, longitude: number, radiusM = 1500) {
+    this.validatePoint({ lat: latitude, lon: longitude });
+    if (!Number.isFinite(radiusM) || radiusM <= 0 || radiusM > 10_000) throw new BadRequestException("Rayon d'arrêt invalide.");
+    if (!this.transportRepository.enabled) throw new ServiceUnavailableException("PostGIS transport n'est pas configuré.");
+    try {
+      const stops = await this.transportRepository.findNearbyStops(latitude, longitude, radiusM);
+      return { source: "postgis", dataStatus: "historical", radiusM, items: stops };
+    } catch {
+      throw new ServiceUnavailableException("PostGIS transport est indisponible.");
+    }
+  }
+
+  async walk(origin: Point, destination: Point, options: { maxDistanceM?: number; connectorKind?: WalkConnectorKind } = {}): Promise<WalkResult> {
+    this.validatePoint(origin);
+    this.validatePoint(destination);
+    const maxDistanceM = options.maxDistanceM ?? SIRA_WALK.maxTotalDistanceM;
+    if (!Number.isFinite(maxDistanceM) || maxDistanceM <= 0 || maxDistanceM > 20_000) throw new BadRequestException("Distance maximale de marche invalide.");
+    const connectorKind = options.connectorKind ?? "access";
+    try {
+      const profiler = new JourneyProfiler(false);
+      const route = await routePedestrian(this.valhallaUrl, { lon: origin.lon, lat: origin.lat }, { lon: destination.lon, lat: destination.lat }, {
+        maxDistanceM,
+        connectorKind,
+        walkingSpeedKmh: SIRA_WALK.speedsKmh.normal,
+        onValhallaTiming: (durationMs) => profiler.record("valhalla_walk", durationMs),
+      });
+      if (!route) {
+        return {
+          status: "no_walk_path_found",
+          origin,
+          destination,
+          maxDistanceM,
+          provider: "valhalla",
+        };
+      }
+      return {
+        status: "found",
+        origin,
+        destination,
+        maxDistanceM,
+        distanceM: Math.round(route.distanceKm * 1000),
+        durationSeconds: route.walkingDurationS,
+        durationMinutes: route.durationMinutes,
+        durationP90: route.durationP90,
+        geometry: { type: "LineString", coordinates: route.coordinates },
+        provider: route.source,
+        method: route.method,
+        guidanceAvailable: route.guidanceAvailable,
+        confidence: route.confidence,
+      };
+    } catch {
+      return {
+        status: "walk_engine_unavailable",
+        origin,
+        destination,
+        maxDistanceM,
+        provider: "valhalla",
+      };
+    }
+  }
+
+  async findAccessibleStop(origin: Point, options: { radiusM?: number; maxWalkingDistanceM?: number; maxCandidates?: number } = {}) {
+    this.validatePoint(origin);
+    if (!this.transportRepository.enabled) throw new ServiceUnavailableException("PostGIS transport n'est pas configuré.");
+    const radiusM = options.radiusM ?? SIRA_WALK.maxAccessOrEgressDistanceM;
+    const maxWalkingDistanceM = options.maxWalkingDistanceM ?? SIRA_WALK.maxAccessOrEgressDistanceM;
+    const maxCandidates = Math.max(1, Math.min(8, options.maxCandidates ?? 5));
+    if (!Number.isFinite(radiusM) || radiusM <= 0 || radiusM > 10_000) throw new BadRequestException("Rayon de recherche invalide.");
+    if (!Number.isFinite(maxWalkingDistanceM) || maxWalkingDistanceM <= 0 || maxWalkingDistanceM > 10_000) throw new BadRequestException("Distance maximale de marche invalide.");
+
+    let candidates: Awaited<ReturnType<TransportRepository["findNearbyStops"]>>;
+    try {
+      candidates = await this.transportRepository.findNearbyStops(origin.lat, origin.lon, radiusM, maxCandidates);
+    } catch {
+      throw new ServiceUnavailableException("PostGIS transport est indisponible.");
+    }
+    if (!candidates.length) {
+      return { status: "no_accessible_stop_found", source: "postgis", origin, radiusM, maxWalkingDistanceM, candidatesEvaluated: 0 };
+    }
+
+    const evaluated: Array<{
+      stop: (typeof candidates)[number];
+      crowDistanceM: number;
+      walk: WalkResult;
+    }> = [];
+    for (const stop of candidates) {
+      const walkResult = await this.walk(origin, { lat: stop.latitude, lon: stop.longitude, name: stop.name }, { maxDistanceM: maxWalkingDistanceM, connectorKind: "access" });
+      evaluated.push({ stop, crowDistanceM: Number(stop.distance_m), walk: walkResult });
+    }
+
+    const reachable = evaluated
+      .filter((e): e is { stop: (typeof candidates)[number]; crowDistanceM: number; walk: WalkFoundResult } => e.walk.status === "found")
+      .sort((a, b) => a.walk.distanceM - b.walk.distanceM);
+
+    if (!reachable.length) {
+      return {
+        status: "no_accessible_stop_found",
+        source: "postgis",
+        origin,
+        radiusM,
+        maxWalkingDistanceM,
+        candidatesEvaluated: evaluated.length,
+        provider: "valhalla",
+        candidates: evaluated.map((e) => ({
+          stopId: e.stop.id,
+          stopName: e.stop.name,
+          crowDistanceM: e.crowDistanceM,
+          walkStatus: e.walk.status,
+        })),
+      };
+    }
+
+    const best = reachable[0];
+    return {
+      status: "found",
+      source: "postgis",
+      origin,
+      radiusM,
+      maxWalkingDistanceM,
+      candidatesEvaluated: evaluated.length,
+      provider: "valhalla",
+      stop: {
+        id: best.stop.id,
+        name: best.stop.name,
+        code: best.stop.code,
+        latitude: best.stop.latitude,
+        longitude: best.stop.longitude,
+        crowDistanceM: best.crowDistanceM,
+      },
+      walk: {
+        distanceM: best.walk.distanceM,
+        durationSeconds: best.walk.durationSeconds,
+        durationMinutes: best.walk.durationMinutes,
+        durationP90: best.walk.durationP90,
+        geometry: best.walk.geometry,
+        provider: best.walk.provider,
+        method: best.walk.method,
+        guidanceAvailable: best.walk.guidanceAvailable,
+        confidence: best.walk.confidence,
+      },
+      candidates: evaluated.map((e) => ({
+        stopId: e.stop.id,
+        stopName: e.stop.name,
+        crowDistanceM: e.crowDistanceM,
+        walkStatus: e.walk.status,
+        walkDistanceM: e.walk.status === "found" ? e.walk.distanceM : null,
+      })),
+    };
+  }
+
+  async findEgressWalk(fromStop: { lat: number; lon: number; id?: string; name?: string }, destination: Point, options: { maxWalkingDistanceM?: number } = {}) {
+    const stopPoint: Point = { lat: fromStop.lat, lon: fromStop.lon, name: fromStop.name ?? fromStop.id };
+    const maxWalkingDistanceM = options.maxWalkingDistanceM ?? SIRA_WALK.maxAccessOrEgressDistanceM;
+    const walkResult = await this.walk(stopPoint, destination, { maxDistanceM: maxWalkingDistanceM, connectorKind: "egress" });
+    return {
+      ...walkResult,
+      fromStop: {
+        id: fromStop.id ?? null,
+        name: fromStop.name ?? null,
+        latitude: fromStop.lat,
+        longitude: fromStop.lon,
+      },
+    };
+  }
+
+  async findTransportSegment(request: { origin: Point; destination: Point; radiusM?: number }) {
+    this.validatePoint(request.origin);
+    this.validatePoint(request.destination);
+    const radiusM = request.radiusM ?? 1500;
+    if (!Number.isFinite(radiusM) || radiusM <= 0 || radiusM > 10_000) throw new BadRequestException("Rayon de recherche invalide.");
+    if (!this.transportRepository.enabled) throw new ServiceUnavailableException("PostGIS transport n'est pas configuré.");
+    try {
+      const segment = await this.transportRepository.findFirstTransitSegment({ ...request, radiusM });
+      if (!segment) return { status: "no_transport_path_found", source: "postgis", dataStatus: "historical", fare: null, fareStatus: "unknown" };
+      return {
+        status: "found",
+        source: "postgis",
+        dataStatus: segment.data_status,
+        origin: request.origin,
+        destination: request.destination,
+        legs: [
+          {
+            type: "transit",
+            mode: segment.mode,
+            route: { id: segment.route_id, shortName: segment.short_name, longName: segment.long_name, operator: segment.operator },
+            fromStop: { id: segment.from_stop_id, name: segment.from_stop_name, code: segment.from_stop_code, latitude: Number(segment.from_latitude), longitude: Number(segment.from_longitude), distanceM: Number(segment.from_distance_m) },
+            toStop: { id: segment.to_stop_id, name: segment.to_stop_name, code: segment.to_stop_code, latitude: Number(segment.to_latitude), longitude: Number(segment.to_longitude), distanceM: Number(segment.to_distance_m) },
+            geometry: segment.geometry,
+            fare: segment.historical_fare === null ? null : Number(segment.historical_fare),
+            fareStatus: segment.fare_status,
+          },
+        ],
+        metadata: { dataStatus: segment.data_status, confidence: segment.confidence === null ? null : Number(segment.confidence) },
+      };
+    } catch {
+      throw new ServiceUnavailableException("PostGIS transport est indisponible.");
+    }
+  }
+
   async buildJourneys(request: JourneyRequest) {
     const profiler = new JourneyProfiler(this.profileJourneys);
     this.validatePoint(request.origin);
@@ -162,20 +390,36 @@ export class MobilityService implements OnModuleInit {
       maxTransfers: request.constraints?.maxTransfers ?? 3,
       serviceDate,
     };
-    // A second graph traversal is costly (the historical network contains more than
-    // 300k directed arcs). The request preference selects the transit search needed
-    // for this response; the road candidate remains a genuinely distinct alternative.
-    const transitStrategy = request.preference === "cheap" ? "cheap" : "balanced";
-    const network = profiler.measure("transport_graph_search", () => graph.route(request.origin, request.destination, transitStrategy, graphOptions));
-    const [road, balancedCandidate, cheapCandidate] = await Promise.all([
-      roadPromise,
-      network ? this.toNetworkCandidate(`network-${transitStrategy}`, transitStrategy === "cheap" ? "Option économique" : "Transport collectif", network, transitStrategy === "cheap" ? 3 : 4, transitStrategy === "cheap" ? 72 : 78, maxWalkingDistanceM, profiler) : null,
-      null,
-    ]);
+    const strategies = ["fast", "balanced", "cheap", "min_transfers", "min_walking"] as const;
+    const networks = profiler.measure("transport_graph_search", () => 
+      strategies.map(strategy => ({ strategy, result: graph.route(request.origin, request.destination, strategy, graphOptions) }))
+    );
+
     const candidates: Array<Record<string, unknown>> = [];
-    if (balancedCandidate) candidates.push(balancedCandidate);
-    if (cheapCandidate) candidates.push(cheapCandidate);
-    if (road.geometry?.length || road.trip?.legs?.[0]?.shape) candidates.push(this.toRoadCandidate("road-fast", "Taxi / route directe", road, 5, 82));
+    const road = await roadPromise;
+    if (road.geometry?.length || road.trip?.legs?.[0]?.shape) {
+      candidates.push(this.toRoadCandidate("road-fast", "Taxi / route directe", road, 5, 82));
+    }
+
+    const signatures = new Set<string>();
+    for (const { strategy, result } of networks) {
+      if (!result) continue;
+      const signature = result.legs.map(l => l.lineId).join("->");
+      if (signatures.has(signature)) continue;
+      signatures.add(signature);
+
+      const candidate = await this.toNetworkCandidate(
+        `network-${strategy}`,
+        `Option ${strategy}`,
+        result,
+        strategy === "cheap" ? 3 : (strategy === "min_walking" ? 5 : 4),
+        strategy === "cheap" ? 72 : (strategy === "fast" ? 80 : 78),
+        maxWalkingDistanceM,
+        profiler
+      );
+      if (candidate) candidates.push(candidate);
+    }
+
     if (!candidates.length) throw new BadRequestException("Aucun itinéraire suivant le réseau disponible n’a été trouvé.");
     const constraints = {
       max_budget_fcfa: request.budget ?? 1500,

@@ -89,17 +89,46 @@ export const estimateRideDuration = (mode: SiraTransportMode, distanceKm: number
   };
 };
 
-export const estimateFare = (mode: SiraTransportMode, distanceKm: number): Estimate => {
+const SOTRA_FARES: Record<string, number> = {
+  "501": 150, "502": 150, "503": 150,
+  "610": 250,
+  "701": 300, "702": 300, "704": 300, "705": 300, "708": 300, "710": 300,
+  "201": 500, "203": 500, "206": 500, "209": 500, "212": 500,
+  "712": 500, "713": 500, "715": 500, "716": 500, "717": 500, "718": 500, "719": 500, "720": 500, "721": 500, "726": 500, "727": 500, "728": 500, "729": 500, "730": 500, "731": 500, "732": 500, "733": 500, "770": 500, "771": 500, "772": 500, "773": 500, "775": 500, "776": 500,
+};
+
+export const estimateFare = (mode: SiraTransportMode, distanceKm: number, lineId?: string): Estimate => {
+  if (mode === "sotra" || mode === "boat") {
+    if (lineId && SOTRA_FARES[lineId]) {
+      return { value: SOTRA_FARES[lineId], p50: SOTRA_FARES[lineId], p90: SOTRA_FARES[lineId], method: "official_fare_2024", confidence: 1.0 };
+    }
+    const defaultVal = mode === "boat" ? 500 : 200;
+    return { value: defaultVal, p50: defaultVal, p90: defaultVal, method: "official_fare_2024", confidence: 0.9 };
+  }
+
   const prior = MODE_PRIORS[mode];
   let value = prior.fareBase;
-  if (mode === "woro") value = Math.max(prior.fareBase, Math.round(distanceKm * 55 / 100) * 100);
-  if (mode === "gbaka") value = Math.max(prior.fareBase, Math.round(distanceKm * 50 / 100) * 100);
+  let method = "historical_mode_fare_prior";
+  let confidence = 0.3;
+
+  if (mode === "woro") {
+    if (distanceKm < 2.5) value = 200;
+    else if (distanceKm < 4.5) value = 300;
+    else if (distanceKm < 6.5) value = 400;
+    else if (distanceKm < 8.5) value = 500;
+    else value = 700;
+    method = "estimated_woro_segmented";
+    confidence = 0.6;
+  } else if (mode === "gbaka") {
+    value = Math.max(prior.fareBase, Math.round(distanceKm * 50 / 100) * 100);
+  }
+
   return {
     value,
     p50: value,
-    p90: Math.ceil(value * (mode === "sotra" || mode === "boat" ? 1.15 : 1.35) / 100) * 100,
-    method: "historical_mode_fare_prior",
-    confidence: mode === "sotra" || mode === "boat" ? 0.5 : 0.3,
+    p90: Math.ceil(value * 1.35 / 100) * 100,
+    method,
+    confidence,
   };
 };
 
