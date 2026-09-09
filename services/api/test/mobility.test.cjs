@@ -339,3 +339,211 @@ test("findEgressWalk expose fromStop + contrat walk", async () => {
     global.fetch = originalFetch;
   }
 });
+
+test("buildPostgisMultimodalJourney compose marche + transport PostGIS + marche", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      trip: {
+        summary: { length: 0.12, time: 96 },
+        legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }],
+      },
+    }),
+  });
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return {
+            rows: [
+              { id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" },
+            ],
+          };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1",
+      short_name: "L1",
+      long_name: "Ligne Test",
+      mode: "GBAKA",
+      operator: "TestOp",
+      historical_fare: 500,
+      fare_status: "historical",
+      data_status: "historical",
+      confidence: 0.8,
+      from_stop_id: "n1",
+      from_stop_name: "A",
+      from_stop_code: "A1",
+      from_latitude: 5.3202,
+      from_longitude: -4.02,
+      from_distance_m: 0,
+      to_stop_id: "n2",
+      to_stop_name: "B",
+      to_stop_code: "B1",
+      to_latitude: 5.3208,
+      to_longitude: -4.0194,
+      to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    const result = await svc.buildPostgisMultimodalJourney(
+      { lat: 5.3201, lon: -4.02, name: "Origin" },
+      { lat: 5.3209, lon: -4.0193, name: "Destination" },
+      { radiusM: 500, maxWalkingDistanceM: 1000, maxCandidates: 5 }
+    );
+    assert.equal((result).source, "postgis");
+    assert.equal((result).dataStatus, "historical");
+    assert.equal((result).legs.length, 3);
+    assert.equal((result).legs[0].mode, "WALK");
+    assert.equal((result).legs[1].mode, "GBAKA");
+    assert.equal((result).legs[2].mode, "WALK");
+    assert.equal((result).legs[1].fare, 500);
+    assert.equal((result).legs[1].fareStatus, "historical");
+    assert.equal((result).summary.transfers, 0);
+    assert.ok((result).summary.totalDistanceM > 0);
+    assert.ok((result).summary.totalDurationSeconds > 0);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("buildPostgisMultimodalJourney retourne no_accessible_stop_found", async () => {
+  const { MobilityService } = require("../dist/mobility/mobility.service.js");
+  const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+  process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+  const repo = new TransportRepository();
+  repo.pool.connect = async () => ({
+    query: async () => ({ rows: [] }),
+    release: () => undefined,
+  });
+  const svc = new MobilityService(repo);
+  const result = await svc.buildPostgisMultimodalJourney(
+    { lat: 5.0, lon: -4.0 },
+    { lat: 5.1, lon: -4.1 },
+    { radiusM: 200, maxWalkingDistanceM: 500, maxCandidates: 3 }
+  );
+  assert.equal(result.status, "no_accessible_stop_found");
+});
+
+test("buildPostgisMultimodalJourney retourne no_transport_path_found", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      trip: {
+        summary: { length: 0.12, time: 96 },
+        legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }],
+      },
+    }),
+  });
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return {
+            rows: [
+              { id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" },
+            ],
+          };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => null;
+    const svc = new MobilityService(repo);
+    const result = await svc.buildPostgisMultimodalJourney(
+      { lat: 5.3201, lon: -4.02, name: "Origin" },
+      { lat: 5.3208, lon: -4.0194, name: "Destination" },
+      { radiusM: 500, maxWalkingDistanceM: 1000, maxCandidates: 5 }
+    );
+    assert.equal(result.status, "no_transport_path_found");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("buildPostgisMultimodalJourney retourne no_egress_walk_path_found", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    const from = body.locations[0];
+    const to = body.locations[1];
+    if (from.lat === 5.3208 && from.lon === -4.0194 && to.lat === 5.9 && to.lon === -4.0) {
+      return { ok: true, json: async () => ({}) };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        trip: {
+          summary: { length: 0.12, time: 96 },
+          legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }],
+        },
+      }),
+    };
+  };
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return {
+            rows: [
+              { id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" },
+            ],
+          };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1",
+      short_name: "L1",
+      long_name: "Ligne Test",
+      mode: "GBAKA",
+      operator: "TestOp",
+      historical_fare: null,
+      fare_status: "unknown",
+      data_status: "historical",
+      confidence: 0.8,
+      from_stop_id: "n1",
+      from_stop_name: "A",
+      from_stop_code: "A1",
+      from_latitude: 5.3202,
+      from_longitude: -4.02,
+      from_distance_m: 0,
+      to_stop_id: "n2",
+      to_stop_name: "B",
+      to_stop_code: "B1",
+      to_latitude: 5.3208,
+      to_longitude: -4.0194,
+      to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    const result = await svc.buildPostgisMultimodalJourney(
+      { lat: 5.3201, lon: -4.02, name: "Origin" },
+      { lat: 5.9, lon: -4.0, name: "FarDestination" },
+      { radiusM: 500, maxWalkingDistanceM: 1000, maxCandidates: 5 }
+    );
+    assert.equal(result.status, "no_egress_walk_path_found");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

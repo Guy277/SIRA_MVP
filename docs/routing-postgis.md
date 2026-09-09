@@ -4,10 +4,14 @@
 
 `POST /api/v1/mobility/journeys` continue d'utiliser `transport-lines-normalized.geojson` pour construire le `TransportGraph`. Valhalla et OSRM servent les trajets routiers et pietons. Cette logique reste intacte.
 
-La nouvelle couche ajoute deux preuves backend sans remplacer ce flux :
+La nouvelle couche ajoute des preuves backend sans remplacer ce flux :
 
 - `GET /api/v1/mobility/transport/stops/nearby?lat=...&lon=...&radiusM=...`
 - `POST /api/v1/mobility/transport/segment`
+- `POST /api/v1/mobility/transport/walk`
+- `POST /api/v1/mobility/transport/walk-access`
+- `POST /api/v1/mobility/transport/walk-egress`
+- `POST /api/v1/mobility/transport/multimodal`
 
 ## Couche PostGIS
 
@@ -25,12 +29,17 @@ Il ne retourne une ligne que si le meme trip dessert l'arret d'origine puis l'ar
 | --- | --- | --- |
 | `GET` | `/api/v1/mobility/transport/stops/nearby?lat=&lon=&radiusM=` | Arrets proches via `ST_DWithin` / `ST_Distance` |
 | `POST` | `/api/v1/mobility/transport/segment` | Premier segment `stop -> stop_times -> trip -> route` |
+| `POST` | `/api/v1/mobility/transport/walk` | Routing piéton Valhalla entre deux points |
+| `POST` | `/api/v1/mobility/transport/walk-access` | Meilleur arrêt accessible à pied depuis une origine |
+| `POST` | `/api/v1/mobility/transport/walk-egress` | Marche d'un arrêt PostGIS vers une destination |
+| `POST` | `/api/v1/mobility/transport/multimodal` | Composition `marche + transport PostGIS + marche` |
 
 Repository NestJS : `TransportRepository` (`findNearbyStops`, `findFirstTransitSegment`).
 
 Tests :
 
 - unitaires mockes : `services/api/test/transport.repository.test.cjs`
+- unitaires mockes : `services/api/test/mobility.test.cjs`
 - integration Docker : `tests/transport-postgis.integration.test.mjs`
 
 ## Exemples verifies (2026-09-09)
@@ -79,3 +88,31 @@ Le routing principal conserve le GeoJSON comme fallback de compatibilite. Les no
 OSRM/Valhalla ne sont pas utilises pour construire ce premier segment transport. Ils restent responsables de la marche et de la voirie dans le pipeline existant. La prochaine etape est donc la composition `marche -> transport -> marche`, avec des connecteurs pietons verifies.
 
 Les donnees restent historiques et non temps reel. Un tarif historique ne devient pas automatiquement actuel ou valide.
+
+## Composition multimodale (preuve fonctionnelle)
+
+L'endpoint `POST /api/v1/mobility/transport/multimodal` orchestre pour la première fois un trajet réel composé de :
+
+1. **Accès piéton** : `findAccessibleStop()` + Valhalla pour relier l'utilisateur à un arrêt PostGIS ;
+2. **Segment transport** : `findFirstTransitSegment()` pour trouver un trip GTFS réel entre deux arrêts ;
+3. **Sortie piétonne** : `findEgressWalk()` + Valhalla pour relier l'arrêt d'arrivée à la destination.
+
+Exemple vérifié (2026-09-09) :
+
+- Origine : `5.3197, -4.02` (near Plateau Gare Sud)
+- Destination : `5.3313, -4.0238` (near Cite Admin)
+- Accès : 131 m / 108 s (Valhalla)
+- Transport : `SOTRA_BUS`, route `r10173635` « Yopougon Camp Militaire ↔ Gare Sud »
+- Sortie : 7 m / 6 s (Valhalla)
+- Tarif : 200 FCFA, `fareStatus: historical`
+
+Autre exemple :
+
+- Origine : `5.2561, -3.9967` (near Au 19)
+- Destination : `5.4438, -4.0483` (near Agripac)
+- Accès : 8 m / 7 s
+- Transport : `GBAKA`, route `r13499675` « gbaka : Agripac ↔ Treichville »
+- Sortie : 6 m / 5 s
+- Tarif : `null`, `fareStatus: unknown`
+
+La durée de transport est une estimation basée sur le mode et la distance de la géométrie PostGIS (`durationStatus: estimated`). Le tarif inconnu reste `null` + `unknown`, aucun tarif n'est inventé.

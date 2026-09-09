@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
-import { MobilityService, type JourneyRequest } from "./mobility.service";
+import { MobilityService, type JourneyRequest, type MultimodalRequest } from "./mobility.service";
 
 type Point = { lat: number; lon: number; name?: string };
 
@@ -84,6 +84,15 @@ export class MobilityController {
   @Post("transport/segment")
   async getTransportSegment(@Body() request: { origin: Point; destination: Point; radiusM?: number }) {
     return this.mobility.findTransportSegment(request);
+  }
+
+  @Post("transport/multimodal")
+  async multimodal(@Body() request: MultimodalRequest) {
+    return this.mobility.buildPostgisMultimodalJourney(request.origin, request.destination, {
+      radiusM: request.radiusM,
+      maxWalkingDistanceM: request.maxWalkingDistanceM,
+      maxCandidates: request.maxCandidates,
+    });
   }
 
   @Post("journeys")

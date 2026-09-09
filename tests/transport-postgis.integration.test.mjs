@@ -220,3 +220,73 @@ test("integration Walk+PostGIS: walk-egress arret PostGIS vers destination Valha
   assert.ok(r.durationSeconds > 0);
   assert.equal(r.geometry.type, "LineString");
 });
+
+test("integration multimodal: trajet reel marche + transport PostGIS + marche", { skip: !(await canReachApi()) }, async () => {
+  const r = await post("/mobility/transport/multimodal", {
+    origin: { lat: 5.3197, lon: -4.02, name: "Near Plateau Gare Sud" },
+    destination: { lat: 5.3313, lon: -4.0238, name: "Near Cite Admin" },
+    radiusM: 1500,
+    maxWalkingDistanceM: 1000,
+    maxCandidates: 5,
+  });
+  assert.equal(r.source, "postgis");
+  assert.equal(r.dataStatus, "historical");
+  assert.ok(Array.isArray(r.legs));
+  assert.equal(r.legs.length, 3);
+  assert.equal(r.legs[0].mode, "WALK");
+  assert.ok(r.legs[0].distanceM > 0);
+  assert.ok(r.legs[0].durationSeconds > 0);
+  assert.equal(r.legs[0].geometry.type, "LineString");
+  assert.ok(r.legs[0].geometry.coordinates.length > 1);
+  assert.equal(r.legs[1].mode, "SOTRA_BUS");
+  assert.ok(r.legs[1].route.id);
+  assert.ok(r.legs[1].route.longName);
+  assert.ok(r.legs[1].distanceM > 0);
+  assert.ok(r.legs[1].durationSeconds > 0);
+  assert.equal(r.legs[1].geometry.type, "LineString");
+  assert.ok(r.legs[1].geometry.coordinates.length > 1);
+  assert.equal(r.legs[2].mode, "WALK");
+  assert.ok(r.legs[2].distanceM > 0);
+  assert.ok(r.legs[2].durationSeconds > 0);
+  assert.equal(r.legs[2].geometry.type, "LineString");
+  assert.ok(r.legs[2].geometry.coordinates.length > 1);
+  assert.equal(r.summary.transfers, 0);
+  assert.ok(r.summary.totalDistanceM > 0);
+  assert.ok(r.summary.totalDurationSeconds > 0);
+});
+
+test("integration multimodal: tarif inconnu conserve null + unknown", { skip: !(await canReachApi()) }, async () => {
+  const r = await post("/mobility/transport/multimodal", {
+    origin: { lat: 5.2561, lon: -3.9967, name: "Near Au 19" },
+    destination: { lat: 5.4438, lon: -4.0483, name: "Near Agripac" },
+    radiusM: 1500,
+    maxWalkingDistanceM: 1000,
+    maxCandidates: 5,
+  });
+  const transitLeg = r.legs.find((leg) => leg.mode === "GBAKA");
+  assert.ok(transitLeg);
+  assert.equal(transitLeg.fare, null);
+  assert.equal(transitLeg.fareStatus, "unknown");
+  assert.equal(r.summary.fare, null);
+  assert.equal(r.summary.fareStatus, "unknown");
+});
+
+test("integration multimodal: non-regression journeys GeoJSON", { skip: !(await canReachApi()) }, async () => {
+  const response = await fetch(`${apiBaseUrl}/mobility/journeys`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      origin: { lat: 5.3467, lon: -3.9951, name: "Cocody Danga" },
+      destination: { lat: 5.3196, lon: -4.0201, name: "Plateau Gare Sud" },
+      budget: 1500,
+      preference: "balanced",
+      constraints: { maxWalkingDistanceM: 1500, maxTransfers: 3, excludedModes: [] },
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  assert.equal(response.status, 201);
+  const payload = await response.json();
+  assert.ok(Array.isArray(payload.journeys));
+  assert.ok(payload.journeys.length > 0);
+  assert.ok(payload.recommended_id);
+});
