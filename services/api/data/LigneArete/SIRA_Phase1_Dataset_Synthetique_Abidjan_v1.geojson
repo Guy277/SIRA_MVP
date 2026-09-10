@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "test-line",
+      "properties": {
+        "line_id": "test-line",
+        "name": "Ligne Test",
+        "code": "T1",
+        "operator": "TestOp",
+        "network": "TEST",
+        "raw_mode": "GBAKA",
+        "sira_mode": "GBAKA",
+        "colour": "#7c7c7c",
+        "frequency": "20",
+        "frequency_raw": "20",
+        "opening_hours": "Mo-Su 05:00-22:00",
+        "opening_hours_raw": "Mo-Su 05:00-22:00",
+        "freshness_status": "historical_open_data",
+        "validation_status": "pending",
+        "confidence_score": 0.5
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-4.02, 5.3201],
+          [-4.0194, 5.3208]
+        ]
+      }
+    }
+  ]
+}

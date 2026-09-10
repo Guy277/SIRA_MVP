@@ -547,3 +547,134 @@ test("buildPostgisMultimodalJourney retourne no_egress_walk_path_found", async (
     global.fetch = originalFetch;
   }
 });
+
+test("buildJourneys integre PostGIS multimodal quand disponible et garde le fallback GeoJSON", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url, opts) => {
+    if (url.includes("/v1/recommendations/rank")) {
+      return {
+        ok: true,
+        json: async () => ({
+          journeys: [{ id: "postgis-test", source: "postgis_multimodal", profile: "postgis-multimodal", dataStatus: "historical", legs: [] }],
+          recommended_id: "postgis-test",
+          source: "postgis_multimodal",
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        trip: {
+          summary: { length: 0.12, time: 96 },
+          legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }],
+        },
+      }),
+    };
+  };
+  try {
+    process.env.SIRA_ALLOW_RANKING_FALLBACK = "true";
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return {
+            rows: [
+              { id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" },
+            ],
+          };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1",
+      short_name: "L1",
+      long_name: "Ligne Test",
+      mode: "GBAKA",
+      operator: "TestOp",
+      historical_fare: 500,
+      fare_status: "historical",
+      data_status: "historical",
+      confidence: 0.8,
+      from_stop_id: "n1",
+      from_stop_name: "A",
+      from_stop_code: "A1",
+      from_latitude: 5.3202,
+      from_longitude: -4.02,
+      from_distance_m: 0,
+      to_stop_id: "n2",
+      to_stop_name: "B",
+      to_stop_code: "B1",
+      to_latitude: 5.3208,
+      to_longitude: -4.0194,
+      to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    const result = await svc.buildJourneys({
+      origin: { lat: 5.3201, lon: -4.02, name: "Origin" },
+      destination: { lat: 5.3209, lon: -4.0193, name: "Destination" },
+      constraints: { maxWalkingDistanceM: 1000 },
+    });
+    assert.ok(Array.isArray(result.journeys));
+    assert.ok(result.journeys.length > 0);
+    const postgis = result.journeys.find((j) => j.source === "postgis_multimodal");
+    assert.ok(postgis, "un journey PostGIS doit être présent");
+    assert.equal(postgis.profile, "postgis-multimodal");
+    assert.equal(result.source, "postgis_multimodal");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("buildJourneys conserve le fallback GeoJSON quand PostGIS ne fournit pas de trajet", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url, opts) => {
+    if (url.includes("/v1/recommendations/rank")) {
+      return {
+        ok: true,
+        json: async () => ({
+          journeys: [{ id: "geojson-test", source: "local_geojson", profile: "transport", legs: [] }],
+          recommended_id: "geojson-test",
+          source: "local_geojson",
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        trip: {
+          summary: { length: 0.12, time: 96 },
+          legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }],
+        },
+      }),
+    };
+  };
+  try {
+    process.env.SIRA_ALLOW_RANKING_FALLBACK = "true";
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async () => ({ rows: [] }),
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => null;
+    const svc = new MobilityService(repo);
+    const result = await svc.buildJourneys({
+      origin: { lat: 5.0, lon: -4.0, name: "Nowhere" },
+      destination: { lat: 5.1, lon: -4.1, name: "Somewhere" },
+      constraints: { maxWalkingDistanceM: 500 },
+    });
+    assert.ok(Array.isArray(result.journeys));
+    assert.ok(result.journeys.length > 0);
+    assert.equal(result.source, "local_geojson");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

@@ -660,6 +660,23 @@ export class MobilityService implements OnModuleInit {
       candidates.push(this.toRoadCandidate("road-fast", "Taxi / route directe", road, 5, 82));
     }
 
+    let postgisCandidate: Record<string, unknown> | null = null;
+    if (this.transportRepository.enabled) {
+      try {
+        const multimodal = await this.buildPostgisMultimodalJourney(request.origin, request.destination, {
+          radiusM: 1500,
+          maxWalkingDistanceM,
+          maxCandidates: 5,
+        });
+        if ((multimodal as MultimodalJourney).source === "postgis") {
+          postgisCandidate = await this.toPostgisCandidate(multimodal as MultimodalJourney);
+          candidates.unshift(postgisCandidate);
+        }
+      } catch {
+        // PostGIS indisponible : on continue avec le fallback GeoJSON
+      }
+    }
+
     const signatures = new Set<string>();
     for (const { strategy, result } of networks) {
       if (!result) continue;
@@ -708,11 +725,12 @@ export class MobilityService implements OnModuleInit {
       && Number(candidate.transfer_count) <= constraints.max_transfers
       && !(candidate.modes as string[]).some((mode) => constraints.excluded_modes.includes(mode)),
     ).sort((left, right) => Number(left.duration) + Number(left.price) / 50 - (Number(right.duration) + Number(right.price) / 50));
+    const source = postgisCandidate && feasible.some((c) => c.id === postgisCandidate.id) ? "postgis_multimodal" : "local_geojson";
     return this.withProfile({
       journeys: feasible.map((candidate, index) => ({ ...candidate, recommended: index === 0, reasons: ["Respecte vos contraintes", "Classement de secours déterministe"] })),
       recommended_id: feasible[0]?.id ?? null,
       rejected_count: candidates.length - feasible.length,
-      source: "sira-more-fallback-constraints",
+      source,
       graph: graph.stats,
     }, profiler);
   }
@@ -903,6 +921,64 @@ export class MobilityService implements OnModuleInit {
       { id: `${id}-taxi`, mode: "taxi", label: "Taxi compteur / partagé", detail: `${duration} min · ${price} FCFA estimés`, duration, price, geometry, source: "OpenStreetMap · Valhalla/OSRM", dataStatus: "estimated_mvp" },
     ];
     return { id, label, profile: "road", description: "Trajet routier calculé sur la voirie OpenStreetMap", duration: duration + 3, duration_p90: Math.round((duration + 3) * 1.18), distance_km: Number(distance.toFixed(1)), price, walking_minutes: 0, walking_distance_m: 0, waiting_minutes: 3, in_vehicle_minutes: duration, boarding_count: 1, transfer_count: 0, comfort, reliability, uncertainty: 0.28, incident_risk: Number(((100 - reliability) / 100).toFixed(2)), modes: ["wait", "taxi"], line_ids: ["road-osm"], shape: route.trip?.legs?.[0]?.shape ?? null, geometry, legs, data_notice: "Tracé routier OpenStreetMap. Durée et tarif estimés pour le MVP." };
+  }
+
+  private async toPostgisCandidate(journey: MultimodalJourney): Promise<Record<string, unknown>> {
+    const accessLeg = journey.legs[0];
+    const transitLeg = journey.legs[1];
+    const egressLeg = journey.legs[2];
+    const transitMode = transitLeg.mode.toLowerCase();
+    const walkingMinutes = Math.round(journey.summary.walkingDurationSeconds / 60);
+    const inVehicleMinutes = Math.round(journey.summary.transitDurationSeconds / 60);
+    const geometry = [
+      ...(accessLeg.geometry.coordinates as [number, number][]),
+      ...(transitLeg.geometry?.coordinates ?? []),
+      ...(egressLeg.geometry.coordinates as [number, number][]),
+    ];
+    const legs = [
+      {
+        id: `${journey.id}-access`, mode: "walk", label: "Accès piéton",
+        detail: `${accessLeg.durationSeconds} s · ${accessLeg.distanceM} m · ${accessLeg.provider}`,
+        duration: Math.round(accessLeg.durationSeconds / 60), duration_p90: Math.round(accessLeg.durationP90 / 60),
+        price: 0, geometry: accessLeg.geometry.coordinates, dataStatus: "routed_osm",
+        estimate_method: accessLeg.method, confidence: accessLeg.confidence, guidance_available: accessLeg.guidanceAvailable,
+      },
+      {
+        id: `${journey.id}-ride`, mode: transitLeg.mode, label: transitLeg.route.longName,
+        detail: `${transitLeg.durationSeconds} s · ${transitLeg.distanceM} m · ${transitLeg.fareStatus === "historical" ? transitLeg.fare + " FCFA" : "tarif inconnu"}`,
+        duration: inVehicleMinutes, duration_p90: Math.round(transitLeg.durationP90 / 60),
+        price: transitLeg.fare ?? 0, price_p90: transitLeg.fare ?? 0, geometry: transitLeg.geometry?.coordinates ?? [],
+        line_id: transitLeg.route.id, source: `${transitLeg.route.operator ?? "Opérateur inconnu"} · ${transitLeg.route.id}`,
+        dataStatus: transitLeg.dataStatus, estimate_method: "postgis_transit_segment", confidence: 0.6,
+      },
+      {
+        id: `${journey.id}-egress`, mode: "walk", label: "Sortie piétonne",
+        detail: `${egressLeg.durationSeconds} s · ${egressLeg.distanceM} m · ${egressLeg.provider}`,
+        duration: Math.round(egressLeg.durationSeconds / 60), duration_p90: Math.round(egressLeg.durationP90 / 60),
+        price: 0, geometry: egressLeg.geometry.coordinates, dataStatus: "routed_osm",
+        estimate_method: egressLeg.method, confidence: egressLeg.confidence, guidance_available: egressLeg.guidanceAvailable,
+      },
+    ];
+    return {
+      id: journey.id, label: "Trajet multimodal PostGIS", profile: "postgis-multimodal",
+      description: "Marche Valhalla + transport PostGIS + marche Valhalla",
+      duration: Math.round(journey.summary.totalDurationSeconds / 60),
+      duration_p90: Math.round(journey.summary.totalDurationSeconds * 1.2 / 60),
+      distance_km: Number((journey.summary.totalDistanceM / 1000).toFixed(2)),
+      price: journey.summary.fare ?? 0, price_p90: journey.summary.fare ?? 0,
+      walking_minutes: walkingMinutes, walking_distance_m: journey.summary.walkingDistanceM,
+      waiting_minutes: 0, in_vehicle_minutes: inVehicleMinutes,
+      boarding_count: 1, transfer_count: journey.summary.transfers,
+      comfort: 70, reliability: 75, confidence: 0.6, uncertainty: 0.4,
+      incident_risk: 0.25,
+      modes: ["walk", transitMode, "walk"],
+      line_ids: [transitLeg.route.id],
+      geometry, legs,
+      data_notice: "Accès et sorties calculés sur le réseau piéton OpenStreetMap/Valhalla. Segment transport issu des données GTFS historiques importées dans PostGIS. Attentes et temps en véhicule restent des estimations.",
+      source: "postgis_multimodal",
+      dataStatus: journey.dataStatus,
+      fareStatus: journey.summary.fareStatus,
+    };
   }
 
   private validatePoint(point: Point) {

@@ -77,7 +77,19 @@ export class TransportRepository implements OnModuleDestroy {
             os.latitude AS from_latitude, os.longitude AS from_longitude, os.distance_m AS from_distance_m,
             ds.source_id AS to_stop_id, ds.name AS to_stop_name, ds.code AS to_stop_code,
             ds.latitude AS to_latitude, ds.longitude AS to_longitude, ds.distance_m AS to_distance_m,
-            ST_AsGeoJSON(r.geometry)::json AS geometry
+            ST_AsGeoJSON(
+              ST_LineSubstring(
+                r.geometry,
+                LEAST(
+                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(os.longitude, os.latitude), 4326)),
+                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(ds.longitude, ds.latitude), 4326))
+                ),
+                GREATEST(
+                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(os.longitude, os.latitude), 4326)),
+                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(ds.longitude, ds.latitude), 4326))
+                )
+              )
+            )::json AS geometry
           FROM origin_stops os
           JOIN transport_gtfs_stop_times from_times ON from_times.stop_source_id = os.source_id
           JOIN transport_gtfs_trips from_trips ON from_trips.source_id = from_times.trip_source_id

@@ -87,32 +87,57 @@ Le routing principal conserve le GeoJSON comme fallback de compatibilite. Les no
 
 OSRM/Valhalla ne sont pas utilises pour construire ce premier segment transport. Ils restent responsables de la marche et de la voirie dans le pipeline existant. La prochaine etape est donc la composition `marche -> transport -> marche`, avec des connecteurs pietons verifies.
 
-Les donnees restent historiques et non temps reel. Un tarif historique ne devient pas automatiquement actuel ou valide.
+## Intégration dans `/mobility/journeys`
 
-## Composition multimodale (preuve fonctionnelle)
+`POST /api/v1/mobility/journeys` tente désormais en priorité un trajet multimodal PostGIS via `buildPostgisMultimodalJourney()` :
 
-L'endpoint `POST /api/v1/mobility/transport/multimodal` orchestre pour la première fois un trajet réel composé de :
+1. **Accès piéton** : `findAccessibleStop()` + Valhalla ;
+2. **Segment transport** : `findFirstTransitSegment()` avec géométrie clippée via `ST_LineSubstring` ;
+3. **Sortie piétonne** : `findEgressWalk()` + Valhalla.
 
-1. **Accès piéton** : `findAccessibleStop()` + Valhalla pour relier l'utilisateur à un arrêt PostGIS ;
-2. **Segment transport** : `findFirstTransitSegment()` pour trouver un trip GTFS réel entre deux arrêts ;
-3. **Sortie piétonne** : `findEgressWalk()` + Valhalla pour relier l'arrêt d'arrivée à la destination.
+Si PostGIS est indisponible, ou ne trouve aucun arrêt / segment / sortie valide, le moteur bascule automatiquement vers le routing GeoJSON historique (`local_geojson`). Le fallback est explicite dans la réponse :
 
-Exemple vérifié (2026-09-09) :
+```json
+{
+  "source": "postgis_multimodal"
+}
+```
 
-- Origine : `5.3197, -4.02` (near Plateau Gare Sud)
-- Destination : `5.3313, -4.0238` (near Cite Admin)
-- Accès : 131 m / 108 s (Valhalla)
-- Transport : `SOTRA_BUS`, route `r10173635` « Yopougon Camp Militaire ↔ Gare Sud »
-- Sortie : 7 m / 6 s (Valhalla)
-- Tarif : 200 FCFA, `fareStatus: historical`
+ou :
 
-Autre exemple :
+```json
+{
+  "source": "local_geojson"
+}
+```
 
-- Origine : `5.2561, -3.9967` (near Au 19)
-- Destination : `5.4438, -4.0483` (near Agripac)
-- Accès : 8 m / 7 s
-- Transport : `GBAKA`, route `r13499675` « gbaka : Agripac ↔ Treichville »
-- Sortie : 6 m / 5 s
-- Tarif : `null`, `fareStatus: unknown`
+Le GeoJSON historique n'est jamais supprimé. Le `TransportGraph` et le fallback restent fonctionnels.
 
-La durée de transport est une estimation basée sur le mode et la distance de la géométrie PostGIS (`durationStatus: estimated`). Le tarif inconnu reste `null` + `unknown`, aucun tarif n'est inventé.
+## Géométrie du segment transport
+
+La géométrie du leg transport est maintenant clippée entre `fromStop` et `toStop` grâce à :
+
+```sql
+ST_LineSubstring(
+  r.geometry,
+  LEAST(
+    ST_LineLocatePoint(r.geometry, ...fromStop...),
+    ST_LineLocatePoint(r.geometry, ...toStop...)
+  ),
+  GREATEST(
+    ST_LineLocatePoint(r.geometry, ...fromStop...),
+    ST_LineLocatePoint(r.geometry, ...toStop...)
+  )
+)
+```
+
+Le résultat est un GeoJSON `LineString` `[lon, lat]` SRID 4326 qui ne contient que les points entre les deux arrêts. Aucune ligne droite artificielle n'est ajoutée.
+
+## Limites actuelles
+
+- Dataset historique GTFS importé dans PostGIS ;
+- Durée de transport estimée (`durationStatus: estimated`) ;
+- Zéro correspondance ;
+- Pas de temps réel ;
+- Pas de SIRA-MORE spécifique PostGIS ;
+- Pas de GraphHopper.
