@@ -21,7 +21,7 @@ Le segment suit les relations reelles :
 
 `stop -> stop_times -> trip -> route`
 
-Il ne retourne une ligne que si le meme trip dessert l'arret d'origine puis l'arret de destination dans cet ordre. La geometrie vient de `transport_gtfs_routes.geometry`, donc pas du GeoJSON.
+Il ne retourne une ligne que si le meme trip dessert l'arret d'origine puis l'arret de destination dans cet ordre. La geometrie est extraite du shape GTFS (`transport_gtfs_shapes.geometry`) lorsque le trip possède un `shape_id`. Elle est clippee via `ST_LineSubstring` entre les projections des deux arrets sur ce shape.
 
 ## Endpoints
 
@@ -92,7 +92,7 @@ OSRM/Valhalla ne sont pas utilises pour construire ce premier segment transport.
 `POST /api/v1/mobility/journeys` tente désormais en priorité un trajet multimodal PostGIS via `buildPostgisMultimodalJourney()` :
 
 1. **Accès piéton** : `findAccessibleStop()` + Valhalla ;
-2. **Segment transport** : `findFirstTransitSegment()` avec géométrie clippée via `ST_LineSubstring` ;
+2. **Segment transport** : `findFirstTransitSegment()` avec géométrie clippée via `ST_LineSubstring` sur `transport_gtfs_shapes.geometry`, puis validation des extrémités ;
 3. **Sortie piétonne** : `findEgressWalk()` + Valhalla.
 
 Si PostGIS est indisponible, ou ne trouve aucun arrêt / segment / sortie valide, le moteur bascule automatiquement vers le routing GeoJSON historique (`local_geojson`). Le fallback est explicite dans la réponse :
@@ -115,23 +115,25 @@ Le GeoJSON historique n'est jamais supprimé. Le `TransportGraph` et le fallback
 
 ## Géométrie du segment transport
 
-La géométrie du leg transport est maintenant clippée entre `fromStop` et `toStop` grâce à :
+La géométrie du leg transport est extraite du shape GTFS (`transport_gtfs_shapes.geometry`) lorsque le trip possède un `shape_id`. Elle est clippée entre `fromStop` et `toStop` grâce à :
 
 ```sql
 ST_LineSubstring(
-  r.geometry,
+  s.geometry,
   LEAST(
-    ST_LineLocatePoint(r.geometry, ...fromStop...),
-    ST_LineLocatePoint(r.geometry, ...toStop...)
+    ST_LineLocatePoint(s.geometry, ...fromStop...),
+    ST_LineLocatePoint(s.geometry, ...toStop...)
   ),
   GREATEST(
-    ST_LineLocatePoint(r.geometry, ...fromStop...),
-    ST_LineLocatePoint(r.geometry, ...toStop...)
+    ST_LineLocatePoint(s.geometry, ...fromStop...),
+    ST_LineLocatePoint(s.geometry, ...toStop...)
   )
 )
 ```
 
 Le résultat est un GeoJSON `LineString` `[lon, lat]` SRID 4326 qui ne contient que les points entre les deux arrêts. Aucune ligne droite artificielle n'est ajoutée.
+
+Si le trip n'a pas de shape, ou si la géométrie clippée ne passe pas à moins de 200 m de chaque extrémité, le segment est rejeté et le moteur bascule vers le fallback GeoJSON.
 
 ## Limites actuelles
 

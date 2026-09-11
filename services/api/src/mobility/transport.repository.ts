@@ -79,14 +79,14 @@ export class TransportRepository implements OnModuleDestroy {
             ds.latitude AS to_latitude, ds.longitude AS to_longitude, ds.distance_m AS to_distance_m,
             ST_AsGeoJSON(
               ST_LineSubstring(
-                r.geometry,
+                s.geometry,
                 LEAST(
-                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(os.longitude, os.latitude), 4326)),
-                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(ds.longitude, ds.latitude), 4326))
+                  ST_LineLocatePoint(s.geometry, ST_SetSRID(ST_MakePoint(os.longitude, os.latitude), 4326)),
+                  ST_LineLocatePoint(s.geometry, ST_SetSRID(ST_MakePoint(ds.longitude, ds.latitude), 4326))
                 ),
                 GREATEST(
-                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(os.longitude, os.latitude), 4326)),
-                  ST_LineLocatePoint(r.geometry, ST_SetSRID(ST_MakePoint(ds.longitude, ds.latitude), 4326))
+                  ST_LineLocatePoint(s.geometry, ST_SetSRID(ST_MakePoint(os.longitude, os.latitude), 4326)),
+                  ST_LineLocatePoint(s.geometry, ST_SetSRID(ST_MakePoint(ds.longitude, ds.latitude), 4326))
                 )
               )
             )::json AS geometry
@@ -96,6 +96,7 @@ export class TransportRepository implements OnModuleDestroy {
           JOIN transport_gtfs_stop_times to_times ON to_times.trip_source_id = from_times.trip_source_id
           JOIN destination_stops ds ON ds.source_id = to_times.stop_source_id
           JOIN transport_gtfs_routes r ON r.source_id = from_trips.route_source_id
+          LEFT JOIN transport_gtfs_shapes s ON s.source_id = from_trips.shape_source_id
           WHERE to_times.stop_sequence > from_times.stop_sequence
           ORDER BY r.source_id, os.source_id, ds.source_id, from_times.stop_sequence
         )

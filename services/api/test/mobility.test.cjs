@@ -678,3 +678,138 @@ test("buildJourneys conserve le fallback GeoJSON quand PostGIS ne fournit pas de
     global.fetch = originalFetch;
   }
 });
+
+test("buildPostgisMultimodalJourney valide les extremites de la geometrie transport", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      trip: {
+        summary: { length: 0.12, time: 96 },
+        legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }],
+      },
+    }),
+  });
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return {
+            rows: [
+              { id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" },
+            ],
+          };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1",
+      short_name: "L1",
+      long_name: "Ligne Test",
+      mode: "GBAKA",
+      operator: "TestOp",
+      historical_fare: 500,
+      fare_status: "historical",
+      data_status: "historical",
+      confidence: 0.8,
+      from_stop_id: "n1",
+      from_stop_name: "A",
+      from_stop_code: "A1",
+      from_latitude: 5.3202,
+      from_longitude: -4.02,
+      from_distance_m: 0,
+      to_stop_id: "n2",
+      to_stop_name: "B",
+      to_stop_code: "B1",
+      to_latitude: 5.3208,
+      to_longitude: -4.0194,
+      to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    const result = await svc.buildPostgisMultimodalJourney(
+      { lat: 5.3201, lon: -4.02, name: "Origin" },
+      { lat: 5.3209, lon: -4.0193, name: "Destination" },
+      { radiusM: 500, maxWalkingDistanceM: 1000, maxCandidates: 5 }
+    );
+    assert.ok(result);
+    assert.equal(result.source, "postgis");
+    const transitLeg = result.legs[1];
+    assert.equal(transitLeg.geometry.type, "LineString");
+    assert.ok(transitLeg.geometry.coordinates.length >= 2);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("buildPostgisMultimodalJourney rejette une geometrie transport invalide", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      trip: {
+        summary: { length: 0.12, time: 96 },
+        legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }],
+      },
+    }),
+  });
+  try {
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return {
+            rows: [
+              { id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" },
+            ],
+          };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1",
+      short_name: "L1",
+      long_name: "Ligne Test",
+      mode: "GBAKA",
+      operator: "TestOp",
+      historical_fare: 500,
+      fare_status: "historical",
+      data_status: "historical",
+      confidence: 0.8,
+      from_stop_id: "n1",
+      from_stop_name: "A",
+      from_stop_code: "A1",
+      from_latitude: 5.3202,
+      from_longitude: -4.02,
+      from_distance_m: 0,
+      to_stop_id: "n2",
+      to_stop_name: "B",
+      to_stop_code: "B1",
+      to_latitude: 5.3208,
+      to_longitude: -4.0194,
+      to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+    });
+    const svc = new MobilityService(repo);
+    const result = await svc.buildPostgisMultimodalJourney(
+      { lat: 5.3201, lon: -4.02, name: "Origin" },
+      { lat: 5.3209, lon: -4.0193, name: "Destination" },
+      { radiusM: 500, maxWalkingDistanceM: 1000, maxCandidates: 5 }
+    );
+    assert.equal(result.status, "no_transport_path_found");
+    assert.equal(result.detail.reason, "geometry_validation_failed");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

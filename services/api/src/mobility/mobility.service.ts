@@ -515,6 +515,10 @@ export class MobilityService implements OnModuleInit {
     const transitDurationSeconds = Math.round(rideEstimate.value * 60);
     const transitDurationP90 = Math.round(rideEstimate.p90 * 60);
 
+    if (!this.validateTransitGeometry(transitCoordinates, transitSegment.from_latitude, transitSegment.from_longitude, transitSegment.to_latitude, transitSegment.to_longitude)) {
+      return { status: "no_transport_path_found", detail: { access: accessResult as unknown as Record<string, unknown>, reason: "geometry_validation_failed" } };
+    }
+
     const totalFare = transitSegment.historical_fare === null ? null : Number(transitSegment.historical_fare);
     const totalFareStatus = transitSegment.fare_status ?? "unknown";
 
@@ -921,6 +925,21 @@ export class MobilityService implements OnModuleInit {
       { id: `${id}-taxi`, mode: "taxi", label: "Taxi compteur / partagé", detail: `${duration} min · ${price} FCFA estimés`, duration, price, geometry, source: "OpenStreetMap · Valhalla/OSRM", dataStatus: "estimated_mvp" },
     ];
     return { id, label, profile: "road", description: "Trajet routier calculé sur la voirie OpenStreetMap", duration: duration + 3, duration_p90: Math.round((duration + 3) * 1.18), distance_km: Number(distance.toFixed(1)), price, walking_minutes: 0, walking_distance_m: 0, waiting_minutes: 3, in_vehicle_minutes: duration, boarding_count: 1, transfer_count: 0, comfort, reliability, uncertainty: 0.28, incident_risk: Number(((100 - reliability) / 100).toFixed(2)), modes: ["wait", "taxi"], line_ids: ["road-osm"], shape: route.trip?.legs?.[0]?.shape ?? null, geometry, legs, data_notice: "Tracé routier OpenStreetMap. Durée et tarif estimés pour le MVP." };
+  }
+
+  private validateTransitGeometry(
+    coordinates: [number, number][],
+    fromLat: number,
+    fromLon: number,
+    toLat: number,
+    toLon: number,
+  ): boolean {
+    if (!coordinates.length) return false;
+    const start = coordinates[0];
+    const end = coordinates[coordinates.length - 1];
+    const fromDistance = haversineKm({ lat: start[1], lon: start[0] }, { lat: fromLat, lon: fromLon }) * 1000;
+    const toDistance = haversineKm({ lat: end[1], lon: end[0] }, { lat: toLat, lon: toLon }) * 1000;
+    return fromDistance <= 200 && toDistance <= 200;
   }
 
   private async toPostgisCandidate(journey: MultimodalJourney): Promise<Record<string, unknown>> {
