@@ -1,0 +1,326 @@
+line_id,name,code,operator,network,mode,frequency,opening_hours,frequency_exceptions,osm:charge
+Line:relation:10464893,bateau-bus : Yopougon (Abobo Doumé) ↔ Plateau,,Citrans,Aqualines,ferry,00:30,"Mo-Su,PH 05:30-20:30",,300FCFA
+Line:relation:10465035,bateau-bus : Abatta ↔ Plateau,,Citrans,Aqualines,ferry,00:30,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10246667,bus 201 : PK 18 (Abobo) ↔ Hotel de Ville,201,SOTRA,Express,bus,60,"Mo-Su,PH 09:00-17:00",,500FCFA
+Line:relation:10246746,bus 203 : Gare Sud ↔ Gare Abobo Sogefiha,203,SOTRA,Express,bus,24,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 23 @ (Mo-Su,PH 17:00-20:00)",500FCFA
+Line:relation:10247975,bus 205 : Gare Sud ↔ Djibi,205,SOTRA,Express,bus,34,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 17 @ (Mo-Su,PH 07:00-09:00); 36 @ (Mo-Su,PH 17:00-20:00)",500FCFA
+Line:relation:10211655,bus 206 : Hôtel de ville ↔ Yopougon Kouté / Saint-André,206,SOTRA,Express,bus,96,"Mo-Su,PH 09:00-17:00",,500FCFA
+Line:relation:10235280,bus 209 : Gare Sud ↔ Gandhi,209,SOTRA,Express,bus,28,"Mo-Su,PH 05:00-22:00","60 @ (Mo-Su,PH 05:00-07:00); 24 @ (Mo-Su,PH 07:00-09:00); 45 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",500FCFA
+Line:relation:10271257,bus 210 : Gare Sud ↔ Cocody SCI Les Rosiers,210,SOTRA,Express,bus,40,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00)",500FCFA
+Line:relation:10286458,bus 211 : Cité Administrative ↔ Terminus Gonzagueville,211,SOTRA,Express,bus,00:15,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10286236,bus 212 : Gare Sud ↔ Niangon Sud à droite,212,SOTRA,Express,bus,32,"Mo-Su,PH 05:00-20:00","60 @ (Mo-Su,PH 05:00-07:00); 15 @ (Mo-Su,PH 07:00-09:00); 30 @ (Mo-Su,PH 17:00-20:00)",500FCFA
+Line:relation:10279858,bus 38 : Yopougon Koweït ↔ Yopougon Micao,38,SOTRA,Wibus,bus,00:50,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10233569,bus 610 : Adjamé Liberté ↔ Bingervile,610,SOTRA,Wibus,bus,44,"Mo-Su,PH 09:00-17:00",,200FCFA
+Line:relation:10408939,bus 701 : Terminus 81/82 ↔ Orca Déco,701,SOTRA,Wibus,bus,01:00,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10237485,bus 702 : Cité Eden ↔ La Vie,702,SOTRA,Wibus,bus,00:30,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10216288,bus 704 : Abobo Baoulé / Dokui / Angré Château ↔ Saint Jean,704,SOTRA,Wibus,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10290876,bus 705 : Terminus 81/82 ↔ Riviera 2,705,SOTRA,Wibus,bus,30,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10290233,bus 708 : La Vie ↔ Plateau Gare Sud,708,SOTRA,Wibus,bus,96,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 45 @ (Mo-Su,PH 17:00-20:00)",300FCFA
+Line:relation:10289989,bus 710 : Feh Kesse / Abatta Village ↔ La Vie,710,SOTRA,Wibus,bus,30,"Mo-Su,PH 09:00-17:00",,500FCFA
+Line:relation:10213167,bus 94 : Blockauss ↔ Gare Marcory,94,SOTRA,Wibus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10395065,bateau-bus 501 : Yopougon (Abobo Doumé) ↔ Treichville,501,SOTRA,monbato,ferry,00:05,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:10395178,bateau-bus 502 : Treichville ↔ Blockauss,502,SOTRA,monbato,ferry,00:05,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:10395136,bateau bus 503 : Yopougon (Abobo Doumé) ↔ Plateau,503,SOTRA,monbato,ferry,00:05,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:10192143,bus 02 : Gare Marcory ↔ Cité Fairmont,02,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10248235,bus 03 : Gare Nord ↔ Marcory Anoumabo Aliodan,03,SOTRA,monbus,bus,22,"Mo-Su,PH 05:00-22:00","13 @ (Mo-Su,PH 05:00-07:00); 17 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 24 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10187611,bus 04 : Gare Marcory ↔ Attécoubé,04,SOTRA,monbus,bus,00:40,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10228020,bus 05 : Koumassi-Nord-Est ↔ Cité Administrative,05,SOTRA,monbus,bus,00:35,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:5985016,bus 06 : Terminus Aéroport ↔ Gare Sud Plateau,06,SOTRA,monbus,bus,60,"Mo-Su,PH 05:00-22:00","60 @ (Mo-Su,PH 05:00-07:00); 60 @ (Mo-Su,PH 07:00-09:00); 36 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10201145,bus 07: Gare Marcory ↔ Terminus Cité Vridi,07,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10241119,bus 08 : Abobo Akeikoi Village ↔ Gare Nord,08,SOTRA,monbus,bus,18,"Mo-Su,PH 05:00-22:00","40 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 20 @ (Mo-Su,PH 17:00-20:00); 24 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10231465,bus 10 : Gare Sud ↔ Gare nord,10,SOTRA,monbus,bus,40,"Mo-Su,PH 05:00-20:00","40 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 45 @ (Mo-Su,PH 17:00-20:00)",200FCFA
+Line:relation:10232988,bus 11 : Koumassi Prodomo / Mesano ↔ Gare Nord ↔ Adjamé Liberté,11,SOTRA,monbus,bus,13,"Mo-Su,PH 05:00-22:00","9 @ (Mo-Su,PH 05:00-07:00); 17 @ (Mo-Su,PH 07:00-09:00); 13 @ (Mo-Su,PH 17:00-20:00); 24 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10240686,bus 12 : Gare nord ↔ Port-Bouët Phare,12,SOTRA,monbus,bus,20,"Mo-Su,PH 05:00-22:00","24 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 20 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10270789,bus 13 : Adjamé Liberté ↔ Gare Nord ↔ Koumassi (Hôpital / Gare),13,SOTRA,monbus,bus,22,"Mo-Su,PH 05:00-22:00","11 @ (Mo-Su,PH 05:00-07:00); 15 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 24 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10190159,bus 14 : Gare Marcory ↔ Gare Williamsville,14,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:9589447,Bus 15 : Gare SOTRA Abobo Sogefiha ↔ Gare Sud Plateau,15,SOTRA,monbus,bus,25,"Mo-Su,PH 05:00-22:00","30 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200 FCFA
+Line:relation:10228047,bus 16 : Abobo Biabou ↔ Gare Nord,16,SOTRA,monbus,bus,24,"Mo-Su,PH 05:00-22:00","120 @ (Mo-Su,PH 05:00-07:00); 24 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10301060,bus 17 : Gonzagueville / Anani ↔ Vridi Canal / Port de pêche Treichville,17,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10265827,bus 18 : Gare Sud Plateau ↔ Centre Pilote Port-Bouët,18,SOTRA,monbus,bus,48,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 30 @ (Mo-Su,PH 07:00-09:00); 36 @ (Mo-Su,PH 17:00-20:00)",200FCFA
+Line:relation:10230294,bus 19 : Gare Nord ↔ Vridi Iran,19,SOTRA,monbus,bus,10,"Mo-Su,PH 04:00-22:00","10 @ (Mo-Su,PH 04:00-07:00); 9 @ (Mo-Su,PH 07:00-09:00); 12 @ (Mo-Su,PH 17:00-20:00); 30 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10192153,bus 20 : Gare Sud ↔ Yopougon Micao,20,SOTRA,monbus,bus,27,"Mo-Su,PH 05:00-22:00","30 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10261637,bus 21 : CHU de Treichville ↔ Dépôt Cocody,21,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10225666,bus 22 : Gare Nord ↔ Entente Treichville,22,SOTRA,monbus,bus,28,"Mo-Su,PH 05:00-22:00","15 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 20 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10257679,bus 23: Port-Bouët Vridi Canal ↔ Gare Koumassi,23,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10241609,bus 24 : cpma Vridi ↔ Lycée municipal de Koumassi,24,SOTRA,monbus,bus,00:20,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10234049,bus 25 : Gare Sud ↔ Koumassi Sicogi,25,SOTRA,monbus,bus,69,"Mo-Su,PH 09:00-22:00","120 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10266646,bus 26 : Gare Nord ↔ Gare Koumassi,26,SOTRA,monbus,bus,22,"Mo-Su,PH 05:00-22:00","12 @ (Mo-Su,PH 05:00-07:00); 24 @ (Mo-Su,PH 07:00-09:00); 18 @ (Mo-Su,PH 17:00-20:00); 24 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10212293,bus 27 : Sud Gare ↔ Niangon Sud à gauche,27,SOTRA,monbus,bus,23,"Mo-Su,PH 05:00-22:00","40 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 20 @ (Mo-Su,PH 17:00-20:00); 40 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10235433,bus 28 : Gare Sud ↔ M'pouto - CIAD / Riviera 2,28,SOTRA,monbus,bus,30,"Mo-Su,PH 05:00-22:00","60 @ (Mo-Su,PH 05:00-07:00); 24 @ (Mo-Su,PH 07:00-09:00); 30 @ (Mo-Su,PH 17:00-20:00); 40 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10301478,Bus 29 : Gare Nord ↔ Port-Bouet derrrière Warf,29,SOTRA,monbus,bus,14,"Mo-Su,PH 05:00-22:00","12 @ (Mo-Su,PH 05:00-07:00); 15 @ (Mo-Su,PH 07:00-09:00); 15 @ (Mo-Su,PH 17:00-20:00); 30 @ (Mo-Su,PH 20:00-22:00)",200 FCFA
+Line:relation:10212448,bus 30 : Gare Sud ↔ Yopougon Kouté,30,SOTRA,monbus,bus,34,"Mo-Su,PH 05:00-22:00","40 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 45 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10266864,bus 31 : Marcory Alliodan ↔ Commissariat Port,31,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10267036,bus 32 : Akromiambla ↔ Commissariat Port,32,SOTRA,monbus,bus,00:45,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10270241,bus 33 : Koumassi Akromiambla ↔ Gare Sud Plateau,33,SOTRA,monbus,bus,60,"Mo-Su,PH 05:00-20:00","60 @ (Mo-Su,PH 05:00-07:00); 60 @ (Mo-Su,PH 07:00-09:00); 60 @ (Mo-Su,PH 17:00-20:00)",200FCFA
+Line:relation:10270989,bus 34 : Cité Administrative ↔ Yopougon Gesco,34,SOTRA,monbus,bus,00:55,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10241430,bus 35 : Cocody Gobelet ↔ Gare Nord,35,SOTRA,monbus,bus,37,"Mo-Su,PH 05:00-22:00","30 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 30 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10241191,bus 36 : Gare Nord ↔ Yopougon Abobo Doumé,36,SOTRA,monbus,bus,34,"Mo-Su,PH 05:00-22:00","40 @ (Mo-Su,PH 05:00-07:00); 60 @ (Mo-Su,PH 07:00-09:00); 30 @ (Mo-Su,PH 17:00-20:00); 40 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10173635,bus 37: Gare Sud↔Yopougon Camp Militaire,37,SOTRA,monbus,bus,37,"Mo-Su,PH 05:00-22:00","60 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 60 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10199868,bus 39 : Gare Sud ↔ Niangon Sud à droite,39,SOTRA,monbus,bus,28,"Mo-Su,PH 05:00-22:00","60 @ (Mo-Su,PH 05:00-07:00); 60 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10213431,bus 40 : Yopougon Kouté ↔ Gare Sud,40,SOTRA,monbus,bus,32,"Mo-Su,PH 05:00-22:00","40 @ (Mo-Su,PH 05:00-07:00); 30 @ (Mo-Su,PH 07:00-09:00); 23 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10265924,bus 41 : Adjamé Liberté ↔ M'pouto,41,SOTRA,monbus,bus,96,"Mo-Su,PH 09:00-17:00",,200FCFA
+Line:relation:10206969,bus 42 : Abobo Doumé ↔ Yopougon Sideci,42,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10220180,bus 43 : Yopougon Kouté ↔ Gare Nord,43,SOTRA,monbus,bus,22,"Mo-Su,PH 05:00-22:00","60 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 23 @ (Mo-Su,PH 17:00-20:00); 40 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10220245,bus 44 : Abobo Doumé ↔ Yopougon Cité Verte,44,SOTRA,monbus,bus,00:50,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10187867,Bus 45 : Gare Nord SOTRA Adjamé ↔ Terminus 45 Abobo Escalier,45,SOTRA,monbus,bus,18,"Mo-Su,PH 05:00-22:00","30 @ (Mo-Su,PH 05:00-07:00); 13 @ (Mo-Su,PH 07:00-09:00); 11 @ (Mo-Su,PH 17:00-20:00); 30 @ (Mo-Su,PH 20:00-22:00)",200 FCFA
+Line:relation:10256311,bus 46 : Yopougon Sideci ↔ Plateau Cité Administrative,46,SOTRA,monbus,bus,00:35,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10212284,bus 47 : Abobo Doumé ↔ Yopougon Attié,47,SOTRA,monbus,bus,00:40,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10301548,Bus 48 : Saint jean ↔ Abobo Gendarmerie,48,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200 FCFA
+Line:relation:10191924,Bus 49 : Gare SOTRA Abobo Sogefiha ↔ Gare Campus Cocody,49,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200 FCFA
+Line:relation:10271088,bus 50 : Gare Nord ↔ Gare Koumassi,50,SOTRA,monbus,bus,30,"Mo-Su,PH 05:00-22:00","120 @ (Mo-Su,PH 05:00-07:00); 30 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10256167,bus 51 : Abobo Sagbé ↔ Cité Administrative,51,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10246874,bus 52 : Abobo Sagbé ↔ Campus Cocody,52,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10246195,bus 53 : Terminus Cité Vridi / Gonzagueville ↔ Gare Campus,53,SOTRA,monbus,bus,30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10206110,bus 54 : Gendarmerie Abobo ↔ Cité Administrative,54,SOTRA,monbus,bus,00:20,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10228332,bus 56 : Koumassi Nord-Est ↔ Cocody CHU,56,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10216195,bus 58 : Adjamé Liberté ↔ Port de pêche,58,SOTRA,monbus,bus,53,"Mo-Su,PH 09:00-17:00",,200FCFA
+Line:relation:10228894,bus 59 : Gare Nord ↔ CHU Treichville,59,SOTRA,monbus,bus,16,"Mo-Su,PH 05:00-22:00","8 @ (Mo-Su,PH 05:00-07:00); 13 @ (Mo-Su,PH 07:00-09:00); 14 @ (Mo-Su,PH 17:00-20:00); 20 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10215677,bus 60 : Pharmacie la Me ↔ Terminus Mairie Anyama,60,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200 FCFA
+Line:relation:10247373,bus 61 : Pharmacie la Me ↔ Terminus Ebimpe,61,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200 FCFA
+Line:relation:10190354,Bus 64 : Gare Nord SOTRA Adjamé ↔ Gare Blockauss,64,SOTRA,monbus,bus,44,"Mo-Su,PH 05:00-22:00","40 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 60 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",200 FCFA
+Line:relation:10241995,bus 67 : Marché de Treichville ↔ Gonzagueville / Anani,67,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10247522,bus 68 : Anani ↔ Gare Koumassi,68,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10228286,bus 75 : Abobo Baoulé ↔ Cité Administrative,75,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10241381,bus 76 : PK 18 (Abobo) ↔ Cité Administrative,76,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10289376,bus 77 : Abobo Gendarmerie ↔ Youpougon CHU / Micao,77,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10260743,bus 78 : M'badon ↔ Gare Nord,78,SOTRA,monbus,bus,24,"Mo-Su,PH 05:00-22:00","30 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 45 @ (Mo-Su,PH 17:00-20:00); 60 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10238035,bus 81 : Gare Nord ↔ Angré,81,SOTRA,monbus,bus,25,"Mo-Su,PH 05:00-22:00","24 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 30 @ (Mo-Su,PH 17:00-20:00); 20 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10228640,bus 82 : Gare Sud ↔ Angré,82,SOTRA,monbus,bus,27,"Mo-Su,PH 05:00-22:00","30 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 45 @ (Mo-Su,PH 17:00-20:00); 30 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10229775,bus 83 : Gare Nord ↔ Riviera Sogefiha / École de Police,83,SOTRA,monbus,bus,14,"Mo-Su,PH 05:00-22:00","15 @ (Mo-Su,PH 05:00-07:00); 20 @ (Mo-Su,PH 07:00-09:00); 16 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10211372,bus 84 : Gare Nord ↔ Blockauss,84,SOTRA,monbus,bus,32,"Mo-Su,PH 05:00-22:00","24 @ (Mo-Su,PH 05:00-07:00); 24 @ (Mo-Su,PH 07:00-09:00); 30 @ (Mo-Su,PH 17:00-20:00); 120 @ (Mo-Su,PH 20:00-22:00)",200 FCFA
+Line:relation:10200077,bus 85 : Yopougon Kouté / Phalène ↔ Campus Cocody,85,SOTRA,monbus,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10291303,bus 86 : Gare Nord ↔ Nouveau Camp Akouedo,86,SOTRA,monbus,bus,01:00,"Mo-Su 07:00-09:00,17:00-20:00",,200FCFA
+Line:relation:10261222,bus 87 : La Vie ↔ Bingerville,87,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10211824,bus 90 : Blockauss ↔ CHU Angré,90,SOTRA,monbus,bus,01:00,"Mo-Su,PH 05:00-22:00",,200 FCFA
+Line:relation:10087961,bus 91 : Gare Sud ↔ Liberté Adjamé,91,SOTRA,monbus,bus,48,"Mo-Su,PH 05:00-20:00","60 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 36 @ (Mo-Su,PH 17:00-20:00)",200FCFA
+Line:relation:10220807,bus 92 : Gare Koumassi ↔ Gare Nord,92,SOTRA,monbus,bus,17,"Mo-Su,PH 05:00-22:00","11 @ (Mo-Su,PH 05:00-07:00); 12 @ (Mo-Su,PH 07:00-09:00); 26 @ (Mo-Su,PH 17:00-20:00); 17 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10206986,bus 611 : Gendarmerie Abobo ↔ CHU Angré,611,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10300549,bus 616 : Abatta Village ↔ Gare Nord Adjamé,616,SOTRA,monbus / Navette,bus,40,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 60 @ (Mo-Su,PH 07:00-09:00); 45 @ (Mo-Su,PH 17:00-20:00)",200FCFA
+Line:relation:10289749,bus 712 : Yopougon Lavage Saint-André / Amondji ↔ Grand carrefour Koumassi,712,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10240809,bus 713 : Gendarmerie Abobo ↔ Grand carrefour Koumassi,713,SOTRA,monbus / Navette,bus,00:25,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10281561,bus 715 : Grand carrefour Koumassi ↔ Sococe Deux plateaux,715,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10282981,bus 716 : Grand carrefour Koumassi ↔ Carrefour Palmeraie (Riviera III),716,SOTRA,monbus / Navette,bus,00:45,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10283602,bus 717 : Anani ↔ Hôtel de ville,717,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10283796,bus 718 : Adjamé Liberté ↔ Gonzagueville,718,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10228996,bus 719 : Yopougon Lavage Saint André ↔ Angré Terminus 81-82,719,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10215413,bus 720 : Yopougon Lavage Saint André ↔ Rond-point Palmeraie,720,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10286821,bus 721 : CHU Treichville ↔ Riviera Palmeraie,721,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10280602,bus 726 : Yopougon Attié - Amondji ↔ Gare Sud,726,SOTRA,monbus / Navette,bus,00:15,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10228832,bus 727 : Yopougon Lavage Saint André ↔ Cocody Saint Jean,727,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10434093,bus 728 : Ecole de police ↔ Yopougon Lubafrique,728,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10285983,bus 729 : Yopougon Koweït ↔ Carrefour Palmeraie (Riviera III),729,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10286387,bus 770 : Akeikoi Abobo ↔ CHU Treichville,770,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10361922,bus 771 : Yopougon Niangon ↔ Vridi Iran,771,SOTRA,monbus / Navette,bus,00:30,"Mo-Su 07:00-09:00,17:00-20:00",,500FCFA
+Line:relation:10286586,bus 772 : PK 18 ↔ Vridi Iran,772,SOTRA,monbus / Navette,bus,00:20,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10397199,bus 773 : Bingerville ↔ Gare Sud,773,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10397090,bus 775 : CHU Treichville ↔ Angré Château,775,SOTRA,monbus / Navette,bus,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10189319,bus 79 : Adjamé Liberté ↔ Gendarmerie Abobo,79,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10215245,bus 80 : CHU d'Angré ↔ Abobo Biabou,80,SOTRA,monbus / Navette,bus,00:30,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10391644,bateau-bus 900 : Yopougon (Abobo Doumé) ↔ Treichville,900,STL,STL,ferry,00:45,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10394941,bateau-bus 901 : Treichville ↔ Koumassi,901,STL,STL,ferry,01:00,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10179435,gbaka : Adjamé ↔ Abobo Gare Mairie,,divers,Gbaka d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,250 FCFA
+Line:relation:10184139,gbaka : Adjamé Liberté ↔ Abobo Gare Mairie,,divers,Gbaka d'Abobo,bus,2,"Mo-Su,PH 05:00-17:00","15 @ (Mo-Su,PH 05:00-07:00); 3 @ (Mo-Su,PH 07:00-09:00)",200FCFA
+Line:relation:10184730,gbaka : Abobo Gare Mairie ↔Akeïkoi Village,,divers,Gbaka d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10184964,gbaka : Abobo Gare Mairie ↔ Kennedy Marché,,divers,Gbaka d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:10185142,gbaka : Abobo Gare Mairie ↔ Kennedy Mosquée Ado,,divers,Gbaka d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,150 FCFA
+Line:relation:10185406,gbaka : Abobo Gare Mairie ↔ Abobo PK 18,,divers,Gbaka d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:10460517,gbaka : BC ↔ Adjamé Nouvelle Gare,,divers,Gbaka d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10461307,gbaka : Carrefour JAUG ↔ Adjamé Nouvelle Gare,,divers,Gbaka d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11600997,gbaka : Lycée Moderne Abobo ↔ Adjamé Liberté,,divers,Gbaka d'Abobo,bus,00:20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11604247,gbaka : Abobo Samaké ↔ Biabou,,divers,Gbaka d'Abobo,bus,00:20,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11702772,gbaka : Abobo Marché ↔ Biabou,,divers,Gbaka d'Abobo,bus,00:20,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10179006,gbaka : Adjamé Liberté ↔ Treichville Gare de Bassam,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10185169,gbaka : Adjamé gare en haut ↔ Cocody Riviera M'badon,,divers,Gbaka d'Adjamé,bus,10,"Mo-Su,PH 05:00-20:00","60 @ (Mo-Su,PH 05:00-07:00); 10 @ (Mo-Su,PH 07:00-09:00); 10 @ (Mo-Su,PH 17:00-20:00)",300FCFA
+Line:relation:10185403,gbaka : Adjamé gare en haut ↔ Cocody Attoban Camp,,divers,Gbaka d'Adjamé,bus,30,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10402404,gbaka : Adjamé Liberté ↔ Cocody Riviera 2,,divers,Gbaka d'Adjamé,bus,12,"Mo-Su,PH 09:00-22:00","5 @ (Mo-Su,PH 17:00-20:00); 20 @ (Mo-Su,PH 20:00-22:00)",200FCFA
+Line:relation:10402518,gbaka : Adjamé gare en haut ↔ Cocody Anono,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10402749,gbaka : Adjamé gare en haut ↔ Bingerville,,divers,Gbaka d'Adjamé,bus,7,"Mo-Su,PH 05:00-17:00","30 @ (Mo-Su,PH 05:00-07:00); 7 @ (Mo-Su,PH 07:00-09:00)",300FCFA
+Line:relation:10403055,gbaka : Adjamé gare en haut ↔ Cocody Riviera M'pouto,,divers,Gbaka d'Adjamé,bus,15,"Mo-Su,PH 05:00-17:00","60 @ (Mo-Su,PH 05:00-07:00); 9 @ (Mo-Su,PH 07:00-09:00)",250FCFA
+Line:relation:10404238,gbaka : Adjamé gare en haut ↔ Cocody Akouédo,,divers,Gbaka d'Adjamé,bus,37,"Mo-Su,PH 05:00-17:00","120 @ (Mo-Su,PH 05:00-07:00); 13 @ (Mo-Su,PH 07:00-09:00)",250FCFA
+Line:relation:10406387,gbaka : Yopougon Palais ↔ Adjamé Renault,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10406547,gbaka : Yopougon Niangon Terminus 27 ↔ Adjamé Liberté,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10406621,gbaka : Adjamé Liberté ↔ Koumassi,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10406865,gbaka : Adjamé Liberté ↔ Yopougon Palais,,divers,Gbaka d'Adjamé,bus,2,"Mo-Su,PH 09:00-22:00","2 @ (Mo-Su,PH 17:00-20:00); 9 @ (Mo-Su,PH 20:00-22:00)",300FCFA
+Line:relation:10407729,gbaka : Adjamé Texaco ↔ Yopougon Camp Militaire,,divers,Gbaka d'Adjamé,bus,27,"Mo-Su,PH 07:00-17:00","60 @ (Mo-Su,PH 07:00-09:00)",300FCFA
+Line:relation:10407850,gbaka : Yopougon Carrefour Académie ↔ Adjamé Liberté,,divers,Gbaka d'Adjamé,bus,32,"Mo-Su,PH 05:00-17:00","120 @ (Mo-Su,PH 05:00-07:00); 120 @ (Mo-Su,PH 07:00-09:00)",300FCFA
+Line:relation:10409494,gbaka : Adjamé Renault ↔ Abobo Gare Mairie,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10409714,gbaka : Adjamé Liberté ↔ Carrefour Lokoa,,divers,Gbaka d'Adjamé,bus,4,"Mo-Su,PH 05:00-22:00","40 @ (Mo-Su,PH 05:00-07:00); 24 @ (Mo-Su,PH 07:00-09:00); 5 @ (Mo-Su,PH 17:00-20:00); 40 @ (Mo-Su,PH 20:00-22:00)",300FCFA
+Line:relation:10410754,gbaka : Adjamé Liberté ↔ Bingerville,,divers,Gbaka d'Adjamé,bus,13,"Mo-Su,PH 07:00-22:00","15 @ (Mo-Su,PH 07:00-09:00); 5 @ (Mo-Su,PH 17:00-20:00); 15 @ (Mo-Su,PH 20:00-22:00)",300FCFA
+Line:relation:10411047,gbaka : Yopougon gare Gesco ↔ Adjamé Agban,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10430127,gbaka : Abobo Gare ↔ Ndotre,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10430627,gbaka : Abobo Gendarmerie ↔ Yopougon Carrefour Zone,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10442364,gbaka : Yopougon Sideci IGES ↔ Adjamé Liberté,,divers,Gbaka d'Adjamé,bus,18,"Mo-Su,PH 05:00-20:00","40 @ (Mo-Su,PH 05:00-07:00); 30 @ (Mo-Su,PH 07:00-09:00); 18 @ (Mo-Su,PH 17:00-20:00)",300FCFA
+Line:relation:10459360,gbaka : Yopougon Niangon Terminus 27 ↔ Adjamé mosquée,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10459458,gbaka : Gare Kobenan Agban ↔ Yopougon marché Bagnon,,divers,Gbaka d'Adjamé,bus,00:20,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10460657,gbaka : Abobo Gare ↔ Belle ville,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10460968,gbaka : Abobo Gare ↔ Gare d'Anyama,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10461146,gbaka : Abobo Gare ↔ Angré Petro Ivoire,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10461959,gbaka : Yopougon Lokoa ↔ Adjame mosquée,,divers,Gbaka d'Adjamé,bus,14,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 40 @ (Mo-Su,PH 07:00-09:00); 180 @ (Mo-Su,PH 17:00-20:00)",500FCFA
+Line:relation:10474495,gbaka : Gare Kobenan Agban ↔ Yopougon koweit,,divers,Gbaka d'Adjamé,bus,7,"Mo-Su,PH 05:00-20:00","24 @ (Mo-Su,PH 05:00-07:00); 30 @ (Mo-Su,PH 07:00-09:00); 12 @ (Mo-Su,PH 17:00-20:00)",300FCFA
+Line:relation:10474747,gbaka : Gare kobenan Agban ↔ Yopougon Lubafrique,,divers,Gbaka d'Adjamé,bus,00:20,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10476005,gbaka : Adjamé gare en haut ↔ Akouedo Attié,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10476178,gbaka : Gare Kobenan Agban ↔ Bingerville,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10476298,gbaka : Adjame Agban ↔ Yopougon boassi,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10480217,gbaka : Adjamé Agban ↔ Yopougon Camp Militaire,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10480360,gbaka : Gare Kobenan Agban ↔ Yopougon Niangon Terminus 27,,divers,Gbaka d'Adjamé,bus,00:20,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10480446,gbaka : Gare Kobenan Agban ↔ Yopougon Carrefour Académie,,divers,Gbaka d'Adjamé,bus,00:20,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10480461,gbaka : Yopougon Carrefour Académie ↔ Adjamé mosquée,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10480573,gbaka : Adjamé Agban ↔ Port-Bouët Vridi,,divers,Gbaka d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10521453,gbaka : Adjame Agban ↔ Bingerville,,divers,Gbaka d'Adjamé,bus,00:45,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:11535716,gbaka : Anoumabo sans fil ↔ Treichville Rue 12,,divers,Gbaka de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11703076,gbaka : Casier ↔ Belleville,,divers,Gbaka de Port-Bouët,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11703113,gbaka : Mobiobi ↔ Terminus Mobiobi,,divers,Gbaka de Port-Bouët,bus,15,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11703171,gbaka : Gonzagueville Corridor ↔ Éléphant,,divers,Gbaka de Port-Bouët,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11703223,gbaka : Gonzagueville Corridor ↔ Abraham,,divers,Gbaka de Port-Bouët,bus,15,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11703304,gbaka : Gonzagueville Corridor ↔ Usine,,divers,Gbaka de Port-Bouët,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10406129,gbaka : Treichville Gare de Bassam ↔ Port-Bouët Gonzagueville,,divers,Gbaka de Treichville,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10403061,gbaka : Adjamé Texaco ↔ Yopougon Kowët,,divers,Gbaka de Yopougon,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11592212,gbaka : Carrefour CHU ↔ Sable,,divers,Gbaka de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11619877,gbaka : Siporex ↔ Songon Agban,,divers,Gbaka de Yopougon,bus,20,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:11619939,gbaka : Sable ↔ Koweit,,divers,Gbaka de Yopougon,bus,2,"Mo-Su,PH 05:00-20:00","13 @ (Mo-Su,PH 05:00-07:00); 7 @ (Mo-Su,PH 07:00-09:00); 3 @ (Mo-Su,PH 17:00-20:00)",200FCFA
+Line:relation:11620000,gbaka : Yopougon Siporex ↔ Yopougon Lokoa,,divers,Gbaka de Yopougon,bus,4,"Mo-Su,PH 05:00-22:00","17 @ (Mo-Su,PH 05:00-07:00); 11 @ (Mo-Su,PH 07:00-09:00); 7 @ (Mo-Su,PH 17:00-20:00); 30 @ (Mo-Su,PH 20:00-22:00)",250FCFA
+Line:relation:11620022,gbaka : Yopougon Siporex ↔ Yopougon Académie,,divers,Gbaka de Yopougon,bus,15,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11620051,gbaka : Yopougon Siporex ↔ Yopougon Gesco,,divers,Gbaka de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11620886,gbaka : Yopougon Acamedie ↔ Yopougon Diop,,divers,Gbaka de Yopougon,bus,15,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11620905,gbaka : Yopougon Siporex ↔ Yopougon IGES,,divers,Gbaka de Yopougon,bus,13,"Mo-Su,PH 05:00-20:00","30 @ (Mo-Su,PH 05:00-07:00); 11 @ (Mo-Su,PH 07:00-09:00); 90 @ (Mo-Su,PH 17:00-20:00)",200FCFA
+Line:relation:11702376,gbaka : Yopougon Carrefour zone ↔ Ndotre,,divers,Gbaka de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11702592,gbaka : Yopougon Carrefour zone ↔ Abobo Agripac,,divers,Gbaka de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11702874,gbaka : Yopougon Palais ↔ Beago Wolosso,,divers,Gbaka de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11702965,gbaka : Yopougon Koweit ↔ Zone Industrielle,,divers,Gbaka de Yopougon,bus,6,"Mo-Su,PH 09:00-20:00","11 @ (Mo-Su,PH 17:00-20:00)",250FCFA
+Line:relation:11703071,gbaka : Zone Industrielle ↔ Gesco,,divers,Gbaka de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11703128,gbaka : Yopougon Locodjro Marine ↔ Attecoubé Garage,,divers,Gbaka de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11758498,gbaka : Yopougon IGES ↔ Adjame mosquée en bas du pont,,divers,Gbaka de Yopougon,bus,15,"Mo-Su,PH 05:00-20:00","120 @ (Mo-Su,PH 05:00-07:00); 36 @ (Mo-Su,PH 17:00-20:00)",300FCFA
+Line:relation:11758556,gbaka : Adjamé Texaco ↔ Yopougon Lubafrique,,divers,Gbaka de Yopougon,bus,32,"Mo-Su,PH 07:00-17:00","120 @ (Mo-Su,PH 07:00-09:00)",300FCFA
+Line:relation:10651885,woro woro : Abobo Gare ↔ BC,,divers,Woro-woro d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10651976,woro woro : Abobo Gendarmerie ↔ Ndotre,,divers,Woro-woro d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10653426,woro woro : Abobo Gare ↔ Biabou,,divers,Woro-woro d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10653562,woro woro : Abobo Gare ↔ Houphouet-Boigny,,divers,Woro-woro d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10653808,woro woro : Abobo Gare ↔ Angre Petro Ivoire,,divers,Woro-woro d'Abobo,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11573879,woro woro : Abobo Gare ↔ Terminus Derrière Rail,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592326,woro woro : Abobo Gendarmerie ↔ Terminus Derrière Rail Celeste,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592497,woro woro : Abobo Marché ↔ Kennedy,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592766,woro woro : Abobo Marché ↔ Dokui,,divers,Woro-woro d'Abobo,bus,00:15,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592897,woro woro : Abobo marché ↔ Houphouet-Boigny,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592959,woro woro : Abobo Marche ↔ Carrefour kennedy,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11593183,woro woro : Ancienne Gendarmerie ↔ Grand Carrefour,,divers,Woro-woro d'Abobo,bus,00:15,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11596845,woro woro : Gare d'Anyama ↔ Mairie d'Anyama,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11597012,woro woro : Lycée Moderne d'Abobo ↔ Houphouet-Boigny,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11597137,woro woro : Abobo Gendarmerie ↔ BC Carrefour Niamkey,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11597169,woro woro : Abobo Gendarmerie ↔ BC,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11597201,woro woro : Abobo Marche ↔ Habitat grace,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11597456,woro woro : Abobo Marché ↔ Abobo Baoulé,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11600234,woro woro : Abobo Gendarmerie ↔ Houphouet-Boigny,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11600299,woro woro : Abobo Samaké ↔ Abobo Baoulé,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11600482,woro woro : Carrefour Kennedy ↔ Mosquée Ado,,divers,Woro-woro d'Abobo,bus,00:10,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:10413253,woro woro : Adjamé Liberté ↔ Adjamé Mairie Dallas,,divers,Woro-woro d'Adjamé,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592064,woro woro : Adjamé Liberté ↔ Saint Michel,,divers,Woro-woro d'Adjamé,bus,60,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:11597021,woro woro : Mossikro ↔ Abobo Doumé Santé,,divers,Woro-woro d'Attecoubé,bus,5,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:10408669,woro woro : Riviera 2 ↔ Angré Terminus 81-82,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10408694,woro woro : Riviera 2 ↔ Angré 22ème,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10408727,woro woro : Riviera 2 ↔ Attoban Camp,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:10412424,woro woro : Zoo ↔ Vallon,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10412781,woro woro : Zoo ↔ Sococe Deux plateaux,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10413050,woro woro : Abobo Azur Mobil ↔ CHU Angré,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10413162,woro woro : Abobo Azur Mobil ↔ 8e Tranche CNPS en haut,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10413686,woro woro : Abobo Azur Mobil ↔ Angré Château,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10416510,woro woro : Palmeraie ↔ Les Rosiers,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10416736,woro woro : Carrefour 9km ↔ Palmeraie SIPIM 4,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10430197,woro woro : Abobo Azur Mobil ↔ Saint Jean,,divers,Woro-woro de Cocody,bus,,"PH,Mo-Su 05:00-22:00",,500FCFA
+Line:relation:10430593,woro woro : Zoo ↔ Aghien,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10431102,woro woro : Zoo ↔ Attoban,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10628612,woro woro : Saint Jean ↔ Riviera 2,,divers,Woro-woro de Cocody,bus,00:05,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10628718,woro woro : Saint Jean ↔ Angré Château,,divers,Woro-woro de Cocody,bus,00:05,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10628857,woro woro : Saint Jean ↔ Angré Pétro Ivoire,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,400FCFA
+Line:relation:10653984,woro woro : Palmeraie ↔ Mahou/Azur,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,500FCFA
+Line:relation:10669276,woro woro : Palmeraie ↔ Terminus 81-82,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11529699,woro woro : 9 kilo ↔ Akouédo,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11531745,woro woro : 9 kilo ↔ Ciad Eden,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11531813,woro woro : 9 kilo ↔ Sol Beni au bateau,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11531971,woro woro : Gare Bonoumin ↔ Abri 2000,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11532200,woro woro : Station après barage ↔ CHU Angré,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11532307,woro woro : Station après barage ↔ Rosier Programme 6,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11532430,woro woro : Station après barage ↔ Petro ivoire,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,400FCFA
+Line:relation:11532537,woro woro : Rivera 2 ↔ Anono,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11539651,woro woro : Rivera 2 station ↔ 9 Kilo,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11539787,woro woro : Saint Jean ↔ Blockhauss,,divers,Woro-woro de Cocody,bus,5,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11543111,woro woro : Blockauss ↔ CHU de Cocody,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11543163,woro woro : Blockauss ↔ La Vie,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11543219,woro woro : Blockauss ↔ Patisserie,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11543567,woro woro : Rivera 2 station ↔ Akouédo,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11543885,woro woro : Rivera 2 station ↔ CIAD Eden,,divers,Woro-woro de Cocody,bus,,"Mo-Su,PH 05:00-22:00",,400FCFA
+Line:relation:11581772,woro woro : Zoo ↔ Pont Soro,,divers,Woro-woro de Cocody,bus,15,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:11581822,woro woro : Zoo ↔ Cascades,,divers,Woro-woro de Cocody,bus,15,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11581878,woro woro : Zoo ↔ Zinssou,,divers,Woro-woro de Cocody,bus,15,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11591910,woro woro : Gare carrefour 2 plateaux ↔ Vallon,,divers,Woro-woro de Cocody,bus,30,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11592007,woro woro : Gare carrefour 2 plateaux ↔ Commissariat du 12è,,divers,Woro-woro de Cocody,bus,30,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11592121,woro woro : Zoo ↔ Opera,,divers,Woro-woro de Cocody,bus,15,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10672696,woro woro : Koumassi grand marché ↔ Terminus 05,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10676982,woro woro : Koumassi grand marché ↔ Ancien Koumassi,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10677072,woro woro : Anoumabo sans fil ↔ Koumassi grand marché,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10677135,woro woro : Koumassi grand marché ↔ Koumassi campement,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10677516,woro woro : Koumassi grand marché ↔ Soweto,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10677691,woro woro : Anoumabo sans fil ↔ Koumassi Hôpital général,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11527162,woro woro : Gare communale ↔ Soweto,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11527427,woro woro : Gare communale ↔ Sicogi,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11529097,woro woro : Sicogi ↔ Terminus 32,,divers,Woro-woro de Koumassi,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11529225,woro woro : Anoumabo sans fil ↔ Sicogi,,divers,Woro-woro de Koumassi,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11529405,woro woro : Sicogi ↔ Soweto,,divers,Woro-woro de Koumassi,bus,,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11538371,woro woro : Carrefour lycée ↔ Maison blanche,,divers,Woro-woro de Marcory,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11538539,woro woro : Gare Sotra Marcory ↔ Maison blanche,,divers,Woro-woro de Marcory,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11538775,woro woro : Carrefour Lycée ↔ CTAO,,divers,Woro-woro de Marcory,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11539470,woro woro :Gare Sotra Marcory ↔ CTAO,,divers,Woro-woro de Marcory,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11539584,woro woro : Hibiscus ↔ Mairie de Marcory,,divers,Woro-woro de Marcory,bus,,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10647547,woro woro : Marché de Port-Bouët ↔ Vridi Cité,,divers,Woro-woro de Port-Bouët,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10647596,woro woro : Marché de Port-Bouët ↔ Vridi Canal,,divers,Woro-woro de Port-Bouët,bus,5,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:10647737,woro woro : Marché de Port-Bouët ↔ Anani,,divers,Woro-woro de Port-Bouët,bus,5,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10670070,woro woro : Marché de Port-Bouët ↔ Port de Pêche,,divers,Woro-woro de Port-Bouët,bus,5,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10670151,woro woro : Carrefour Aéroport ↔ Aéroport,,divers,Woro-woro de Port-Bouët,bus,5,"Mo-Su,PH 05:00-22:00",,150FCFA
+Line:relation:11702225,woro woro : Terre Rouge ↔ Carrefour deux poteaux,,divers,Woro-woro de Port-Bouët,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11702278,woro woro : Terre Rouge ↔ Benogosso,,divers,Woro-woro de Port-Bouët,bus,10,"Mo-Su,PH 05:00-22:00",,300FCFA
+Line:relation:10408771,woro woro : Treichville Gare de Bassam ↔ Treichville Gare Bateau-bus,,divers,Woro-woro de Treichville,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:10408836,woro woro : Yopougon Gabriel gare ↔ Yopougon Micao,,divers,Woro-woro de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11544387,woro woro : Siporex ↔ Toit rouge Jean-Paul2,,divers,Woro-woro de Yopougon,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11544470,woro woro : Siporex ↔ Koweit,,divers,Woro-woro de Yopougon,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11548462,woro woro : Siporex ↔ Andokoi,,divers,Woro-woro de Yopougon,bus,,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11555785,woro woro : Sapeur Pompier ↔ Camp Militaire,,divers,Woro-woro de Yopougon,bus,,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11555928,woro woro : Sapeur Pompier ↔ Terminus 40,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11569330,woro woro : Gabriel Gare ↔ Prison Civile,,divers,Woro-woro de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11569444,woro woro : Siporex ↔ Camp militaire,,divers,Woro-woro de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11572895,woro woro : Gabriel Gare ↔ Mossikro,,divers,Woro-woro de Yopougon,bus,00:30,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11578622,woro woro : Complexe ↔ Koweit,,divers,Woro-woro de Yopougon,bus,00:20,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11580511,woro woro : BHCI ↔ Toit rouge Jean-Paul 2,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11580548,woro woro : BHCI ↔ Lama Fofana,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11581068,woro woro : BHCI ↔ Sapeur Pompier,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11581116,woro woro : Palais ↔ Toit rouge Jean-Paul 2,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11581529,woro woro : Camp Militaire ↔ Saguidiba,,divers,Woro-woro de Yopougon,bus,15,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11581693,woro woro : Camp Militaire ↔ Abobo Doumé,,divers,Woro-woro de Yopougon,bus,20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11581798,woro woro : Sable nouveau goudron ↔ Mossikro,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11581842,woro woro : Sable nouveau goudron ↔ Millionnaire Antenne,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11583609,woro woro : Sapeur Pompier ↔ Saguidiba,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11583655,woro woro : Palais ↔ Camp Militaire,,divers,Woro-woro de Yopougon,bus,00:15,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11583703,woro woro : Koweit ↔ Toit rouge Jean-Paul 2,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11583900,woro woro : Camp Militaire ↔ Koweit,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11588596,woro woro : Palais ↔ Sapeur Pompier,,divers,Woro-woro de Yopougon,bus,00:05,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11588862,woro woro : BHCI ↔ Complexe,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11588965,woro woro : Keneya ↔ Nouveau Goudron,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11589210,woro woro : Zone industrielle ↔ Sable nouveau groudron,,divers,Woro-woro de Yopougon,bus,00:10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11592385,woro woro : Carrefour Zone ↔ Zone industrielle,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592419,woro woro : Carrefour Zone ↔ Micao,,divers,Woro-woro de Yopougon,bus,15,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11592466,woro woro : Keneya ↔ Carrefour CHU,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11592571,woro woro : Mairie ↔ Gabriel Gare,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592774,woro woro : Bel air ↔ Gabriel Gare,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11592840,woro woro : Coopec ananeraie ↔ Carrefour Oasis,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11596432,woro woro : Keneya ↔ Coopec ananeraie,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11596455,woro woro : Bel air ↔ Keneya,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11596584,woro woro : Palais ↔ Koweit,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11596698,woro woro : Palais ↔ Abobo Doumé,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11596735,woro woro : Bel air ↔ Mossikro,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11596752,woro woro : Bel air ↔ Millionnaire Antenne,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,100FCFA
+Line:relation:11596793,woro woro : Sapeur Pompier ↔ Toit rouge Jean-Paul 2,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11596832,woro woro : Abobo Doumé ↔ Toit rouge Jean-Paul 2,,divers,Woro-woro de Yopougon,bus,20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11596868,woro woro : Koweit ↔ Sable,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11596890,woro woro : Koweit ↔ Abobo Doumé,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA
+Line:relation:11619625,woro woro : Terminus 40 ↔ Camp Militaire,,divers,Woro-woro de Yopougon,bus,10,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11619658,woro woro : Terminus 40 ↔ Toit rouge Jean-Paul 2,,divers,Woro-woro de Yopougon,bus,20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11619704,woro woro : Terminus 40 ↔ Abobo Doumé,,divers,Woro-woro de Yopougon,bus,20,"Mo-Su,PH 05:00-22:00",,250FCFA
+Line:relation:11702381,woro woro : Marché 23è ↔ Zone industrielle,,divers,Woro-woro de Yopougon,bus,5,"Mo-Su,PH 05:00-22:00",,200FCFA

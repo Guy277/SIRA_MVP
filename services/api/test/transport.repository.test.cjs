@@ -99,3 +99,60 @@ test("TransportRepository est desactive sans DATABASE_URL", () => {
   assert.equal(repository.enabled, false);
   process.env.DATABASE_URL = originalDatabaseUrl;
 });
+
+test("findTransitSegments retourne plusieurs segments et convertit historical_fare", async () => {
+  const repository = createRepositoryWithRows({
+    segment: [
+      {
+        route_id: "r1", short_name: "L1", long_name: "Ligne A", mode: "SOTRA_BUS", operator: "SOTRA",
+        historical_fare: "500.00", fare_status: "historical", data_status: "historical", confidence: "0.8",
+        from_stop_id: "n1", from_stop_name: "A", from_stop_code: null, from_latitude: 5.3202, from_longitude: -4.02, from_distance_m: "55",
+        to_stop_id: "n2", to_stop_name: "B", to_stop_code: null, to_latitude: 5.3208, to_longitude: -4.0194, to_distance_m: "30",
+        geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+      },
+      {
+        route_id: "r2", short_name: "L2", long_name: "Ligne B", mode: "GBAKA", operator: "Gbaka",
+        historical_fare: null, fare_status: "unknown", data_status: "historical", confidence: null,
+        from_stop_id: "n1", from_stop_name: "A", from_stop_code: null, from_latitude: 5.3202, from_longitude: -4.02, from_distance_m: "55",
+        to_stop_id: "n3", to_stop_name: "C", to_stop_code: null, to_latitude: 5.3205, to_longitude: -4.0197, to_distance_m: "20",
+        geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0197, 5.3205]] },
+      },
+    ],
+  });
+  const segments = await repository.findTransitSegments({
+    origin: { lat: 5.3201, lon: -4.02 },
+    destination: { lat: 5.3313, lon: -4.0238 },
+    radiusM: 1500,
+  }, 5);
+  assert.equal(segments.length, 2);
+  assert.equal(segments[0].route_id, "r1");
+  assert.equal(segments[0].historical_fare, 500);
+  assert.equal(typeof segments[0].historical_fare, "number");
+  assert.equal(segments[0].confidence, 0.8);
+  assert.equal(typeof segments[0].confidence, "number");
+  assert.equal(segments[1].historical_fare, null);
+  assert.equal(segments[1].confidence, null);
+});
+
+test("findFirstTransitSegment délègue à findTransitSegments avec limite 1", async () => {
+  const repository = createRepositoryWithRows({
+    segment: [
+      {
+        route_id: "r1", short_name: "L1", long_name: "Ligne A", mode: "SOTRA_BUS", operator: "SOTRA",
+        historical_fare: "500.00", fare_status: "historical", data_status: "historical", confidence: "0.8",
+        from_stop_id: "n1", from_stop_name: "A", from_stop_code: null, from_latitude: 5.3202, from_longitude: -4.02, from_distance_m: "55",
+        to_stop_id: "n2", to_stop_name: "B", to_stop_code: null, to_latitude: 5.3208, to_longitude: -4.0194, to_distance_m: "30",
+        geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+      },
+    ],
+  });
+  const segment = await repository.findFirstTransitSegment({
+    origin: { lat: 5.3201, lon: -4.02 },
+    destination: { lat: 5.3313, lon: -4.0238 },
+    radiusM: 1500,
+  });
+  assert.ok(segment);
+  assert.equal(segment.route_id, "r1");
+  assert.equal(segment.historical_fare, 500);
+  assert.equal(typeof segment.historical_fare, "number");
+});

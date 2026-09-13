@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableExcept
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TransportGraph, type NetworkJourney, type TransportFeature } from "./transport-graph";
-import { combineConfidence, type SiraTransportMode, estimateRideDuration } from "./estimators";
+import { combineConfidence, type SiraTransportMode, estimateRideDuration, estimateWait } from "./estimators";
 import { decodeValhallaShape, haversineKm, routePedestrian, type PedestrianRoute } from "./pedestrian-router";
 import { classifyTransferDistance, SIRA_WALK, type WalkConnectorKind } from "./walk-config";
 import { JourneyProfiler } from "./journey-profiler";
@@ -147,13 +147,17 @@ export type MultimodalTransitLeg = {
   fare: number | null;
   fareStatus: string;
   dataStatus: string;
+
   geometry: { type: "LineString"; coordinates: [number, number][] };
+  waiting_minutes?: number;
+  waitP90?: number;
 };
 
 export type MultimodalJourney = {
   id: string;
   source: "postgis";
   dataStatus: "historical";
+  confidence: number;
   legs: [MultimodalWalkLeg, MultimodalTransitLeg, MultimodalWalkLeg];
   summary: {
     walkingDistanceM: number;
@@ -162,6 +166,8 @@ export type MultimodalJourney = {
     walkingDurationSeconds: number;
     transitDurationSeconds: number;
     totalDurationSeconds: number;
+    waiting_minutes: number;
+    waitP90: number;
     fare: number | null;
     fareStatus: string;
     transfers: number;
@@ -531,6 +537,7 @@ export class MobilityService implements OnModuleInit {
       id: `postgis-multimodal-${Date.now()}`,
       source: "postgis",
       dataStatus: "historical",
+      confidence: combineConfidence([accessWalk.confidence, transitSegment.confidence ?? null, egressResult.confidence]),
       legs: [
         {
           mode: "WALK",
@@ -575,6 +582,8 @@ export class MobilityService implements OnModuleInit {
           fareStatus: totalFareStatus,
           dataStatus: transitSegment.data_status,
           geometry: transitSegment.geometry,
+          waiting_minutes: estimateWait(mode).value,
+          waitP90: estimateWait(mode).p90,
         },
         {
           mode: "WALK",
@@ -597,11 +606,246 @@ export class MobilityService implements OnModuleInit {
         walkingDurationSeconds,
         transitDurationSeconds,
         totalDurationSeconds,
+        waiting_minutes: estimateWait(mode).value,
+        waitP90: estimateWait(mode).p90,
         fare: totalFare,
         fareStatus: totalFareStatus,
         transfers: 0,
       },
     };
+  }
+
+  async generatePostgisCandidates(
+    origin: Point,
+    destination: Point,
+    options: { radiusM?: number; maxWalkingDistanceM?: number; maxCandidates?: number } = {}
+  ): Promise<MultimodalJourney[]> {
+    const radiusM = options.radiusM ?? 1500;
+    const maxWalkingDistanceM = options.maxWalkingDistanceM ?? SIRA_WALK.maxAccessOrEgressDistanceM;
+    const maxCandidates = Math.max(1, Math.min(8, options.maxCandidates ?? 5));
+    const maxAccessStops = Math.max(2, Math.min(5, Math.ceil(maxCandidates / 2)));
+    const maxTransitOptions = Math.max(2, Math.min(5, Math.ceil(maxCandidates / 2)));
+    this.validatePoint(origin);
+    this.validatePoint(destination);
+    if (!this.transportRepository.enabled) throw new ServiceUnavailableException("PostGIS transport n'est pas configuré.");
+    if (!Number.isFinite(radiusM) || radiusM <= 0 || radiusM > 10_000) throw new BadRequestException("Rayon de recherche invalide.");
+    if (!Number.isFinite(maxWalkingDistanceM) || maxWalkingDistanceM <= 0 || maxWalkingDistanceM > 10_000) throw new BadRequestException("Distance maximale de marche invalide.");
+
+    let accessStops: Array<{ id: string; name: string | null; code: string | null; latitude: number; longitude: number; distance_m: number }>;
+    try {
+      accessStops = await this.transportRepository.findNearbyStops(origin.lat, origin.lon, radiusM, maxAccessStops);
+    } catch {
+      throw new ServiceUnavailableException("PostGIS transport est indisponible.");
+    }
+    if (!accessStops.length) return [];
+
+    const walkCache = new Map<string, WalkResult>();
+
+    const cachedWalk = async (from: Point, to: Point, connectorKind: WalkConnectorKind): Promise<WalkResult> => {
+      const cacheKey = `${from.lat},${from.lon}|${to.lat},${to.lon}|${maxWalkingDistanceM}|${connectorKind}`;
+      const cached = walkCache.get(cacheKey);
+      if (cached) return cached;
+      const result = await this.walk(from, to, { maxDistanceM: maxWalkingDistanceM, connectorKind });
+      walkCache.set(cacheKey, result);
+      return result;
+    };
+
+    type SegmentRow = {
+      route_id: string;
+      short_name: string | null;
+      long_name: string;
+      mode: string;
+      operator: string | null;
+      historical_fare: number | null;
+      fare_status: string;
+      data_status: string;
+      confidence: number | null;
+      from_stop_id: string;
+      from_stop_name: string;
+      from_stop_code: string | null;
+      from_latitude: number;
+      from_longitude: number;
+      from_distance_m: number;
+      to_stop_id: string;
+      to_stop_name: string;
+      to_stop_code: string | null;
+      to_latitude: number;
+      to_longitude: number;
+      to_distance_m: number;
+      geometry: { type: "LineString"; coordinates: [number, number][] };
+    };
+
+    const allCandidates: Array<{ dedupKey: string; candidate: MultimodalJourney }> = [];
+
+    for (const stop of accessStops) {
+      const accessStopPoint: Point = { lat: stop.latitude, lon: stop.longitude, name: stop.name ?? stop.id };
+
+      let segments: SegmentRow[];
+      try {
+        segments = await this.transportRepository.findTransitSegments({
+          origin: accessStopPoint,
+          destination,
+          radiusM,
+        }, maxTransitOptions);
+      } catch {
+        continue;
+      }
+      if (!segments.length) continue;
+
+      for (const seg of segments) {
+        const dedupKey = `${seg.from_stop_id}:${seg.route_id}:${seg.to_stop_id}`;
+
+        const accessWalk = await cachedWalk(origin, { lat: seg.from_latitude, lon: seg.from_longitude, name: seg.from_stop_name }, "access");
+        if (accessWalk.status !== "found") continue;
+
+        const egressWalk = await cachedWalk(
+          { lat: seg.to_latitude, lon: seg.to_longitude, name: seg.to_stop_name },
+          destination,
+          "egress",
+        );
+        if (egressWalk.status !== "found") continue;
+
+        const transitCoordinates = seg.geometry?.coordinates ?? [];
+        if (!this.validateTransitGeometry(transitCoordinates, seg.from_latitude, seg.from_longitude, seg.to_latitude, seg.to_longitude)) continue;
+
+        const transitDistanceKm = geometryLengthKm(transitCoordinates);
+        const transitDistanceM = Math.round(transitDistanceKm * 1000);
+        const mode = toSiraTransportMode(seg.mode);
+        const rideEstimate = estimateRideDuration(mode, transitDistanceKm);
+        const transitDurationSeconds = Math.round(rideEstimate.value * 60);
+        const transitDurationP90 = Math.round(rideEstimate.p90 * 60);
+        const totalFare = seg.historical_fare === null ? null : Number(seg.historical_fare);
+        const walkingDistanceM = accessWalk.distanceM + egressWalk.distanceM;
+        const walkingDurationSeconds = accessWalk.durationSeconds + egressWalk.durationSeconds;
+        const totalDurationSeconds = walkingDurationSeconds + transitDurationSeconds;
+
+        const egressFromStop = {
+          id: seg.to_stop_id,
+          name: seg.to_stop_name,
+          latitude: seg.to_latitude,
+          longitude: seg.to_longitude,
+        };
+
+        allCandidates.push({
+          dedupKey,
+          candidate: {
+            id: `postgis-${seg.from_stop_id}-${seg.route_id}-${seg.to_stop_id}`,
+            source: "postgis",
+            dataStatus: "historical",
+            confidence: combineConfidence([accessWalk.confidence, seg.confidence ?? null, egressWalk.confidence]),
+            legs: [
+              {
+                mode: "WALK",
+                from: { lat: origin.lat, lon: origin.lon, name: origin.name, id: undefined },
+                to: { lat: seg.from_latitude, lon: seg.from_longitude, name: seg.from_stop_name, id: seg.from_stop_id },
+                distanceM: accessWalk.distanceM,
+                durationSeconds: accessWalk.durationSeconds,
+                durationP90: accessWalk.durationP90,
+                geometry: accessWalk.geometry,
+                provider: accessWalk.provider,
+                method: accessWalk.method,
+                guidanceAvailable: accessWalk.guidanceAvailable,
+                confidence: accessWalk.confidence,
+              },
+              {
+                mode: seg.mode,
+                route: {
+                  id: seg.route_id,
+                  shortName: seg.short_name,
+                  longName: seg.long_name,
+                  operator: seg.operator,
+                },
+                from: {
+                  id: seg.from_stop_id,
+                  name: seg.from_stop_name,
+                  code: seg.from_stop_code,
+                  latitude: seg.from_latitude,
+                  longitude: seg.from_longitude,
+                },
+                to: {
+                  id: seg.to_stop_id,
+                  name: seg.to_stop_name,
+                  code: seg.to_stop_code,
+                  latitude: seg.to_latitude,
+                  longitude: seg.to_longitude,
+                },
+                distanceM: transitDistanceM,
+                durationSeconds: transitDurationSeconds,
+                durationP90: transitDurationP90,
+                durationStatus: "estimated",
+                fare: totalFare,
+                fareStatus: seg.fare_status,
+                dataStatus: seg.data_status,
+                geometry: seg.geometry,
+                // Estimate waiting time for transit leg
+                waiting_minutes: estimateWait(toSiraTransportMode(seg.mode)).value,
+                waitP90: estimateWait(toSiraTransportMode(seg.mode)).p90,
+              },
+              {
+                mode: "WALK",
+                from: { lat: egressFromStop.latitude, lon: egressFromStop.longitude, name: egressFromStop.name, id: egressFromStop.id },
+                to: { lat: destination.lat, lon: destination.lon, name: destination.name, id: undefined },
+                distanceM: egressWalk.distanceM,
+                durationSeconds: egressWalk.durationSeconds,
+                durationP90: egressWalk.durationP90,
+                geometry: egressWalk.geometry,
+                provider: egressWalk.provider,
+                method: egressWalk.method,
+                guidanceAvailable: egressWalk.guidanceAvailable,
+                confidence: egressWalk.confidence,
+              },
+            ],
+            summary: {
+              walkingDistanceM,
+              transitDistanceM,
+              totalDistanceM: walkingDistanceM + transitDistanceM,
+              walkingDurationSeconds,
+              transitDurationSeconds,
+              totalDurationSeconds,
+              waiting_minutes: estimateWait(toSiraTransportMode(seg.mode)).value,
+              waitP90: estimateWait(toSiraTransportMode(seg.mode)).p90,
+              fare: totalFare,
+              fareStatus: seg.fare_status,
+              transfers: 0,
+            },
+          },
+        });
+      }
+    }
+
+    const bestByKey = new Map<string, MultimodalJourney>();
+    for (const { dedupKey, candidate } of allCandidates) {
+      const existing = bestByKey.get(dedupKey);
+      if (!existing) {
+        bestByKey.set(dedupKey, candidate);
+        continue;
+      }
+      const existingTotal = existing.summary.totalDurationSeconds;
+      const candidateTotal = candidate.summary.totalDurationSeconds;
+      if (candidateTotal < existingTotal) {
+        bestByKey.set(dedupKey, candidate);
+      } else if (candidateTotal === existingTotal) {
+        if (candidate.summary.walkingDistanceM < existing.summary.walkingDistanceM) {
+          bestByKey.set(dedupKey, candidate);
+        } else if (candidate.summary.walkingDistanceM === existing.summary.walkingDistanceM) {
+          const existingFare = existing.summary.fare ?? Infinity;
+          const candidateFare = candidate.summary.fare ?? Infinity;
+          if (candidateFare < existingFare) {
+            bestByKey.set(dedupKey, candidate);
+          }
+        }
+      }
+    }
+
+    return Array.from(bestByKey.values())
+      .sort((a, b) => {
+        const durationDiff = a.summary.totalDurationSeconds - b.summary.totalDurationSeconds;
+        if (durationDiff !== 0) return durationDiff;
+        const fareA = a.summary.fare ?? Infinity;
+        const fareB = b.summary.fare ?? Infinity;
+        return fareA - fareB;
+      })
+      .slice(0, maxCandidates);
   }
 
   async findTransportSegment(request: { origin: Point; destination: Point; radiusM?: number }) {
@@ -664,17 +908,18 @@ export class MobilityService implements OnModuleInit {
       candidates.push(this.toRoadCandidate("road-fast", "Taxi / route directe", road, 5, 82));
     }
 
-    let postgisCandidate: Record<string, unknown> | null = null;
+    const postgisCandidateIds = new Set<string>();
     if (this.transportRepository.enabled) {
       try {
-        const multimodal = await this.buildPostgisMultimodalJourney(request.origin, request.destination, {
+        const multimodalCandidates = await this.generatePostgisCandidates(request.origin, request.destination, {
           radiusM: 1500,
           maxWalkingDistanceM,
           maxCandidates: 5,
         });
-        if ((multimodal as MultimodalJourney).source === "postgis") {
-          postgisCandidate = await this.toPostgisCandidate(multimodal as MultimodalJourney);
-          candidates.unshift(postgisCandidate);
+        for (const journey of multimodalCandidates) {
+          const siraCandidate = await this.toPostgisCandidate(journey);
+          postgisCandidateIds.add(siraCandidate.id as string);
+          candidates.unshift(siraCandidate);
         }
       } catch {
         // PostGIS indisponible : on continue avec le fallback GeoJSON
@@ -729,7 +974,7 @@ export class MobilityService implements OnModuleInit {
       && Number(candidate.transfer_count) <= constraints.max_transfers
       && !(candidate.modes as string[]).some((mode) => constraints.excluded_modes.includes(mode)),
     ).sort((left, right) => Number(left.duration) + Number(left.price) / 50 - (Number(right.duration) + Number(right.price) / 50));
-    const source = postgisCandidate && feasible.some((c) => c.id === postgisCandidate.id) ? "postgis_multimodal" : "local_geojson";
+    const source = postgisCandidateIds.size > 0 && feasible.some((c) => postgisCandidateIds.has(c.id as string)) ? "postgis_multimodal" : "local_geojson";
     return this.withProfile({
       journeys: feasible.map((candidate, index) => ({ ...candidate, recommended: index === 0, reasons: ["Respecte vos contraintes", "Classement de secours déterministe"] })),
       recommended_id: feasible[0]?.id ?? null,

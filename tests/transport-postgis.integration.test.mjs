@@ -290,3 +290,59 @@ test("integration multimodal: non-regression journeys GeoJSON", { skip: !(await 
   assert.ok(payload.journeys.length > 0);
   assert.ok(payload.recommended_id);
 });
+
+test("integration candidates: generation de multiples candidats valides", { skip: !(await canReachApi()) }, async () => {
+  const r = await post("/mobility/transport/candidates", {
+    origin: { lat: 5.3197, lon: -4.02, name: "Near Plateau Gare Sud" },
+    destination: { lat: 5.3313, lon: -4.0238, name: "Near Cite Admin" },
+    radiusM: 1500,
+    maxWalkingDistanceM: 1000,
+    maxCandidates: 5,
+  });
+  assert.ok(Array.isArray(r));
+  assert.ok(r.length >= 1);
+  for (const c of r) {
+    assert.equal(c.source, "postgis");
+    assert.equal(c.dataStatus, "historical");
+    assert.equal(c.legs.length, 3);
+    assert.equal(c.legs[0].mode, "WALK");
+    assert.equal(c.legs[2].mode, "WALK");
+    assert.ok(c.legs[0].distanceM > 0);
+    assert.ok(c.legs[0].durationSeconds > 0);
+    assert.ok(c.legs[1].distanceM > 0);
+    assert.ok(c.legs[1].durationSeconds > 0);
+    assert.equal(c.legs[1].durationStatus, "estimated");
+    assert.ok(c.legs[1].route.id);
+    assert.ok(c.legs[1].route.longName);
+    assert.ok(c.legs[1].from.id);
+    assert.ok(c.legs[1].from.name);
+    assert.ok(c.legs[1].to.id);
+    assert.ok(c.legs[1].to.name);
+    assert.ok(c.legs[1].geometry.type, "LineString");
+    assert.ok(c.legs[1].geometry.coordinates.length >= 2);
+    assert.ok(c.summary.totalDistanceM > 0);
+    assert.ok(c.summary.totalDurationSeconds > 0);
+    assert.equal(c.summary.transfers, 0);
+    const fare = c.summary.fare;
+    assert.ok(fare === null || Number.isFinite(fare));
+  }
+  const seen = new Set();
+  for (const c of r) {
+    const key = `${c.legs[1].from.id}:${c.legs[1].route.id}:${c.legs[1].to.id}`;
+    assert.equal(seen.has(key), false, `doublon detecte: ${key}`);
+    seen.add(key);
+  }
+});
+
+test("integration candidates: maxCandidates limite le nombre de resultats", { skip: !(await canReachApi()) }, async () => {
+  const r = await post("/mobility/transport/candidates", {
+    origin: { lat: 5.3197, lon: -4.02, name: "Near Plateau Gare Sud" },
+    destination: { lat: 5.3313, lon: -4.0238, name: "Near Cite Admin" },
+    radiusM: 1500,
+    maxWalkingDistanceM: 1000,
+    maxCandidates: 2,
+  });
+  assert.ok(Array.isArray(r));
+  assert.ok(r.length >= 1);
+  assert.ok(r.length <= 2);
+});

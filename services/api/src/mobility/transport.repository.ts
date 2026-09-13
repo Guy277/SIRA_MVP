@@ -52,6 +52,34 @@ export class TransportRepository implements OnModuleDestroy {
   }
 
   async findFirstTransitSegment(request: SegmentRequest) {
+    const segments = await this.findTransitSegments(request, 1);
+    return segments[0] ?? null;
+  }
+
+  async findTransitSegments(request: SegmentRequest, limit = 5): Promise<Array<{
+    route_id: string;
+    short_name: string | null;
+    long_name: string;
+    mode: string;
+    operator: string | null;
+    historical_fare: number | null;
+    fare_status: string;
+    data_status: string;
+    confidence: number | null;
+    from_stop_id: string;
+    from_stop_name: string;
+    from_stop_code: string | null;
+    from_latitude: number;
+    from_longitude: number;
+    from_distance_m: number;
+    to_stop_id: string;
+    to_stop_name: string;
+    to_stop_code: string | null;
+    to_latitude: number;
+    to_longitude: number;
+    to_distance_m: number;
+    geometry: { type: "LineString"; coordinates: [number, number][] };
+  }>> {
     const client = await this.getClient();
     try {
       const result = await client.query(`
@@ -93,7 +121,7 @@ export class TransportRepository implements OnModuleDestroy {
           FROM origin_stops os
           JOIN transport_gtfs_stop_times from_times ON from_times.stop_source_id = os.source_id
           JOIN transport_gtfs_trips from_trips ON from_trips.source_id = from_times.trip_source_id
-          JOIN transport_gtfs_stop_times to_times ON to_times.trip_source_id = from_times.trip_source_id
+          JOIN transport_gtfs_stop_times to_times ON to_times.trip_source_id = from_trips.trip_source_id
           JOIN destination_stops ds ON ds.source_id = to_times.stop_source_id
           JOIN transport_gtfs_routes r ON r.source_id = from_trips.route_source_id
           LEFT JOIN transport_gtfs_shapes s ON s.source_id = from_trips.shape_source_id
@@ -102,10 +130,16 @@ export class TransportRepository implements OnModuleDestroy {
         )
         SELECT * FROM candidate_routes
         ORDER BY from_distance_m + to_distance_m
-        LIMIT 1`,
-        [request.origin.lat, request.origin.lon, request.destination.lat, request.destination.lon, request.radiusM],
+        LIMIT $6`,
+        [request.origin.lat, request.origin.lon, request.destination.lat, request.destination.lon, request.radiusM, limit],
       );
-      return result.rows[0] ?? null;
+      return result.rows.map((row) => ({
+        ...row,
+        from_distance_m: Number(row.from_distance_m),
+        to_distance_m: Number(row.to_distance_m),
+        historical_fare: row.historical_fare === null ? null : Number(row.historical_fare),
+        confidence: row.confidence === null ? null : Number(row.confidence),
+      }));
     } finally {
       client.release();
     }

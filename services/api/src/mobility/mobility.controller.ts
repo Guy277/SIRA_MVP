@@ -86,6 +86,15 @@ export class MobilityController {
     return this.mobility.findTransportSegment(request);
   }
 
+  @Post("transport/candidates")
+  async candidates(@Body() request: MultimodalRequest) {
+    return this.mobility.generatePostgisCandidates(request.origin, request.destination, {
+      radiusM: request.radiusM,
+      maxWalkingDistanceM: request.maxWalkingDistanceM,
+      maxCandidates: request.maxCandidates,
+    });
+  }
+
   @Post("transport/multimodal")
   async multimodal(@Body() request: MultimodalRequest) {
     return this.mobility.buildPostgisMultimodalJourney(request.origin, request.destination, {
@@ -99,4 +108,10 @@ export class MobilityController {
   journeys(@Body() request: JourneyRequest) {
     return this.mobility.buildJourneys(request);
   }
+
+  // Ranking endpoint (SIRA-MORE) — will be enabled once rankJourneys is implemented in service
+  // @Post("transport/rank")
+  // async rank(@Body() body: { budget?: number; preference?: string; constraints?: any; journeys: any[] }) {
+  //   return this.mobility.rankJourneys(body);
+  // }
 }

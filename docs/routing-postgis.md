@@ -32,9 +32,10 @@ Il ne retourne une ligne que si le meme trip dessert l'arret d'origine puis l'ar
 | `POST` | `/api/v1/mobility/transport/walk` | Routing piéton Valhalla entre deux points |
 | `POST` | `/api/v1/mobility/transport/walk-access` | Meilleur arrêt accessible à pied depuis une origine |
 | `POST` | `/api/v1/mobility/transport/walk-egress` | Marche d'un arrêt PostGIS vers une destination |
-| `POST` | `/api/v1/mobility/transport/multimodal` | Composition `marche + transport PostGIS + marche` |
+| `POST` | `/api/v1/mobility/transport/multimodal` | Composition `marche + transport PostGIS + marche` (1 candidat) |
+| `POST` | `/api/v1/mobility/transport/candidates` | Génération de N candidats multipse `marche + transport + marche` |
 
-Repository NestJS : `TransportRepository` (`findNearbyStops`, `findFirstTransitSegment`).
+Repository NestJS : `TransportRepository` (`findNearbyStops`, `findFirstTransitSegment`, `findTransitSegments`).
 
 Tests :
 
@@ -134,6 +135,26 @@ ST_LineSubstring(
 Le résultat est un GeoJSON `LineString` `[lon, lat]` SRID 4326 qui ne contient que les points entre les deux arrêts. Aucune ligne droite artificielle n'est ajoutée.
 
 Si le trip n'a pas de shape, ou si la géométrie clippée ne passe pas à moins de 200 m de chaque extrémité, le segment est rejeté et le moteur bascule vers le fallback GeoJSON.
+
+## Génération de candidats multiples (Phase B)
+
+`generatePostgisCandidates()` étend `buildPostgisMultimodalJourney()` pour produire **jusqu'à `maxCandidates`** itinéraires complets, chacun validant la chaîne complète `marche d'accès → segment transport → marche de sortie` :
+
+1. **Accès** : `findNearbyStops()` (PostGIS, `ST_DWithin`) retourne jusqu'à `maxAccessStops` arrêts autour de l'origine.
+2. **Transit** : pour chaque arrêt d'accès, `findTransitSegments()` (PostGIS) retourne jusqu'à `maxTransitOptions` segments vers la zone de destination.
+3. **Marche d'accès** : Valhalla depuis l'origine piétonne vers `fromStop` de chaque segment.
+4. **Marche de sortie** : Valhalla depuis `toStop` vers la destination.
+5. **Validation** : `validateTransitGeometry()` rejette les segments dont les extrémités s'éloignent de plus de 200 m du `fromStop`/`toStop`.
+6. **Déduplication** : les segments partageant la même clé `from_stop : route : to_stop` sont éliminés (le premier gagnant est conservé).
+7. **Limitation** : seuls les `maxCandidates` premiers candidats (par durée, puis par tarif) sont renvoyés.
+
+| Paramètre | Défaut | Plage | Rôle |
+| --- | --- | --- | --- |
+| `radiusM` | 1500 | 1–10 000 | Rayon de recherche d'arrêts autour de l'origine et de la destination |
+| `maxWalkingDistanceM` | `SIRA_WALK.maxAccessOrEgressDistanceM` | 1–10 000 | Distance piétonne maximale d'accès/égress |
+| `maxCandidates` | 5 | 1–8 | Nombre maximum de candidats complets renvoyés |
+
+Chaque candidat est un `MultimodalJourney` complet avec 3 jambes (`WALK → transit → WALK`), géométrie, durées P90 et tarif. Aucun scoring SIRA-MORE n'est appliqué : l'ordre est déterminé par la durée totale puis par le tarif.
 
 ## Limites actuelles
 
