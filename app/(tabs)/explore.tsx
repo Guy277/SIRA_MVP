@@ -8,23 +8,39 @@ import {
   ScrollView,
   Dimensions,
   Platform,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { SideMenuModal } from '@/components/side-menu-modal';
+import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 
 const { width, height } = Dimensions.get('window');
 
 type TransportMode = 'Coulé' | 'Debout' | 'Suspendu';
-type FilterType = 'Tout' | 'Marche' | 'Bus' | 'Gbaka' | 'Yôrô-Yôrô';
+type FilterType = 'Tout' | 'Marche' | 'Bus' | 'Gbaka' | 'wôro-wôro' | 'Taxi' | 'Yango';
+
+const MODE_ALLOWED_FILTERS: Record<TransportMode, FilterType[]> = {
+  Coulé: ['Tout', 'Marche', 'Bus', 'Gbaka'],
+  Debout: ['Tout', 'Gbaka', 'wôro-wôro', 'Taxi', 'Yango'],
+  Suspendu: ['Tout', 'Taxi', 'Yango'],
+};
+
+interface RouteStep {
+  type: 'walk' | 'bus' | 'taxi' | 'arrow-right' | 'arrow-left';
+  duration?: string;
+}
 
 interface RouteOption {
   id: string;
   mode: TransportMode;
+  suboption: FilterType;
   subtext: string;
-  steps: { type: 'walk' | 'bus' | 'taxi'; duration: string }[];
+  steps: RouteStep[];
   trafficStatus: string;
   distance: string;
   durationMinutes: string;
@@ -41,11 +57,49 @@ export default function RouteExploreScreen() {
   const [departure, setDeparture] = useState('Abobo Samaké');
   const [arrival, setArrival] = useState('Orange Digital Center');
 
-  const [selectedMode, setSelectedMode] = useState<TransportMode>('Coulé');
-  const [activeFilter, setActiveFilter] = useState<FilterType>('Tout');
+  const [selectedMode, setSelectedMode] = useState<TransportMode | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterType | 'Tout'>('Tout');
   const [showDetail, setShowDetail] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showSideMenu, setShowSideMenu] = useState(false);
   const [rating, setRating] = useState(5);
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  const handleFilterChange = (filter: FilterType | 'Tout') => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setActiveFilter(filter);
+
+    if (filter === 'Tout') {
+      // If global 'Tout' chip pressed, reset mode selection so all 3 mode cards turn black
+      setSelectedMode(null);
+    } else if (filter === 'Marche' || filter === 'Bus' || filter === 'Gbaka') {
+      setSelectedMode('Coulé');
+    } else if (filter === 'wôro-wôro') {
+      setSelectedMode('Debout');
+    } else if (filter === 'Taxi' || filter === 'Yango') {
+      setSelectedMode('Suspendu');
+    }
+  };
+
+  const handleModeChange = (mode: TransportMode) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (selectedMode === mode && activeFilter !== 'Tout') {
+      // Toggle off to Tout mode if pressed again
+      setSelectedMode(null);
+      setActiveFilter('Tout');
+      return;
+    }
+
+    setSelectedMode(mode);
+    const allowed = MODE_ALLOWED_FILTERS[mode] || [];
+    // Set active filter to first transport option (e.g. 'Taxi' for Suspendu, 'Marche' for Coulé, 'Gbaka' for Debout)
+    setActiveFilter(allowed[1] || 'Tout');
+  };
 
   // Sync incoming search params from Home screen into arrival state
   useEffect(() => {
@@ -63,13 +117,192 @@ export default function RouteExploreScreen() {
   };
 
   const routeOptions: RouteOption[] = [
+    // === 1. MODE COULÉ (Économique - Marche, Bus, Gbaka) ===
     {
-      id: 'coule-1',
+      id: 'coule-marche-1',
       mode: 'Coulé',
-      subtext: 'Moindre cher',
+      suboption: 'Marche',
+      subtext: 'Gratuit • 100% Marche',
       steps: [
         { type: 'walk', duration: '5 min' },
+        { type: 'arrow-right' },
+        { type: 'walk', duration: '9 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '9 min' },
+      ],
+      trafficStatus: '',
+      distance: '1,8 Km',
+      durationMinutes: '23',
+      costRange: 'gratuit',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+    {
+      id: 'coule-marche-2',
+      mode: 'Coulé',
+      suboption: 'Marche',
+      subtext: 'Gratuit • Marche Éco',
+      steps: [
+        { type: 'walk', duration: '8 min' },
+        { type: 'arrow-right' },
+        { type: 'walk', duration: '12 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '6 min' },
+      ],
+      trafficStatus: '',
+      distance: '2,1 Km',
+      durationMinutes: '26',
+      costRange: 'gratuit',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+    {
+      id: 'coule-bus-1',
+      mode: 'Coulé',
+      suboption: 'Bus',
+      subtext: 'Bus SOTRA Ligne 22',
+      steps: [
+        { type: 'walk', duration: '4 min' },
+        { type: 'arrow-right' },
+        { type: 'bus', duration: '18 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '5 min' },
+      ],
+      trafficStatus: 'Fluide',
+      distance: '8,5 Km',
+      durationMinutes: '27',
+      costRange: '200 FCFA',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+    {
+      id: 'coule-gbaka-1',
+      mode: 'Coulé',
+      suboption: 'Gbaka',
+      subtext: 'Gbaka Samaké Adjamé',
+      steps: [
+        { type: 'walk', duration: '3 min' },
+        { type: 'arrow-right' },
+        { type: 'bus', duration: '15 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '4 min' },
+      ],
+      trafficStatus: 'Ralenti',
+      distance: '10 Km',
+      durationMinutes: '22',
+      costRange: '300 FCFA',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+
+    // === 2. MODE DEBOUT (Standard - Gbaka, wôro-wôro, Taxi, Yango) ===
+    {
+      id: 'debout-gbaka-1',
+      mode: 'Debout',
+      suboption: 'Gbaka',
+      subtext: 'Gbaka Express Boulevard',
+      steps: [
+        { type: 'walk', duration: '2 min' },
+        { type: 'arrow-right' },
+        { type: 'bus', duration: '14 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '4 min' },
+      ],
+      trafficStatus: 'Trafic modéré',
+      distance: '11 Km',
+      durationMinutes: '20',
+      costRange: '400 FCFA',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+    {
+      id: 'debout-woro-1',
+      mode: 'Debout',
+      suboption: 'wôro-wôro',
+      subtext: 'Wôro-Wôro Ligne Jaune',
+      steps: [
+        { type: 'walk', duration: '3 min' },
+        { type: 'arrow-right' },
+        { type: 'taxi', duration: '10 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '5 min' },
+      ],
+      trafficStatus: 'Fluide',
+      distance: '7,2 Km',
+      durationMinutes: '18',
+      costRange: '500 FCFA',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+    {
+      id: 'debout-woro-2',
+      mode: 'Debout',
+      suboption: 'wôro-wôro',
+      subtext: 'Wôro-Wôro Vert Angré',
+      steps: [
+        { type: 'walk', duration: '4 min' },
+        { type: 'arrow-right' },
+        { type: 'taxi', duration: '12 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '3 min' },
+      ],
+      trafficStatus: 'Trafic modéré',
+      distance: '8 Km',
+      durationMinutes: '19',
+      costRange: '600 FCFA',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+    {
+      id: 'debout-taxi-1',
+      mode: 'Debout',
+      suboption: 'Taxi',
+      subtext: 'Taxi Collectif Communal',
+      steps: [
+        { type: 'walk', duration: '4 min' },
+        { type: 'arrow-right' },
+        { type: 'taxi', duration: '11 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '2 min' },
+      ],
+      trafficStatus: 'Fluide',
+      distance: '9,5 Km',
+      durationMinutes: '17',
+      costRange: '700 FCFA',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+    {
+      id: 'debout-yango-1',
+      mode: 'Debout',
+      suboption: 'Yango',
+      subtext: 'Yango Éco Partagé',
+      steps: [
+        { type: 'walk', duration: '2 min' },
+        { type: 'arrow-right' },
+        { type: 'taxi', duration: '13 min' },
+        { type: 'arrow-left' },
+        { type: 'walk', duration: '3 min' },
+      ],
+      trafficStatus: 'Trafic modéré',
+      distance: '10 Km',
+      durationMinutes: '18',
+      costRange: '1.000 FCFA',
+      departureTime: '09H30',
+      arrivalTime: '10H30',
+    },
+
+    // === 3. MODE SUSPENDU (Confort / VIP - Taxi & Yango) ===
+    {
+      id: 'suspendu-taxi-1',
+      mode: 'Suspendu',
+      suboption: 'Taxi',
+      subtext: 'Taxi Compteur Confort',
+      steps: [
+        { type: 'walk', duration: '5 min' },
+        { type: 'arrow-right' },
         { type: 'bus', duration: '7 min' },
+        { type: 'arrow-left' },
         { type: 'walk', duration: '9 min' },
       ],
       trafficStatus: 'Trafic modéré',
@@ -80,13 +313,17 @@ export default function RouteExploreScreen() {
       arrivalTime: '10H30',
     },
     {
-      id: 'debout-1',
-      mode: 'Debout',
-      subtext: 'Standard',
+      id: 'suspendu-taxi-2',
+      mode: 'Suspendu',
+      suboption: 'Taxi',
+      subtext: 'Taxi Compteur Express',
       steps: [
         { type: 'walk', duration: '5 min' },
+        { type: 'arrow-right' },
         { type: 'bus', duration: '7 min' },
+        { type: 'arrow-left' },
         { type: 'walk', duration: '9 min' },
+        { type: 'arrow-right' },
         { type: 'bus', duration: '3 min' },
       ],
       trafficStatus: 'Trafic modéré',
@@ -97,13 +334,17 @@ export default function RouteExploreScreen() {
       arrivalTime: '10H30',
     },
     {
-      id: 'suspendu-1',
+      id: 'suspendu-yango-1',
       mode: 'Suspendu',
-      subtext: 'Confort',
+      suboption: 'Yango',
+      subtext: 'Yango Comfort Direct',
       steps: [
         { type: 'walk', duration: '5 min' },
+        { type: 'arrow-right' },
         { type: 'bus', duration: '7 min' },
+        { type: 'arrow-left' },
         { type: 'walk', duration: '9 min' },
+        { type: 'arrow-right' },
         { type: 'bus', duration: '3 min' },
       ],
       trafficStatus: 'Trafic modéré',
@@ -121,14 +362,18 @@ export default function RouteExploreScreen() {
     { name: 'Suspendu', subtitle: 'Confort', icon: 'trophy', isVip: true },
   ];
 
-  // Filter options based on active selection
+  // Filter options based on active selection and transport mode
   const filteredRouteOptions = routeOptions.filter((opt) => {
-    if (activeFilter === 'Tout') return true;
-    if (activeFilter === 'Marche') return opt.steps.some((s) => s.type === 'walk');
-    if (activeFilter === 'Bus') return opt.steps.some((s) => s.type === 'bus');
-    if (activeFilter === 'Gbaka') return opt.steps.some((s) => s.type === 'bus');
-    if (activeFilter === 'Yôrô-Yôrô') return opt.steps.some((s) => s.type === 'taxi');
-    return true;
+    if (activeFilter === 'Tout' && !selectedMode) {
+      return true;
+    }
+    if (selectedMode) {
+      if (activeFilter === 'Tout') {
+        return opt.mode === selectedMode;
+      }
+      return opt.mode === selectedMode && opt.suboption === activeFilter;
+    }
+    return opt.suboption === activeFilter;
   });
 
   return (
@@ -160,7 +405,7 @@ export default function RouteExploreScreen() {
             {/* Notification Bell with Red Badge "5" */}
             <TouchableOpacity
               style={styles.headerIconButton}
-              onPress={() => setShowFeedback(true)}
+              onPress={() => router.push('/notifications')}
               activeOpacity={0.8}
             >
               <Ionicons name="notifications" size={22} color="#000000" />
@@ -170,7 +415,11 @@ export default function RouteExploreScreen() {
             </TouchableOpacity>
 
             {/* Hamburger Menu */}
-            <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => setShowSideMenu(true)}
+              activeOpacity={0.8}
+            >
               <Ionicons name="menu" size={24} color="#000000" />
             </TouchableOpacity>
           </View>
@@ -241,8 +490,13 @@ export default function RouteExploreScreen() {
             style={styles.filtersScrollView}
             contentContainerStyle={styles.filtersContentContainer}
           >
-            {(['Tout', 'Marche', 'Bus', 'Gbaka', 'Yôrô-Yôrô'] as FilterType[]).map((filterItem) => {
-              const isActive = activeFilter === filterItem;
+            {(['Tout', 'Marche', 'Bus', 'Gbaka', 'wôro-wôro', 'Taxi', 'Yango'] as FilterType[]).map((filterItem) => {
+              const allowedFilters = (!selectedMode || activeFilter === 'Tout')
+                ? ['Tout', 'Marche', 'Bus', 'Gbaka', 'wôro-wôro', 'Taxi', 'Yango']
+                : (MODE_ALLOWED_FILTERS[selectedMode] || []);
+              const isEnabled = allowedFilters.includes(filterItem);
+              const isActive = activeFilter === filterItem && isEnabled;
+
               const iconName: keyof typeof Ionicons.glyphMap =
                 filterItem === 'Tout'
                   ? 'grid'
@@ -252,21 +506,36 @@ export default function RouteExploreScreen() {
                   ? 'bus'
                   : filterItem === 'Gbaka'
                   ? 'bus'
-                  : 'car';
+                  : filterItem === 'wôro-wôro'
+                  ? 'car-sport'
+                  : filterItem === 'Taxi'
+                  ? 'car'
+                  : 'sparkles';
 
               return (
                 <TouchableOpacity
                   key={filterItem}
-                  style={[styles.filterChip, isActive && styles.filterChipActive]}
-                  onPress={() => setActiveFilter(filterItem)}
-                  activeOpacity={0.8}
+                  disabled={!isEnabled}
+                  style={[
+                    styles.filterChip,
+                    isActive && styles.filterChipActive,
+                    !isEnabled && styles.filterChipDisabled,
+                  ]}
+                  onPress={() => isEnabled && handleFilterChange(filterItem)}
+                  activeOpacity={isEnabled ? 0.8 : 1}
                 >
                   <Ionicons
                     name={iconName}
                     size={14}
-                    color={isActive ? '#FFFFFF' : '#333333'}
+                    color={isActive ? '#FFFFFF' : isEnabled ? '#000000' : '#999999'}
                   />
-                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      isActive && styles.filterChipTextActive,
+                      !isEnabled && styles.filterChipTextDisabled,
+                    ]}
+                  >
                     {filterItem}
                   </Text>
                 </TouchableOpacity>
@@ -274,7 +543,7 @@ export default function RouteExploreScreen() {
             })}
           </ScrollView>
 
-          {/* 3 Main Mode Selection Cards (Black Cards) */}
+          {/* 3 Main Mode Selection Cards (Coulé, Debout, Suspendu) */}
           <View style={styles.modeCardsRow}>
             {modesList.map((modeItem) => {
               const isSelected = selectedMode === modeItem.name;
@@ -285,7 +554,7 @@ export default function RouteExploreScreen() {
                     styles.modeCard,
                     isSelected && styles.modeCardActive,
                   ]}
-                  onPress={() => setSelectedMode(modeItem.name)}
+                  onPress={() => handleModeChange(modeItem.name)}
                   activeOpacity={0.85}
                 >
                   <Ionicons name={modeItem.icon} size={17} color="#FFFFFF" />
@@ -308,7 +577,7 @@ export default function RouteExploreScreen() {
             />
           </View>
 
-          {/* Route Options Result Cards (Coulé, Debout, Suspendu) - Designer Spec (Width 389, Height 256, Gap 11px) */}
+          {/* Route Options Result Cards (Coulé, Debout, Suspendu) */}
           <View style={styles.resultsContainer}>
             {filteredRouteOptions.map((option) => (
               <View
@@ -318,69 +587,93 @@ export default function RouteExploreScreen() {
                   selectedMode === option.mode && styles.resultCardHighlighted,
                 ]}
               >
-                {/* Row 1: Mode Title (Left) & Traffic Status (Right) */}
-                <View style={styles.cardRow1}>
+                {/* Left Column: Title, Steps, Cost, Schedule */}
+                <View style={styles.cardLeftCol}>
                   <Text style={styles.resultModeTitle}>{option.mode}</Text>
-                  <View style={styles.trafficRow}>
-                    <Ionicons name="car-sport" size={15} color="#000000" />
-                    <Text style={styles.trafficText}>{option.trafficStatus}</Text>
+
+                  <View style={styles.stepsPillsRow}>
+                    {option.steps.map((step, sIdx) => {
+                      const isArrowRight = step.type === 'arrow-right';
+                      const isArrowLeft = step.type === 'arrow-left';
+                      return (
+                        <React.Fragment key={sIdx}>
+                          <View style={[styles.stepTag, (isArrowRight || isArrowLeft) && styles.arrowStepTag]}>
+                            <Ionicons
+                              name={
+                                isArrowRight
+                                  ? 'arrow-forward'
+                                  : isArrowLeft
+                                  ? 'arrow-back'
+                                  : step.type === 'walk'
+                                  ? 'walk'
+                                  : step.type === 'bus'
+                                  ? 'bus'
+                                  : 'car'
+                              }
+                              size={isArrowRight || isArrowLeft ? 12 : 11}
+                              color="#FFFFFF"
+                            />
+                            {step.duration ? <Text style={styles.stepTagText}>{step.duration}</Text> : null}
+                          </View>
+                          {sIdx < option.steps.length - 1 && (
+                            <Text style={styles.stepSeparator}>- -</Text>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </View>
+
+                  <Text style={styles.costText}>
+                    Coût : <Text style={styles.boldText}>{option.costRange}</Text>
+                  </Text>
+
+                  <Text style={styles.timesText}>
+                    Depart : <Text style={styles.boldText}>{option.departureTime}</Text>  Arrivée :{' '}
+                    <Text style={styles.boldText}>{option.arrivalTime}</Text>
+                  </Text>
                 </View>
 
-                {/* Row 2: Step Badges (Left) & Distance (Right) */}
-                <View style={styles.cardRow2}>
-                  <View style={styles.stepsPillsRow}>
-                    {option.steps.map((step, sIdx) => (
-                      <React.Fragment key={sIdx}>
-                        <View style={styles.stepTag}>
-                          <Ionicons
-                            name={step.type === 'walk' ? 'walk' : step.type === 'bus' ? 'bus' : 'car'}
-                            size={11}
-                            color="#FFFFFF"
-                          />
-                          <Text style={styles.stepTagText}>{step.duration}</Text>
-                        </View>
-                        {sIdx < option.steps.length - 1 && (
-                          <Text style={styles.stepSeparator}>- -</Text>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </View>
+                {/* Right Column: Traffic, Distance, Duration, Detail Button */}
+                <View style={styles.cardRightCol}>
+                  {option.trafficStatus ? (
+                    <View style={styles.trafficRow}>
+                      <Ionicons name="car-sport" size={13} color="#000000" />
+                      <Text style={styles.trafficText}>{option.trafficStatus}</Text>
+                    </View>
+                  ) : null}
+
                   <Text style={styles.distanceText}>
                     sur <Text style={styles.boldText}>{option.distance}</Text>
                   </Text>
-                </View>
 
-                {/* Row 3: Cost (Left) & Duration (Right) */}
-                <View style={styles.cardRow3}>
-                  <Text style={styles.costText}>
-                    Coût : entre <Text style={styles.boldText}>500F</Text> et <Text style={styles.boldText}>1.500F</Text>
-                  </Text>
                   <View style={styles.durationWrapper}>
                     <Text style={styles.durationPrefix}>en </Text>
                     <Text style={styles.durationBold}>{option.durationMinutes}</Text>
                     <Text style={styles.durationUnit}> min</Text>
                   </View>
-                </View>
 
-                {/* Row 4: Departure & Arrival Times (Left) & Detail Button (Right) */}
-                <View style={styles.cardRow4}>
-                  <Text style={styles.timesText}>
-                    Depart : <Text style={styles.boldText}>{option.departureTime}</Text> Arrivée :{' '}
-                    <Text style={styles.boldText}>{option.arrivalTime}</Text>
-                  </Text>
                   <TouchableOpacity
                     style={styles.detailPillBtn}
                     onPress={() =>
                       router.push({
                         pathname: '/route-detail',
-                        params: { departure, arrival, mode: option.mode },
+                        params: {
+                          departure,
+                          arrival,
+                          mode: option.mode,
+                          suboption: option.suboption,
+                          subtext: option.subtext,
+                          costRange: option.costRange,
+                          durationMinutes: option.durationMinutes,
+                          distance: option.distance,
+                          optionId: option.id,
+                        },
                       })
                     }
                     activeOpacity={0.85}
                   >
                     <View style={styles.plusIconCircle}>
-                      <Ionicons name="add" size={10} color="#F26522" />
+                      <Ionicons name="add" size={12} color="#F26522" />
                     </View>
                     <Text style={styles.detailPillBtnText}>Detail</Text>
                   </TouchableOpacity>
@@ -408,7 +701,7 @@ export default function RouteExploreScreen() {
               <View style={styles.decompHeaderRightIcons}>
                 <TouchableOpacity
                   style={styles.headerIconButton}
-                  onPress={() => setShowFeedback(true)}
+                  onPress={() => router.push('/notifications')}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="notifications" size={22} color="#000000" />
@@ -417,7 +710,11 @@ export default function RouteExploreScreen() {
                   </View>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.8}>
+                <TouchableOpacity
+                  style={styles.headerIconButton}
+                  onPress={() => router.push('/report-event')}
+                  activeOpacity={0.8}
+                >
                   <Ionicons name="warning" size={22} color="#ED1C24" />
                 </TouchableOpacity>
               </View>
@@ -650,6 +947,15 @@ export default function RouteExploreScreen() {
             </View>
           </View>
         )}
+
+        {/* Side Menu Drawer Modal */}
+        <SideMenuModal
+          visible={showSideMenu}
+          onClose={() => setShowSideMenu(false)}
+        />
+
+        {/* WhatsApp-style Bottom Navigation Bar */}
+        <CustomBottomTabBar activeTab="explore" />
       </SafeAreaView>
     </View>
   );
@@ -721,7 +1027,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mainScrollContent: {
-    paddingBottom: 30,
+    paddingBottom: 140,
   },
   routeInputCard: {
     marginHorizontal: 16,
@@ -818,6 +1124,10 @@ const styles = StyleSheet.create({
   filterChipActive: {
     backgroundColor: '#F26522',
   },
+  filterChipDisabled: {
+    backgroundColor: '#E5E7EB',
+    opacity: 0.45,
+  },
   filterChipText: {
     fontSize: 11,
     fontWeight: '700',
@@ -826,11 +1136,14 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: '#FFFFFF',
   },
+  filterChipTextDisabled: {
+    color: '#9CA3AF',
+  },
   modeCardsRow: {
     flexDirection: 'row',
     gap: 6,
     marginHorizontal: 16,
-    marginTop: 4,
+    marginTop: 12,
   },
   modeCard: {
     flex: 1,
@@ -845,7 +1158,7 @@ const styles = StyleSheet.create({
   },
   modeCardActive: {
     borderColor: '#F26522',
-    backgroundColor: '#141414',
+    backgroundColor: '#F26522',
   },
   modeCardTextWrapper: {
     alignItems: 'center',
@@ -870,16 +1183,16 @@ const styles = StyleSheet.create({
   mapContainer: {
     marginHorizontal: 16,
     marginTop: 6,
-    height: 390,
-    borderRadius: 18,
+    height: 256,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E2E2E2',
     backgroundColor: '#FFFFFF',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 3,
   },
   mapImage: {
@@ -891,16 +1204,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginHorizontal: 16,
-    marginTop: 14,
+    marginTop: 10,
     marginBottom: 2,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 12,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
     borderWidth: 1,
     borderColor: '#F0F0F0',
@@ -908,60 +1221,75 @@ const styles = StyleSheet.create({
   sectionHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   sectionHeaderIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
   },
   sectionHeaderTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#1A1A1A',
     letterSpacing: 0.2,
   },
   sectionHeaderBadge: {
     backgroundColor: '#F26522',
-    borderRadius: 10,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    minWidth: 24,
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    minWidth: 20,
     alignItems: 'center',
   },
   sectionHeaderBadgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '900',
   },
   resultsContainer: {
     paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 14,
-    gap: 7,
+    paddingTop: 4,
+    paddingBottom: 10,
+    gap: 6,
   },
   resultCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     backgroundColor: '#FAFAFA',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
+    marginBottom: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   resultCardHighlighted: {
     borderColor: '#F26522',
     backgroundColor: '#FFFFFF',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+  },
+  cardLeftCol: {
+    flex: 1,
+    paddingRight: 8,
+    justifyContent: 'space-between',
+  },
+  cardRightCol: {
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
   },
   cardRow1: {
     flexDirection: 'row',
@@ -988,35 +1316,41 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   resultModeTitle: {
-    fontSize: 14.5,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#000000',
   },
   stepsPillsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    marginTop: 4,
-    marginBottom: 4,
+    gap: 2,
+    marginTop: 2,
+    marginBottom: 2,
     flexWrap: 'wrap',
   },
   stepTag: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F26522',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
-    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    gap: 2,
+  },
+  arrowStepTag: {
+    paddingHorizontal: 3,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    backgroundColor: '#F26522',
   },
   stepTagText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
   },
   stepSeparator: {
     color: '#333333',
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '700',
   },
   costText: {

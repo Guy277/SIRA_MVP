@@ -65,6 +65,22 @@ export default function RootLayout() {
         />
 
         <Stack.Screen
+          name="notifications"
+          options={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        />
+
+        <Stack.Screen
+          name="profile"
+          options={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        />
+
+        <Stack.Screen
           name="modal"
           options={{
             presentation: 'modal',
