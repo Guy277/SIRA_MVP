@@ -1,6 +1,8 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.database import SessionLocal
+from app.models.user import OtpVerification
 
 client = TestClient(app)
 
@@ -10,25 +12,36 @@ def test_health_endpoint():
     assert response.json()["status"] == "OK"
 
 def test_request_and_verify_otp():
+    phone = "+2250700112233"
     # 1. Demande d'OTP
-    req_resp = client.post("/api/v1/auth/request-otp", json={"phone_number": "+2250700112233"})
+    req_resp = client.post("/api/v1/auth/request-otp", json={"phone_number": phone})
     assert req_resp.status_code == 200
     assert "Code OTP" in req_resp.json()["message"]
 
-    # 2. Vérification OTP
+    # 2. Récupération du code généré en base
+    db = SessionLocal()
+    otp_record = db.query(OtpVerification).filter(
+        OtpVerification.phone_number == phone,
+        OtpVerification.is_used == False
+    ).order_by(OtpVerification.created_at.desc()).first()
+    assert otp_record is not None
+    code = otp_record.code
+    db.close()
+
+    # 3. Vérification OTP
     verify_resp = client.post("/api/v1/auth/verify-otp", json={
-        "phone_number": "+2250700112233",
-        "code": "123456",
+        "phone_number": phone,
+        "code": code,
         "full_name": "Test Usager SIRA"
     })
     assert verify_resp.status_code == 200
     assert "access_token" in verify_resp.json()
     token = verify_resp.json()["access_token"]
 
-    # 3. Récupération du profil /auth/me
+    # 4. Récupération du profil /auth/me
     me_resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me_resp.status_code == 200
-    assert me_resp.json()["phone_number"] == "+2250700112233"
+    assert me_resp.json()["phone_number"] == phone
 
 def test_get_stations_and_lines():
     stations_resp = client.get("/api/v1/transport/stations")

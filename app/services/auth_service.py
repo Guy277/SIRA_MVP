@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+﻿from datetime import datetime, timezone, timedelta
 import random
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models.user import User, OtpVerification
+from app.services.sms_service import SmsService
 
 security = HTTPBearer(auto_error=False)
 
@@ -23,7 +24,12 @@ class AuthService:
             OtpVerification.is_used == False
         ).update({"is_used": True})
 
-        code = settings.DEFAULT_OTP_CODE if settings.ORANGE_OTP_MOCK else f"{random.randint(100000, 999999)}"
+        # Générer un code dynamique à 6 chiffres
+        if settings.ORANGE_OTP_MOCK:
+            code = settings.DEFAULT_OTP_CODE
+        else:
+            code = f"{random.randint(100000, 999999)}"
+
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
 
         otp_record = OtpVerification(
@@ -35,10 +41,11 @@ class AuthService:
         db.add(otp_record)
         db.commit()
 
-        print(f"[SIRA OTP Orange CI] SMS envoyé à {clean_phone} -> Code: {code}")
+        # Déclenchement de l'envoi du SMS en temps réel
+        SmsService.send_otp_sms(clean_phone, code)
 
         return {
-            "message": "Code OTP envoyé avec succès par SMS.",
+            "message": f"Code OTP envoyé avec succès par SMS au {clean_phone}.",
             "phone_number": clean_phone,
             "expires_in_seconds": 600,
             "mock_code": code if settings.ORANGE_OTP_MOCK else None
