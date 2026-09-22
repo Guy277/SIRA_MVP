@@ -63,6 +63,7 @@ export default function RouteExploreScreen() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [rating, setRating] = useState(5);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -568,18 +569,56 @@ export default function RouteExploreScreen() {
             })}
           </View>
 
-          {/* Enlarged Map Display View (Height increased for maximum readability) */}
-          <View style={styles.mapContainer}>
+          {/* Enlarged Map Display View (Expands to large canvas for clear map view) */}
+          <View style={[styles.mapContainer, isSheetExpanded && styles.mapContainerCollapsed]}>
             <Image
               source={require('@/assets/images/map-abidjan-routes.png')}
               style={styles.mapImage}
-              contentFit="contain"
+              contentFit="cover"
             />
           </View>
 
-          {/* Route Options Result Cards (Coulé, Debout, Suspendu) */}
-          <View style={styles.resultsContainer}>
-            {filteredRouteOptions.map((option) => (
+          {/* Draggable Bottom Sheet Panel for Route Options */}
+          <View style={styles.sheetPanelContainer}>
+            {/* Draggable Pull Handle Bar */}
+            <TouchableOpacity
+              style={styles.sheetHandleHeader}
+              activeOpacity={0.85}
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setIsSheetExpanded((prev) => !prev);
+              }}
+            >
+              {/* Top Drag Indicator Pill */}
+              <View style={styles.sheetDragPill} />
+
+              <View style={styles.sheetHeaderContentRow}>
+                <View style={styles.sheetHeaderLeftGroup}>
+                  <View style={styles.sheetHeaderBadgeIcon}>
+                    <Ionicons name="location" size={13} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.sheetTitleText}>Itinéraires disponibles</Text>
+                  <View style={styles.sheetCountBadge}>
+                    <Text style={styles.sheetCountText}>{filteredRouteOptions.length}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.sheetPullActionHint}>
+                  <Text style={styles.sheetPullHintText}>
+                    {isSheetExpanded ? 'Réduire' : 'Tirer pour voir tout'}
+                  </Text>
+                  <Ionicons
+                    name={isSheetExpanded ? 'chevron-down' : 'chevron-up'}
+                    size={16}
+                    color="#F26522"
+                  />
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Route Options Result Cards (Coulé, Debout, Suspendu) */}
+            <View style={[styles.resultsContainer, !isSheetExpanded && styles.resultsContainerCollapsed]}>
+              {filteredRouteOptions.map((option) => (
               <View
                 key={option.id}
                 style={[
@@ -680,6 +719,7 @@ export default function RouteExploreScreen() {
                 </View>
               </View>
             ))}
+            </View>
           </View>
         </ScrollView>
 
@@ -1182,22 +1222,112 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     marginHorizontal: 16,
-    marginTop: 6,
-    height: 256,
-    borderRadius: 16,
+    marginTop: 10,
+    height: 360,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E2E2',
+    borderColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mapContainerCollapsed: {
+    height: 210,
   },
   mapImage: {
     width: '100%',
     height: '100%',
+  },
+  sheetPanelContainer: {
+    marginTop: -16,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  sheetHandleHeader: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 12,
+    paddingHorizontal: 18,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetDragPill: {
+    width: 42,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#CBD5E1',
+    marginBottom: 10,
+  },
+  sheetHeaderContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  sheetHeaderLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sheetHeaderBadgeIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#F26522',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sheetTitleText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  sheetCountBadge: {
+    backgroundColor: '#FFF4EE',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#FFD7C2',
+  },
+  sheetCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#F26522',
+  },
+  sheetPullActionHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sheetPullHintText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F26522',
+  },
+  resultsContainerCollapsed: {
+    maxHeight: 280,
+    overflow: 'hidden',
   },
   sectionHeaderBar: {
     flexDirection: 'row',

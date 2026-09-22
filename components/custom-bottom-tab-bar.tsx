@@ -17,10 +17,10 @@ export function CustomBottomTabBar({ activeTab }: CustomBottomTabBarProps) {
 
   // Determine active tab dynamically if not passed explicitly
   const currentTab: TabPath = activeTab || (
-    pathname.includes('notifications') || pathname.includes('accident')
-      ? 'alerts'
-      : pathname.includes('route-detail') || pathname.includes('navigation-active')
+    pathname.includes('traffic') || pathname.includes('route-detail') || pathname.includes('navigation-active')
       ? 'routes'
+      : pathname.includes('report-event') || pathname.includes('notifications') || pathname.includes('accident')
+      ? 'alerts'
       : pathname.includes('profile')
       ? 'profile'
       : 'explore'
@@ -37,43 +37,64 @@ export function CustomBottomTabBar({ activeTab }: CustomBottomTabBarProps) {
       id: 'explore',
       label: 'Carte',
       iconActive: 'location',
-      iconInactive: 'location-outline',
+      iconInactive: 'location',
       path: '/(tabs)/explore',
     },
     {
       id: 'routes',
       label: 'Trajets',
       iconActive: 'car-sport',
-      iconInactive: 'car-sport-outline',
-      path: '/route-detail',
+      iconInactive: 'car-sport',
+      path: '/traffic',
     },
     {
       id: 'alerts',
       label: 'Alertes',
       iconActive: 'warning',
-      iconInactive: 'warning-outline',
-      path: '/notifications',
+      iconInactive: 'warning',
+      path: '/report-event',
     },
     {
       id: 'profile',
       label: 'Profil',
       iconActive: 'person',
-      iconInactive: 'person-outline',
+      iconInactive: 'person',
       path: '/profile',
     },
   ];
 
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 6) }]}>
       {tabs.map((tab) => {
         const isActive = currentTab === tab.id;
-        const color = isActive ? '#F26522' : '#94A3B8';
-        const iconName = isActive ? tab.iconActive : tab.iconInactive;
+
+        if (isActive) {
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={styles.activeTabItemContainer}
+              onPress={() => {
+                if (pathname !== tab.path) {
+                  router.push(tab.path as any);
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              {/* Outer Light Blue Glow Circle Protruding Upwards */}
+              <View style={styles.outerBlueBadge}>
+                {/* Inner Orange Circle */}
+                <View style={styles.innerOrangeBadge}>
+                  <Ionicons name={tab.iconActive} size={22} color="#FFFFFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }
 
         return (
           <TouchableOpacity
             key={tab.id}
-            style={styles.tabItem}
+            style={styles.inactiveTabItemContainer}
             onPress={() => {
               if (pathname !== tab.path) {
                 router.push(tab.path as any);
@@ -81,12 +102,7 @@ export function CustomBottomTabBar({ activeTab }: CustomBottomTabBarProps) {
             }}
             activeOpacity={0.7}
           >
-            <View style={[styles.iconWrapper, isActive && styles.activeIconCircle]}>
-              <Ionicons name={iconName} size={22} color={color} />
-            </View>
-            <Text style={[styles.tabLabel, { color }, isActive && styles.activeTabLabel]}>
-              {tab.label}
-            </Text>
+            <Ionicons name={tab.iconInactive} size={24} color="#D1D5DB" />
           </TouchableOpacity>
         );
       })}
@@ -96,49 +112,69 @@ export function CustomBottomTabBar({ activeTab }: CustomBottomTabBarProps) {
 
 const styles = StyleSheet.create({
   tabBarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#333333',
     paddingTop: 8,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#2D2D2D',
+    paddingHorizontal: 8,
+    zIndex: 100,
     ...Platform.select({
       ios: {
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 10,
+        elevation: 12,
       },
     }),
   },
-  tabItem: {
+  inactiveTabItemContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
+    height: '100%',
   },
-  iconWrapper: {
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 16,
+  activeTabItemContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    height: '100%',
+    position: 'relative',
   },
-  activeIconCircle: {
-    backgroundColor: 'rgba(242, 101, 34, 0.18)',
+  outerBlueBadge: {
+    position: 'absolute',
+    top: -22,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#80C4FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#80C4FF',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.5,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  activeTabLabel: {
-    fontWeight: '700',
+  innerOrangeBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F26522',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

@@ -13,6 +13,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isUserAuthenticated } from '@/hooks/use-auth';
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Designer canvas reference metrics (406px x 874px)
@@ -31,8 +33,12 @@ export default function SplashScreen() {
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.92);
 
-  const navigateToHome = () => {
-    router.replace('/onboarding');
+  const navigateToNextScreen = () => {
+    if (isUserAuthenticated()) {
+      router.replace('/(tabs)/explore');
+    } else {
+      router.replace('/onboarding');
+    }
   };
 
   useEffect(() => {
@@ -44,7 +50,7 @@ export default function SplashScreen() {
     const timer = setTimeout(() => {
       logoOpacity.value = withTiming(0, { duration: 400, easing: Easing.in(Easing.cubic) }, (finished) => {
         if (finished) {
-          runOnJS(navigateToHome)();
+          runOnJS(navigateToNextScreen)();
         }
       });
     }, 2200);

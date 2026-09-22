@@ -13,14 +13,16 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 
 const { width } = Dimensions.get('window');
 
 interface EventCategory {
   id: string;
   title: string;
-  iconName: keyof typeof Ionicons.glyphMap;
+  iconName: string;
+  iconFamily: 'FontAwesome5' | 'Ionicons';
 }
 
 export default function ReportEventScreen() {
@@ -32,53 +34,56 @@ export default function ReportEventScreen() {
     {
       id: 'accident',
       title: 'Accident',
-      iconName: 'car-sport',
+      iconName: 'car-crash',
+      iconFamily: 'FontAwesome5',
     },
     {
       id: 'embouteillage',
       title: 'Embouteillage',
       iconName: 'car',
+      iconFamily: 'FontAwesome5',
     },
     {
       id: 'route_bloquee',
       title: 'Route bloquée',
-      iconName: 'construct',
+      iconName: 'road',
+      iconFamily: 'FontAwesome5',
     },
     {
       id: 'inondation',
       title: 'Inondation',
       iconName: 'water',
+      iconFamily: 'Ionicons',
     },
     {
       id: 'route_degradee',
       title: 'Route\ndégradée',
-      iconName: 'alert-circle',
+      iconName: 'warning',
+      iconFamily: 'Ionicons',
     },
     {
       id: 'vehicule_panne',
       title: 'Véhicule\nen panne',
-      iconName: 'flame',
+      iconName: 'tools',
+      iconFamily: 'FontAwesome5',
     },
     {
       id: 'autre',
       title: 'Autre\névènement',
       iconName: 'ellipsis-horizontal',
+      iconFamily: 'Ionicons',
     },
   ];
 
   const handleSelectCategory = (category: EventCategory) => {
     setSelectedEvent(category.id);
-    Alert.alert(
-      'Signalement envoyé !',
-      `Merci d'avoir signalé : "${category.title.replace('\n', ' ')}". Votre contribution aide l'ensemble de la communauté SIRA.`,
-      [
-        {
-          text: 'Retour à la carte',
-          onPress: () => router.push('/(tabs)/explore'),
-        },
-        { text: 'OK', style: 'cancel' },
-      ]
-    );
+    router.push({
+      pathname: '/report-event-detail',
+      params: {
+        categoryId: category.id,
+        title: category.title.replace('\n', ' '),
+      },
+    });
   };
 
   return (
@@ -119,7 +124,7 @@ export default function ReportEventScreen() {
           <View style={styles.bannerContainer}>
             {/* Background Cityscape with cars & bus */}
             <Image
-              source={require('@/assets/images/city-route-3d-bg.jpg')}
+              source={require('@/assets/images/city-traffic-accident-bg.png')}
               style={styles.bannerBgImage}
               contentFit="cover"
             />
@@ -167,52 +172,28 @@ export default function ReportEventScreen() {
                   activeOpacity={0.8}
                 >
                   <View style={styles.orangeCircleIcon}>
-                    <Ionicons name={category.iconName} size={28} color="#FFFFFF" />
+                    {category.iconFamily === 'FontAwesome5' ? (
+                      <FontAwesome5 name={category.iconName as any} size={24} color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name={category.iconName as any} size={26} color="#FFFFFF" />
+                    )}
                   </View>
-                  <Text style={styles.categoryTitle}>{category.title}</Text>
+                  <Text
+                    style={styles.categoryTitle}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    {category.title}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
         </ScrollView>
 
-        {/* Bottom Bar with Central Floating Orange Alert Button (Matching Screenshot) */}
-        <View style={[styles.bottomBarContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-          <TouchableOpacity
-            style={styles.bottomNavItem}
-            onPress={() => router.push('/(tabs)/explore')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="location-sharp" size={22} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.bottomNavItem}
-            onPress={() => router.push('/route-detail')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="car-sport" size={22} color="#94A3B8" />
-          </TouchableOpacity>
-
-          {/* Center Floating Orange Alert Button */}
-          <View style={styles.centerAlertBadgeWrapper}>
-            <TouchableOpacity
-              style={styles.centerAlertBadgeBtn}
-              onPress={() => router.push('/report-event')}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="warning" size={26} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.bottomNavItem}
-            onPress={() => router.push('/profile')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="person" size={22} color="#94A3B8" />
-          </TouchableOpacity>
-        </View>
+        {/* Bottom Navigation Bar */}
+        <CustomBottomTabBar activeTab="alerts" />
       </SafeAreaView>
     </View>
   );
@@ -270,7 +251,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingBottom: 90,
   },
   bannerContainer: {
     height: 230,
@@ -283,11 +264,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
-    opacity: 0.22,
+    opacity: 1,
   },
   bannerOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(255, 248, 245, 0.35)',
+    backgroundColor: 'transparent',
   },
   speechBubbleBox: {
     position: 'absolute',

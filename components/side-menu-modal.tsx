@@ -150,7 +150,7 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 style={styles.menuItemRow}
                 onPress={() => {
                   onClose();
-                  router.push('/(tabs)/explore');
+                  router.push('/traffic');
                 }}
                 activeOpacity={0.7}
               >
@@ -164,7 +164,7 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 style={styles.menuItemRow}
                 onPress={() => {
                   onClose();
-                  router.push('/notifications');
+                  router.push('/report-event');
                 }}
                 activeOpacity={0.7}
               >

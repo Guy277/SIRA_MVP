@@ -7,7 +7,6 @@ import {
   FlatList,
   TextInput,
   Modal,
-  Dimensions,
   Platform,
   Alert,
 } from 'react-native';
@@ -15,166 +14,64 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+import { useFavorites, FavoriteRoute } from '@/hooks/use-favorites';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
-import { useFavorites } from '@/hooks/use-favorites';
 
-const { width } = Dimensions.get('window');
-
-export interface HistoryItem {
-  id: string;
-  departure: string;
-  arrival: string;
-  title: string;
-  option: string;
-  transport: string;
-  duration: string;
-  costMin: string;
-  costMax: string;
-  costRange: string;
-  date: string;
-}
-
-const MOCK_HISTORY: HistoryItem[] = [
-  {
-    id: '1',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: "Aujourd'hui, 08:30",
-  },
-  {
-    id: '2',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: 'Hier, 17:45',
-  },
-  {
-    id: '3',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '18 Sep, 09:15',
-  },
-  {
-    id: '4',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '17 Sep, 14:20',
-  },
-  {
-    id: '5',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '15 Sep, 08:10',
-  },
-  {
-    id: '6',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '14 Sep, 19:00',
-  },
-  {
-    id: '7',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '12 Sep, 10:45',
-  },
-];
-
-export default function HistoryScreen() {
+export default function FavoritesScreen() {
   const router = useRouter();
-  const { addFavorite } = useFavorites();
-  const [historyList, setHistoryList] = useState<HistoryItem[]>(MOCK_HISTORY);
+  const { favorites, removeFavorite } = useFavorites();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<FavoriteRoute | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const filteredHistory = useMemo(() => {
-    if (!searchQuery.trim()) return historyList;
+  const filteredFavorites = useMemo(() => {
+    if (!searchQuery.trim()) return favorites;
     const q = searchQuery.toLowerCase();
-    return historyList.filter(
+    return favorites.filter(
       (item) =>
         item.title.toLowerCase().includes(q) ||
         item.transport.toLowerCase().includes(q) ||
-        item.option.toLowerCase().includes(q) ||
+        item.mode.toLowerCase().includes(q) ||
         item.departure.toLowerCase().includes(q) ||
         item.arrival.toLowerCase().includes(q)
     );
-  }, [historyList, searchQuery]);
+  }, [favorites, searchQuery]);
 
-  const handleOpenDetail = (item: HistoryItem) => {
+  const handleOpenDetail = (item: FavoriteRoute) => {
     router.push({
       pathname: '/route-detail',
       params: {
         departure: item.departure,
         arrival: item.arrival,
-        mode: item.option,
+        mode: item.mode,
+        suboption: item.transport,
         costRange: item.costRange,
         durationMinutes: item.duration.replace(' min', ''),
       },
     });
   };
 
-  const handleOpenMenu = (item: HistoryItem) => {
+  const handleOpenMenu = (item: FavoriteRoute) => {
     setSelectedItem(item);
     setIsMenuOpen(true);
   };
 
-  const handleDeleteItem = () => {
-    if (selectedItem) {
-      setHistoryList((prev) => prev.filter((i) => i.id !== selectedItem.id));
-    }
-    setIsMenuOpen(false);
-    setSelectedItem(null);
+  const handleRemove = (item: FavoriteRoute) => {
+    Alert.alert(
+      'Retirer des favoris',
+      `Voulez-vous retirer le trajet "${item.title}" de vos favoris ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Retirer',
+          style: 'destructive',
+          onPress: () => removeFavorite(item.id),
+        },
+      ]
+    );
   };
 
   const handleRepeatRoute = () => {
@@ -185,28 +82,19 @@ export default function HistoryScreen() {
     setSelectedItem(null);
   };
 
-  const handleAddToFavorites = () => {
-    setIsMenuOpen(false);
+  const handleRemoveFromMenu = () => {
     if (selectedItem) {
-      addFavorite({
-        departure: selectedItem.departure,
-        arrival: selectedItem.arrival,
-        title: selectedItem.title,
-        mode: selectedItem.option,
-        transport: selectedItem.transport,
-        duration: selectedItem.duration,
-        costRange: selectedItem.costRange,
-      });
-      Alert.alert('Favoris', `Le trajet "${selectedItem.title}" a été ajouté à vos favoris.`);
+      removeFavorite(selectedItem.id);
     }
+    setIsMenuOpen(false);
     setSelectedItem(null);
   };
 
   const handleShareRoute = () => {
-    setIsMenuOpen(false);
     if (selectedItem) {
       Alert.alert('Partager', `Lien de partage généré pour le trajet "${selectedItem.title}".`);
     }
+    setIsMenuOpen(false);
     setSelectedItem(null);
   };
 
@@ -226,15 +114,15 @@ export default function HistoryScreen() {
         {/* Header Bar */}
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.headerIconButton}
+            style={styles.darkBackBtn}
             onPress={() => router.back()}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={24} color="#000000" />
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Historiques</Text>
+          <Text style={styles.headerTitle}>Mes favoris</Text>
 
           <TouchableOpacity
             style={styles.headerIconButton}
@@ -247,7 +135,7 @@ export default function HistoryScreen() {
           >
             <Ionicons
               name={isSearching ? 'close' : 'search'}
-              size={24}
+              size={22}
               color="#000000"
             />
           </TouchableOpacity>
@@ -259,7 +147,7 @@ export default function HistoryScreen() {
             <Ionicons name="search" size={18} color="#64748B" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher un trajet, lieu..."
+              placeholder="Rechercher un trajet favori..."
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -273,20 +161,20 @@ export default function HistoryScreen() {
           </View>
         )}
 
-        {/* History Cards List */}
+        {/* Favorite Cards List */}
         <FlatList
-          data={filteredHistory}
+          data={filteredFavorites}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyStateContainer}>
-              <Ionicons name="time-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyStateTitle}>Aucun historique trouvé</Text>
+              <Ionicons name="heart-dislike-outline" size={56} color="#CBD5E1" />
+              <Text style={styles.emptyStateTitle}>Aucun favori enregistré</Text>
               <Text style={styles.emptyStateSubtitle}>
                 {searchQuery
                   ? 'Aucun résultat ne correspond à votre recherche.'
-                  : "Vous n'avez pas encore de trajets enregistrés."}
+                  : 'Ajoutez vos trajets réguliers en favoris depuis l’historique ou le détail des trajets pour les retrouver ici à tout moment.'}
               </Text>
             </View>
           }
@@ -303,42 +191,54 @@ export default function HistoryScreen() {
                   />
                 </View>
 
-                {/* Title */}
+                {/* Title (Slightly reduced font size) */}
                 <Text style={styles.cardTitle} numberOfLines={2}>
                   {item.title}
                 </Text>
 
-                {/* Three Dots Menu Button */}
-                <TouchableOpacity
-                  style={styles.optionsButton}
-                  onPress={() => handleOpenMenu(item)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="ellipsis-vertical" size={20} color="#000000" />
-                </TouchableOpacity>
+                {/* Right Action Icons (Heart + Three Dots) */}
+                <View style={styles.cardActionsGroup}>
+                  <TouchableOpacity
+                    style={styles.heartButton}
+                    onPress={() => handleRemove(item)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="heart" size={22} color="#F26522" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.optionsButton}
+                    onPress={() => handleOpenMenu(item)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={20} color="#000000" />
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Card Meta Details */}
+              {/* Card Meta Details (Reduced font sizes for clean fit) */}
               <View style={styles.detailsContainer}>
-                {/* Row 1: Option | Transport | Durée */}
+                {/* Row 1: Option & Transport */}
                 <Text style={styles.detailsLine}>
                   <Text style={styles.labelSpan}>Option : </Text>
-                  <Text style={styles.valueSpan}>{item.option}</Text>
-                  <Text style={styles.spacerSpan}>      </Text>
+                  <Text style={styles.valueSpan}>{item.mode}</Text>
+                  <Text style={styles.spacerSpan}>    </Text>
                   <Text style={styles.labelSpan}>Transport : </Text>
                   <Text style={styles.valueSpan}>{item.transport}</Text>
-                  <Text style={styles.spacerSpan}>      </Text>
+                </Text>
+
+                {/* Row 2: Durée */}
+                <Text style={styles.detailsLine}>
                   <Text style={styles.labelSpan}>Durée : </Text>
                   <Text style={styles.valueSpan}>{item.duration}</Text>
                 </Text>
 
-                {/* Row 2: Coût */}
+                {/* Row 3: Coût */}
                 <Text style={styles.detailsLine}>
-                  <Text style={styles.labelSpan}>Coût : entre </Text>
-                  <Text style={styles.valueSpan}>{item.costMin}</Text>
-                  <Text style={styles.labelSpan}> et </Text>
-                  <Text style={styles.valueSpan}>{item.costMax}</Text>
+                  <Text style={styles.labelSpan}>Coût : </Text>
+                  <Text style={styles.valueSpan}>{item.costRange}</Text>
                 </Text>
               </View>
 
@@ -349,7 +249,7 @@ export default function HistoryScreen() {
                 activeOpacity={0.85}
               >
                 <View style={styles.plusIconCircle}>
-                  <Ionicons name="add" size={14} color="#F26522" />
+                  <Ionicons name="add" size={13} color="#F26522" />
                 </View>
                 <Text style={styles.detailButtonText}>Détail du trajet</Text>
               </TouchableOpacity>
@@ -358,7 +258,7 @@ export default function HistoryScreen() {
         />
       </SafeAreaView>
 
-      {/* Item Options Modal / Action Popup */}
+      {/* Item Options Modal / Bottom Sheet Popup */}
       <Modal
         visible={isMenuOpen}
         transparent
@@ -398,16 +298,16 @@ export default function HistoryScreen() {
                 <Text style={styles.menuOptionText}>Refaire ce trajet</Text>
               </TouchableOpacity>
 
-              {/* Option 2: Ajouter aux favoris */}
+              {/* Option 2: Retirer des favoris */}
               <TouchableOpacity
                 style={styles.menuOptionRow}
-                onPress={handleAddToFavorites}
+                onPress={handleRemoveFromMenu}
                 activeOpacity={0.7}
               >
                 <View style={styles.darkIconCircle}>
-                  <Ionicons name="bookmark-outline" size={18} color="#F26522" />
+                  <Ionicons name="heart-dislike-outline" size={18} color="#F26522" />
                 </View>
-                <Text style={styles.menuOptionText}>Ajouter aux favoris</Text>
+                <Text style={styles.menuOptionText}>Retirer des favoris</Text>
               </TouchableOpacity>
 
               {/* Option 3: Partager ce trajet */}
@@ -422,16 +322,16 @@ export default function HistoryScreen() {
                 <Text style={styles.menuOptionText}>Partager ce trajet</Text>
               </TouchableOpacity>
 
-              {/* Option 4: Supprimer de l'historique */}
+              {/* Option 4: Supprimer */}
               <TouchableOpacity
                 style={styles.menuOptionRow}
-                onPress={handleDeleteItem}
+                onPress={handleRemoveFromMenu}
                 activeOpacity={0.7}
               >
                 <View style={styles.darkIconCircle}>
                   <Ionicons name="trash-outline" size={18} color="#F26522" />
                 </View>
-                <Text style={styles.menuOptionText}>Supprimer de l'historique</Text>
+                <Text style={styles.menuOptionText}>Supprimer des favoris</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -439,7 +339,7 @@ export default function HistoryScreen() {
       </Modal>
 
       {/* Bottom Navigation Bar */}
-      <CustomBottomTabBar />
+      <CustomBottomTabBar activeTab="profile" />
     </View>
   );
 }
@@ -462,6 +362,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: 'transparent',
+  },
+  darkBackBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#1E1E1E',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerIconButton: {
     width: 40,
@@ -510,13 +418,13 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 24,
+    paddingBottom: 100,
   },
   card: {
-    backgroundColor: '#F8F9FB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
     padding: 14,
     marginBottom: 12,
     ...Platform.select({
@@ -527,7 +435,7 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
       },
       android: {
-        elevation: 1.5,
+        elevation: 2,
       },
     }),
   },
@@ -537,71 +445,81 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   iconCircleBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
   },
   pinPathImage: {
-    width: 26,
-    height: 26,
+    width: 24,
+    height: 24,
     tintColor: '#FFFFFF',
   },
   cardTitle: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '800',
     color: '#000000',
-    marginLeft: 10,
-    marginRight: 6,
-    lineHeight: 20,
+    marginLeft: 8,
+    marginRight: 4,
+    lineHeight: 17,
+  },
+  cardActionsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  heartButton: {
+    padding: 2,
   },
   optionsButton: {
-    padding: 4,
+    padding: 2,
   },
   detailsContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
     paddingLeft: 2,
   },
   detailsLine: {
-    fontSize: 13,
+    fontSize: 11.5,
     color: '#475569',
-    marginBottom: 4,
-    lineHeight: 18,
+    marginBottom: 2,
+    lineHeight: 16,
   },
   labelSpan: {
     fontWeight: '400',
     color: '#475569',
+    fontSize: 11.5,
   },
   valueSpan: {
     fontWeight: '800',
     color: '#000000',
+    fontSize: 11.5,
   },
   spacerSpan: {
-    fontSize: 12,
+    fontSize: 10,
   },
   detailButton: {
     backgroundColor: '#F26522',
     borderRadius: 20,
-    paddingVertical: 6,
+    paddingVertical: 5,
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
   },
   plusIconCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 6,
   },
   detailButtonText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -622,6 +540,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     textAlign: 'center',
+    lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,
@@ -679,4 +598,3 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
 });
-

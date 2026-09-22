@@ -34,13 +34,16 @@ const PHONE_MOCKUP_HEIGHT = (245 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const PHONE_MOCKUP_TOP = (292 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const PHONE_MOCKUP_LEFT = (11 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
+import { setAuthenticated } from '@/hooks/use-auth';
+
 export default function SignupScreen() {
   const router = useRouter();
   const [firstName, setFirstName] = useState('');
   const [phone, setPhone] = useState('');
 
   const handleSignup = () => {
-    router.replace('/(tabs)');
+    setAuthenticated(true);
+    router.replace('/(tabs)/explore');
   };
 
   const handleGoToLogin = () => {

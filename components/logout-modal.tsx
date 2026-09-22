@@ -17,15 +17,18 @@ interface LogoutModalProps {
   onConfirm?: () => void;
 }
 
+import { logoutUser } from '@/hooks/use-auth';
+
 export function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
   const router = useRouter();
 
   const handleConfirmLogout = () => {
+    logoutUser();
     onClose();
     if (onConfirm) {
       onConfirm();
     } else {
-      router.replace('/login');
+      router.replace('/onboarding');
     }
   };
 

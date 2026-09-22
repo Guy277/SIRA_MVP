@@ -55,13 +55,13 @@ export default function ProfileScreen() {
       id: 'favorites',
       title: 'Mes favories',
       iconName: 'heart',
-      onPress: () => router.push('/(tabs)/explore'),
+      onPress: () => router.push('/favorites'),
     },
     {
       id: 'location',
       title: 'Ma position',
       iconName: 'location',
-      onPress: () => router.push('/(tabs)/explore'),
+      onPress: () => router.push('/location-settings'),
     },
     {
       id: 'chat',

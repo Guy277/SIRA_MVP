@@ -37,28 +37,21 @@ export default function SettingsScreen() {
       title: 'Notifications',
       subtitle: 'Alertes trafic, itinéraire et zones suivies',
       iconName: 'notifications',
-      onPress: () => router.push('/notifications'),
+      onPress: () => router.push('/notification-settings'),
     },
     {
       id: 'location',
       title: 'Localisation',
       subtitle: 'Gérer l’accès à votre position',
       iconName: 'location',
-      onPress: () => {},
-    },
-    {
-      id: 'preferences',
-      title: 'Préférences de déplacement',
-      subtitle: 'Transport, confort et préférences d’itinéraire',
-      iconName: 'car',
-      onPress: () => {},
+      onPress: () => router.push('/location-settings'),
     },
     {
       id: 'appearance',
       title: 'Apparence',
       subtitle: 'Thème et affichage de l’application',
       iconName: 'color-palette',
-      onPress: () => {},
+      onPress: () => router.push('/appearance-settings'),
     },
     {
       id: 'privacy',
@@ -72,7 +65,7 @@ export default function SettingsScreen() {
       title: 'Informations',
       subtitle: 'À propos de SIRA, conditions et contact',
       iconName: 'information',
-      onPress: () => {},
+      onPress: () => router.push('/info-settings'),
     },
   ];
 

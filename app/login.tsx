@@ -46,12 +46,15 @@ const WHITE_LOGO_HEIGHT = (107 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_TOP = (270 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_LEFT = (148 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
+import { setAuthenticated } from '@/hooks/use-auth';
+
 export default function LoginScreen() {
   const router = useRouter();
   const [phone, setPhone] = useState('');
 
   const handleLogin = () => {
-    router.replace('/(tabs)');
+    setAuthenticated(true);
+    router.replace('/(tabs)/explore');
   };
 
   const handleGoToSignup = () => {
