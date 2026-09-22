@@ -537,7 +537,7 @@ export class MobilityService implements OnModuleInit {
       id: `postgis-multimodal-${Date.now()}`,
       source: "postgis",
       dataStatus: "historical",
-      confidence: combineConfidence([accessWalk.confidence, transitSegment.confidence ?? null, egressResult.confidence]),
+      confidence: combineConfidence([accessWalk.confidence, transitSegment.confidence ?? null, egressResult.confidence].filter((v): v is number => v !== null && Number.isFinite(v))),
       legs: [
         {
           mode: "WALK",
@@ -732,7 +732,7 @@ export class MobilityService implements OnModuleInit {
             id: `postgis-${seg.from_stop_id}-${seg.route_id}-${seg.to_stop_id}`,
             source: "postgis",
             dataStatus: "historical",
-            confidence: combineConfidence([accessWalk.confidence, seg.confidence ?? null, egressWalk.confidence]),
+            confidence: combineConfidence([accessWalk.confidence, seg.confidence ?? null, egressWalk.confidence].filter((v): v is number => v !== null && Number.isFinite(v))),
             legs: [
               {
                 mode: "WALK",
@@ -926,13 +926,9 @@ export class MobilityService implements OnModuleInit {
       }
     }
 
-    const signatures = new Set<string>();
+const signatures = new Set<string>();
     for (const { strategy, result } of networks) {
       if (!result) continue;
-      const signature = result.legs.map(l => l.lineId).join("->");
-      if (signatures.has(signature)) continue;
-      signatures.add(signature);
-
       const candidate = await this.toNetworkCandidate(
         `network-${strategy}`,
         `Option ${strategy}`,
@@ -942,12 +938,43 @@ export class MobilityService implements OnModuleInit {
         maxWalkingDistanceM,
         profiler
       );
-      if (candidate) candidates.push(candidate);
+      if (!candidate) continue;
+      const signature = result.legs.map(l => l.lineId).join("->");
+      if (signatures.has(signature)) continue;
+      signatures.add(signature);
+      candidates.push(candidate);
     }
 
-    if (!candidates.length) throw new BadRequestException("Aucun itinéraire suivant le réseau disponible n’a été trouvé.");
+    // Global deduplication across all sources (PostGIS, Road, GeoJSON) with robust signature
+    const buildSignature = (candidate: Record<string, unknown>): string => {
+      const source = String(candidate.source ?? candidate.profile ?? "unknown");
+      const lineIds = Array.isArray(candidate.line_ids) ? candidate.line_ids.join("->") : "";
+      const legs = Array.isArray(candidate.legs) ? candidate.legs : [];
+      const accessStop = legs.find((l: Record<string, unknown>) => l.mode === "walk" && String(l.label ?? "").includes("Accès"))?.to?.id
+        ?? legs.find((l: Record<string, unknown>) => l.mode === "walk")?.from?.id
+        ?? "unknown_access";
+      const egressStop = legs.find((l: Record<string, unknown>) => l.mode === "walk" && String(l.label ?? "").includes("Sortie"))?.to?.id
+        ?? legs.filter((l: Record<string, unknown>) => l.mode === "walk").pop()?.to?.id
+        ?? "unknown_egress";
+      return `${source}|${lineIds}|${accessStop}|${egressStop}`;
+    };
+
+    const globalSignatures = new Set<string>();
+    const deduplicatedCandidates: Array<Record<string, unknown>> = [];
+    for (const candidate of candidates) {
+      const signature = buildSignature(candidate);
+      if (globalSignatures.has(signature)) continue;
+      globalSignatures.add(signature);
+      deduplicatedCandidates.push(candidate);
+    }
+
+if (!deduplicatedCandidates.length) throw new BadRequestException("Aucun itinéraire suivant le réseau disponible n'a été trouvé.");
+    
+    // Budget constraint: only apply if explicitly provided by user
+    const userBudget = request.budget ?? null;
+    const effectiveBudget = userBudget ?? 999999; // Very high = no effective constraint
     const constraints = {
-      max_budget_fcfa: request.budget ?? 1500,
+      max_budget_fcfa: effectiveBudget,
       max_walking_distance_m: maxWalkingDistanceM,
       max_transfers: request.constraints?.maxTransfers ?? 3,
       excluded_modes: request.constraints?.excludedModes ?? [],
@@ -956,7 +983,7 @@ export class MobilityService implements OnModuleInit {
       const ranked = await profiler.measureAsync("sira_more", () => fetch(`${this.aiUrl}/v1/recommendations/rank`, {
         method: "POST", headers: { "content-type": "application/json" },
         signal: AbortSignal.timeout(10_000),
-        body: JSON.stringify({ budget: request.budget ?? 1500, preference: request.preference ?? "balanced", constraints, journeys: candidates }),
+        body: JSON.stringify({ budget: effectiveBudget, preference: request.preference ?? "balanced", constraints, journeys: deduplicatedCandidates }),
       }));
       if (ranked.ok) return this.withProfile(await ranked.json() as Record<string, unknown>, profiler);
       if (!this.allowRankingFallback) {
@@ -968,7 +995,7 @@ export class MobilityService implements OnModuleInit {
         throw new ServiceUnavailableException("Le moteur SIRA-MORE est indisponible. Démarrez le service FastAPI sur le port 8000.");
       }
     }
-    const feasible = candidates.filter((candidate) =>
+    const feasible = deduplicatedCandidates.filter((candidate) =>
       Number(candidate.price) <= constraints.max_budget_fcfa
       && Number(candidate.walking_distance_m) <= constraints.max_walking_distance_m
       && Number(candidate.transfer_count) <= constraints.max_transfers
@@ -978,7 +1005,7 @@ export class MobilityService implements OnModuleInit {
     return this.withProfile({
       journeys: feasible.map((candidate, index) => ({ ...candidate, recommended: index === 0, reasons: ["Respecte vos contraintes", "Classement de secours déterministe"] })),
       recommended_id: feasible[0]?.id ?? null,
-      rejected_count: candidates.length - feasible.length,
+      rejected_count: deduplicatedCandidates.length - feasible.length,
       source,
       graph: graph.stats,
     }, profiler);
@@ -1199,6 +1226,8 @@ export class MobilityService implements OnModuleInit {
       ...(transitLeg.geometry?.coordinates ?? []),
       ...(egressLeg.geometry.coordinates as [number, number][]),
     ];
+    const estimatedWaitMinutes = transitLeg.waiting_minutes ?? 0;
+    const estimatedWaitP90 = transitLeg.waitP90 ?? 0;
     const legs = [
       {
         id: `${journey.id}-access`, mode: "walk", label: "Accès piéton",
@@ -1208,10 +1237,16 @@ export class MobilityService implements OnModuleInit {
         estimate_method: accessLeg.method, confidence: accessLeg.confidence, guidance_available: accessLeg.guidanceAvailable,
       },
       {
+        id: `${journey.id}-wait`, mode: "wait", label: `Attente estimée — ${transitLeg.mode}`,
+        detail: `${estimatedWaitMinutes} min (P90 ${estimatedWaitP90} min) · estimation basée sur fréquence déclarée`,
+        duration: estimatedWaitMinutes, duration_p90: estimatedWaitP90, price: 0, geometry: [], dataStatus: "estimated_mvp",
+        estimate_method: "mode_headway_prior", confidence: 0.32,
+      },
+      {
         id: `${journey.id}-ride`, mode: transitLeg.mode, label: transitLeg.route.longName,
-        detail: `${transitLeg.durationSeconds} s · ${transitLeg.distanceM} m · ${transitLeg.fareStatus === "historical" ? transitLeg.fare + " FCFA" : "tarif inconnu"}`,
+        detail: `${transitLeg.durationSeconds} s · ${transitLeg.distanceM} m · ${transitLeg.fareStatus === "historical" && transitLeg.fare !== null ? transitLeg.fare + " FCFA" : "tarif inconnu"}`,
         duration: inVehicleMinutes, duration_p90: Math.round(transitLeg.durationP90 / 60),
-        price: transitLeg.fare ?? 0, price_p90: transitLeg.fare ?? 0, geometry: transitLeg.geometry?.coordinates ?? [],
+        price: transitLeg.fare ?? null, price_p90: transitLeg.fare ?? null, geometry: transitLeg.geometry?.coordinates ?? [],
         line_id: transitLeg.route.id, source: `${transitLeg.route.operator ?? "Opérateur inconnu"} · ${transitLeg.route.id}`,
         dataStatus: transitLeg.dataStatus, estimate_method: "postgis_transit_segment", confidence: 0.6,
       },
@@ -1229,9 +1264,9 @@ export class MobilityService implements OnModuleInit {
       duration: Math.round(journey.summary.totalDurationSeconds / 60),
       duration_p90: Math.round(journey.summary.totalDurationSeconds * 1.2 / 60),
       distance_km: Number((journey.summary.totalDistanceM / 1000).toFixed(2)),
-      price: journey.summary.fare ?? 0, price_p90: journey.summary.fare ?? 0,
+      price: journey.summary.fare ?? null, price_p90: journey.summary.fare ?? null,
       walking_minutes: walkingMinutes, walking_distance_m: journey.summary.walkingDistanceM,
-      waiting_minutes: 0, in_vehicle_minutes: inVehicleMinutes,
+      waiting_minutes: estimatedWaitMinutes, in_vehicle_minutes: inVehicleMinutes,
       boarding_count: 1, transfer_count: journey.summary.transfers,
       comfort: 70, reliability: 75, confidence: 0.6, uncertainty: 0.4,
       incident_risk: 0.25,
@@ -1242,6 +1277,8 @@ export class MobilityService implements OnModuleInit {
       source: "postgis_multimodal",
       dataStatus: journey.dataStatus,
       fareStatus: journey.summary.fareStatus,
+      waitingStatus: "estimated",
+      waitP90: estimatedWaitP90,
     };
   }
 

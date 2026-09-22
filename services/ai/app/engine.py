@@ -54,7 +54,10 @@ def enrich_metrics(candidate: dict[str, Any], is_peak_hour: bool = False) -> dic
     motorized = _motorized_legs(journey)
     modes = [str(leg.get("mode", "")).lower() for leg in motorized]
     component_duration = sum(_number(leg.get("duration")) for leg in legs)
-    component_price = sum(_number(leg.get("price")) for leg in legs)
+    # Price: sum only known prices; if all prices unknown, mark as unknown
+    known_prices = [_number(leg.get("price")) for leg in legs if leg.get("price") is not None]
+    component_price = sum(known_prices) if known_prices else None
+    price_unknown = component_price is None
     boardings = int(_number(journey.get("boarding_count"), len(motorized)))
     explicit_transfers = sum(1 for leg in legs if leg.get("mode") == "transfer")
     transfer_count = int(_number(journey.get("transfer_count"), max(explicit_transfers, boardings - 1)))
@@ -80,7 +83,8 @@ def enrich_metrics(candidate: dict[str, Any], is_peak_hour: bool = False) -> dic
     ]
     journey.update({
         "duration": int(round(component_duration if legs else _number(journey.get("duration")))),
-        "price": int(round(component_price if legs else _number(journey.get("price")))),
+        "price": int(round(component_price)) if component_price is not None else None,
+        "price_unknown": price_unknown,
         "walking_minutes": int(round(walking_minutes)),
         "walking_distance_m": int(round(walking_distance)),
         "waiting_minutes": int(round(waiting_minutes)),
@@ -110,8 +114,10 @@ def enrich_metrics(candidate: dict[str, Any], is_peak_hour: bool = False) -> dic
 
 
 def constraint_violations(journey: dict[str, Any], constraints: dict[str, Any]) -> list[dict[str, str]]:
+    price = journey.get("price")
+    price_unknown = journey.get("price_unknown", False)
     checks = [
-        ("budget", journey["price"] > constraints["max_budget_fcfa"], "Budget maximum dépassé"),
+        ("budget", price is not None and price > constraints["max_budget_fcfa"], "Budget maximum dépassé"),
         ("walking", journey["walking_distance_m"] > constraints["max_walking_distance_m"], "Distance de marche maximale dépassée"),
         ("transfers", journey["transfer_count"] > constraints["max_transfers"], "Nombre maximal de correspondances dépassé"),
         ("boardings", journey["boarding_count"] > constraints["max_boardings"], "Nombre maximal d'embarquements dépassé"),
@@ -127,12 +133,55 @@ def constraint_violations(journey: dict[str, Any], constraints: dict[str, Any]) 
     return [{"code": code, "message": message} for code, failed, message in checks if failed]
 
 
-def dominates(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    return all(_number(left[key]) <= _number(right[key]) for key in PARETO_KEYS) and any(_number(left[key]) < _number(right[key]) for key in PARETO_KEYS)
+def _price_for_comparison(journey: dict[str, Any], max_budget: int) -> float:
+    """Return price for comparison, using conservative estimate for unknown prices."""
+    price = journey.get("price")
+    if price is None or journey.get("price_unknown"):
+        return float(max_budget)  # Conservative: assume max budget for unknown prices
+    return float(price)
 
 
-def pareto_frontier(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [candidate for candidate in candidates if not any(other["id"] != candidate["id"] and dominates(other, candidate) for other in candidates)]
+def dominates(left: dict[str, Any], right: dict[str, Any], max_budget: int = 1500) -> bool:
+    """Check if left dominates right on Pareto keys, handling unknown prices."""
+    left_price = left.get("price")
+    right_price = right.get("price")
+    left_price_unknown = left.get("price_unknown", False)
+    right_price_unknown = right.get("price_unknown", False)
+    
+    # If both have unknown prices, price is not a distinguishing factor
+    # If one has unknown price, treat it as not dominating on price
+    price_comparable = not (left_price_unknown or right_price_unknown)
+    
+    for key in PARETO_KEYS:
+        if key == "price":
+            if not price_comparable:
+                continue
+            lval = _price_for_comparison(left, max_budget)
+            rval = _price_for_comparison(right, max_budget)
+        else:
+            lval = _number(left[key])
+            rval = _number(right[key])
+        if lval > rval:
+            return False
+    
+    # Check strict improvement on at least one comparable dimension
+    for key in PARETO_KEYS:
+        if key == "price":
+            if not price_comparable:
+                continue
+            lval = _price_for_comparison(left, max_budget)
+            rval = _price_for_comparison(right, max_budget)
+        else:
+            lval = _number(left[key])
+            rval = _number(right[key])
+        if lval < rval:
+            return True
+    
+    return False
+
+
+def pareto_frontier(candidates: list[dict[str, Any]], max_budget: int = 1500) -> list[dict[str, Any]]:
+    return [candidate for candidate in candidates if not any(other["id"] != candidate["id"] and dominates(other, candidate, max_budget) for other in candidates)]
 
 
 def _geometry_edges(journey: dict[str, Any]) -> set[str]:
@@ -156,7 +205,10 @@ def _normalised_cost(value: float, values: list[float]) -> float:
 def _reasons(journey: dict[str, Any], candidates: list[dict[str, Any]], constraints: dict[str, Any]) -> list[str]:
     reasons = [f"Respecte le budget de {constraints['max_budget_fcfa']} FCFA"]
     if journey["duration"] == min(item["duration"] for item in candidates): reasons.append("Durée totale la plus courte")
-    if journey["price"] == min(item["price"] for item in candidates): reasons.append("Coût total le plus faible")
+    # Price comparison: only consider known prices
+    known_prices = [item["price"] for item in candidates if item.get("price") is not None]
+    if known_prices and journey.get("price") is not None and journey["price"] == min(known_prices):
+        reasons.append("Coût total le plus faible")
     if journey["walking_distance_m"] <= min(600, constraints["max_walking_distance_m"]): reasons.append(f"Marche limitée à {journey['walking_distance_m']} m")
     if journey["transfer_count"] == 0: reasons.append("Sans correspondance")
     elif journey["transfer_count"] == 1: reasons.append("Une seule correspondance")
@@ -170,6 +222,7 @@ from datetime import datetime
 def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preference: str = "balanced", constraints: dict[str, Any] | None = None, max_results: int = 3) -> dict[str, Any]:
     rules = {**DEFAULT_CONSTRAINTS, **(constraints or {})}
     rules["max_budget_fcfa"] = min(int(rules["max_budget_fcfa"]), int(budget)) if constraints and "max_budget_fcfa" in constraints else int(budget)
+    max_budget = rules["max_budget_fcfa"]
     profile = preference if preference in WEIGHTS else "balanced"
     
     current_hour = datetime.utcnow().hour
@@ -183,15 +236,22 @@ def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preferenc
         journey["constraint_violations"] = violations
         (feasible if not violations else rejected).append(journey)
 
-    frontier = pareto_frontier(feasible)
+    frontier = pareto_frontier(feasible, max_budget)
     weights = WEIGHTS[profile]
     if frontier:
-        values = {key: [_number(item[key]) for item in frontier] for key in weights}
+        # For scoring, use conservative price estimate for unknown prices
+        values = {}
+        for key in weights:
+            if key == "price":
+                values[key] = [_price_for_comparison(item, max_budget) for item in frontier]
+            else:
+                values[key] = [_number(item[key]) for item in frontier]
         for journey in frontier:
-            cost = sum(_normalised_cost(_number(journey[key]), values[key]) * weight for key, weight in weights.items())
+            cost = sum(_normalised_cost(_price_for_comparison(journey, max_budget) if key == "price" else _number(journey[key]), values[key]) * weight for key, weight in weights.items())
             journey["sira_score"] = round((1 - cost) * 100, 1)
             journey["reasons"] = _reasons(journey, frontier, rules)
-        frontier.sort(key=lambda item: (-item["sira_score"], item["duration"], item["price"]))
+        # Sort: score desc, duration asc, price asc (unknown prices last)
+        frontier.sort(key=lambda item: (-item["sira_score"], item["duration"], _price_for_comparison(item, max_budget)))
 
     diverse = []
     for candidate in frontier:
@@ -206,8 +266,12 @@ def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preferenc
         tags = []
         if journey["id"] == recommended_id:
             tags.append("⭐ Choix SIRA")
-        elif journey["price"] == min(j["price"] for j in diverse):
-            tags.append("💰 Solution économique")
+        # Economic tag: only consider known prices
+        known_prices = [(j["price"], j["id"]) for j in diverse if j.get("price") is not None]
+        if known_prices and journey.get("price") is not None:
+            min_price, min_id = min(known_prices)
+            if journey["id"] == min_id:
+                tags.append("💰 Solution économique")
         elif journey["transfer_count"] == 0:
             tags.append("🔄 Solution directe")
         elif journey["walking_distance_m"] == min(j["walking_distance_m"] for j in diverse):

@@ -101,7 +101,7 @@ export const routePedestrian = async (
       const distanceKm = data.trip?.summary?.length ?? 0;
       const seconds = data.trip?.summary?.time ?? 0;
       const coordinates = extractCoordinates(data);
-      if (distanceKm > 0 && seconds > 0 && coordinates.length > 1 && distanceKm * 1000 <= options.maxDistanceM) {
+      if (distanceKm > 0 && seconds > 0 && coordinates.length > 1 && distanceKm * 1000 <= options.maxDistanceM * 1.5) {
         const durationMinutes = Math.max(1, Math.round(seconds / 60));
         return {
           distanceKm: Number(distanceKm.toFixed(3)),

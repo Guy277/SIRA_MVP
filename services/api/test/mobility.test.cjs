@@ -1247,3 +1247,239 @@ test("generatePostgisCandidates cache les appels Valhalla pour les memes arrêts
     process.env.DATABASE_URL = originalDatabaseUrl;
   }
 });
+
+test("buildJourneys sans budget utilisateur n'applique pas de contrainte budgétaire", async () => {
+  const originalFetch = global.fetch;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  let capturedBudget = null;
+  global.fetch = async (url, opts) => {
+    if (url.includes("/v1/recommendations/rank")) {
+      const body = JSON.parse(opts.body);
+      capturedBudget = body.budget;
+      return {
+        ok: true,
+        json: async () => ({
+          journeys: [{ id: "test-1", source: "postgis_multimodal", profile: "postgis-multimodal", price: 2000, legs: [] }],
+          recommended_id: "test-1",
+          source: "postgis_multimodal",
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        trip: { summary: { length: 0.12, time: 96 }, legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }] },
+      }),
+    };
+  };
+  try {
+    process.env.SIRA_ALLOW_RANKING_FALLBACK = "true";
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return { rows: [{ id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" }] };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1", short_name: "L1", long_name: "Ligne Test", mode: "GBAKA", operator: "TestOp",
+      historical_fare: 2000, fare_status: "historical", data_status: "historical", confidence: 0.8,
+      from_stop_id: "n1", from_stop_name: "A", from_stop_code: "A1", from_latitude: 5.3202, from_longitude: -4.02, from_distance_m: 0,
+      to_stop_id: "n2", to_stop_name: "B", to_stop_code: "B1", to_latitude: 5.3208, to_longitude: -4.0194, to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    const result = await svc.buildJourneys({
+      origin: { lat: 5.3201, lon: -4.02, name: "Origin" },
+      destination: { lat: 5.3209, lon: -4.0193, name: "Destination" },
+    });
+    assert.ok(capturedBudget !== null, "budget doit être envoyé à SIRA-MORE");
+    assert.ok(capturedBudget > 100000, `budget envoyé doit être très élevé (pas 1500), reçu: ${capturedBudget}`);
+    assert.ok(result.journeys.length > 0, "le trajet à 2000 FCFA doit être retourné sans contrainte budget");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+});
+
+test("buildJourneys avec budget=1000 transmet le budget à SIRA-MORE", async () => {
+  const originalFetch = global.fetch;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  let capturedBudget = null;
+  global.fetch = async (url, opts) => {
+    if (url.includes("/v1/recommendations/rank")) {
+      const body = JSON.parse(opts.body);
+      capturedBudget = body.budget;
+      return {
+        ok: true,
+        json: async () => ({
+          journeys: [{ id: "test-1", source: "postgis_multimodal", profile: "postgis-multimodal", price: 2000, legs: [] }],
+          recommended_id: "test-1",
+          source: "postgis_multimodal",
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        trip: { summary: { length: 0.12, time: 96 }, legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }] },
+      }),
+    };
+  };
+  try {
+    process.env.SIRA_ALLOW_RANKING_FALLBACK = "true";
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return { rows: [{ id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" }] };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1", short_name: "L1", long_name: "Ligne Test", mode: "GBAKA", operator: "TestOp",
+      historical_fare: 2000, fare_status: "historical", data_status: "historical", confidence: 0.8,
+      from_stop_id: "n1", from_stop_name: "A", from_stop_code: "A1", from_latitude: 5.3202, from_longitude: -4.02, from_distance_m: 0,
+      to_stop_id: "n2", to_stop_name: "B", to_stop_code: "B1", to_latitude: 5.3208, to_longitude: -4.0194, to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    await svc.buildJourneys({
+      origin: { lat: 5.3201, lon: -4.02, name: "Origin" },
+      destination: { lat: 5.3209, lon: -4.0193, name: "Destination" },
+      budget: 1000,
+    });
+    assert.equal(capturedBudget, 1000, "budget utilisateur doit être transmis à SIRA-MORE");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+});
+
+test("buildJourneys sans preference utilise balanced par défaut", async () => {
+  const originalFetch = global.fetch;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  let capturedPreference = null;
+  global.fetch = async (url, opts) => {
+    if (url.includes("/v1/recommendations/rank")) {
+      const body = JSON.parse(opts.body);
+      capturedPreference = body.preference;
+      return {
+        ok: true,
+        json: async () => ({
+          journeys: [{ id: "test-1", source: "postgis_multimodal", profile: "postgis-multimodal", price: 500, legs: [] }],
+          recommended_id: "test-1",
+          source: "postgis_multimodal",
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        trip: { summary: { length: 0.12, time: 96 }, legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }] },
+      }),
+    };
+  };
+  try {
+    process.env.SIRA_ALLOW_RANKING_FALLBACK = "true";
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return { rows: [{ id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" }] };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1", short_name: "L1", long_name: "Ligne Test", mode: "GBAKA", operator: "TestOp",
+      historical_fare: 500, fare_status: "historical", data_status: "historical", confidence: 0.8,
+      from_stop_id: "n1", from_stop_name: "A", from_stop_code: "A1", from_latitude: 5.3202, from_longitude: -4.02, from_distance_m: 0,
+      to_stop_id: "n2", to_stop_name: "B", to_stop_code: "B1", to_latitude: 5.3208, to_longitude: -4.0194, to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    await svc.buildJourneys({
+      origin: { lat: 5.3201, lon: -4.02, name: "Origin" },
+      destination: { lat: 5.3209, lon: -4.0193, name: "Destination" },
+    });
+    assert.equal(capturedPreference, "balanced", "preference par défaut doit être balanced");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+});
+
+test("buildJourneys avec preference=fast transmet fast à SIRA-MORE", async () => {
+  const originalFetch = global.fetch;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  let capturedPreference = null;
+  global.fetch = async (url, opts) => {
+    if (url.includes("/v1/recommendations/rank")) {
+      const body = JSON.parse(opts.body);
+      capturedPreference = body.preference;
+      return {
+        ok: true,
+        json: async () => ({
+          journeys: [{ id: "test-1", source: "postgis_multimodal", profile: "postgis-multimodal", price: 500, legs: [] }],
+          recommended_id: "test-1",
+          source: "postgis_multimodal",
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        trip: { summary: { length: 0.12, time: 96 }, legs: [{ shape: { coordinates: [[-4.02, 5.3201], [-4.0194, 5.3208]] } }] },
+      }),
+    };
+  };
+  try {
+    process.env.SIRA_ALLOW_RANKING_FALLBACK = "true";
+    const { MobilityService } = require("../dist/mobility/mobility.service.js");
+    const TransportRepository = require("../dist/mobility/transport.repository.js").TransportRepository;
+    process.env.DATABASE_URL = "postgresql://mock/mock/mock";
+    const repo = new TransportRepository();
+    repo.pool.connect = async () => ({
+      query: async (sql) => {
+        if (sql.includes("ST_DWithin")) {
+          return { rows: [{ id: "n1", name: "A", code: null, latitude: 5.3202, longitude: -4.02, distance_m: "55" }] };
+        }
+        return { rows: [] };
+      },
+      release: () => undefined,
+    });
+    repo.findFirstTransitSegment = async () => ({
+      route_id: "r1", short_name: "L1", long_name: "Ligne Test", mode: "GBAKA", operator: "TestOp",
+      historical_fare: 500, fare_status: "historical", data_status: "historical", confidence: 0.8,
+      from_stop_id: "n1", from_stop_name: "A", from_stop_code: "A1", from_latitude: 5.3202, from_longitude: -4.02, from_distance_m: 0,
+      to_stop_id: "n2", to_stop_name: "B", to_stop_code: "B1", to_latitude: 5.3208, to_longitude: -4.0194, to_distance_m: 0,
+      geometry: { type: "LineString", coordinates: [[-4.02, 5.3202], [-4.0194, 5.3208]] },
+    });
+    const svc = new MobilityService(repo);
+    await svc.buildJourneys({
+      origin: { lat: 5.3201, lon: -4.02, name: "Origin" },
+      destination: { lat: 5.3209, lon: -4.0193, name: "Destination" },
+      preference: "fast",
+    });
+    assert.equal(capturedPreference, "fast", "preference utilisateur fast doit être transmise");
+  } finally {
+    global.fetch = originalFetch;
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+});

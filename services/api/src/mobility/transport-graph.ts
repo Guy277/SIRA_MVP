@@ -125,12 +125,23 @@ export class TransportGraph {
     const maxTransferKm = Math.min(0.8, (options.maxTransferDistanceM ?? 350) / 1000);
     if (!start || !finish || start.distanceKm > maxAccessKm || finish.distanceKm > maxAccessKm) return null;
 
+    // Collect multiple egress candidate nodes within egress radius so A* can exit
+    // even when the geometrically nearest node is only reachable via a transfer.
+    const egressRadiusKm = maxAccessKm;
+    const egressCandidates = new Map<string, number>(); // key → distanceKm to destination
+    for (const [key, coord] of this.coordinates) {
+      const d = distanceKm(coord, destinationCoordinate);
+      if (d <= egressRadiusKm) egressCandidates.set(key, d);
+    }
+    if (!egressCandidates.size) egressCandidates.set(finish.key, finish.distanceKm);
+
     const maxTransfers = options.maxTransfers ?? 3;
     const serviceDate = options.serviceDate ?? new Date();
     const startState = stateOf(start.key, "__start__", 0);
     const distances = new Map<string, number>([[startState, 0]]); const previous = new Map<string, Previous>(); const heap = new MinHeap(); const visited = new Set<string>();
     const heuristic = (nodeKey: string) => distanceKm(this.coordinates.get(nodeKey)!, destinationCoordinate) / 24 * 60;
-    heap.push([heuristic(start.key), startState]); let finishState: string | null = null; let explored = 0;
+    heap.push([heuristic(start.key), startState]);
+    let finishState: string | null = null; let bestEgressDistKm = Number.POSITIVE_INFINITY; let explored = 0;
     while (heap.size && explored < 180_000) {
       const [, currentState] = heap.pop()!;
       if (visited.has(currentState)) continue;
@@ -138,7 +149,11 @@ export class TransportGraph {
       if (currentDistance === undefined) continue;
       visited.add(currentState); explored += 1;
       const { node: currentNode, line: currentLine, transfers: currentTransfers } = splitState(currentState);
-      if (currentNode === finish.key && !currentLine.startsWith("__")) { finishState = currentState; break; }
+      // Accept any egress candidate reached while riding a line
+      if (!currentLine.startsWith("__") && egressCandidates.has(currentNode)) {
+        const egressD = egressCandidates.get(currentNode)!;
+        if (!finishState || egressD < bestEgressDistKm) { finishState = currentState; bestEgressDistKm = egressD; break; }
+      }
       const candidateEdges = currentLine.startsWith("__")
         ? this.adjacency.get(currentNode) ?? []
         : this.lineAdjacency.get(currentNode)?.get(currentLine) ?? [];
@@ -204,7 +219,11 @@ export class TransportGraph {
       leg.price = price.value; leg.priceP90 = price.p90; leg.priceMethod = price.method; leg.priceConfidence = price.confidence;
     }
 
-    const accessWalk = estimateWalkingDuration(start.distanceKm); const egressWalk = estimateWalkingDuration(finish.distanceKm);
+    const accessWalk = estimateWalkingDuration(start.distanceKm);
+    // Determine actual egress node from the finishState (may differ from finish.key)
+    const egressNodeKey = splitState(finishState).node;
+    const egressDistKm = egressCandidates.get(egressNodeKey) ?? bestEgressDistKm;
+    const egressWalk = estimateWalkingDuration(egressDistKm);
     const transferMinutes = transfers.reduce((sum, transfer) => sum + transfer.durationMinutes + transfer.interchangeBufferMinutes, 0);
     const transferP90 = transfers.reduce((sum, transfer) => sum + estimateWalkingDuration(transfer.distanceKm).p90 + transfer.interchangeBufferMinutes, 0);
     const transitMinutes = legs.reduce((sum, leg) => sum + leg.durationMinutes + leg.waitMinutes, 0);
@@ -212,9 +231,9 @@ export class TransportGraph {
     const rideGeometry = legs.flatMap((leg, index) => index === 0 ? leg.coordinates : leg.coordinates.slice(1));
     return {
       access: { distanceKm: Number(start.distanceKm.toFixed(3)), durationMinutes: accessWalk.value, coordinates: [originCoordinate, this.coordinates.get(start.key)!] },
-      egress: { distanceKm: Number(finish.distanceKm.toFixed(3)), durationMinutes: egressWalk.value, coordinates: [this.coordinates.get(finish.key)!, destinationCoordinate] },
+      egress: { distanceKm: Number(egressDistKm.toFixed(3)), durationMinutes: egressWalk.value, coordinates: [this.coordinates.get(egressNodeKey)!, destinationCoordinate] },
       legs, transfers, transferMinutes,
-      distanceKm: Number((start.distanceKm + finish.distanceKm + legs.reduce((sum, leg) => sum + leg.distanceKm, 0) + transfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)).toFixed(2)),
+      distanceKm: Number((start.distanceKm + egressDistKm + legs.reduce((sum, leg) => sum + leg.distanceKm, 0) + transfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)).toFixed(2)),
       durationMinutes: accessWalk.value + egressWalk.value + transferMinutes + transitMinutes,
       durationP90: accessWalk.p90 + egressWalk.p90 + transferP90 + transitP90,
       price: legs.reduce((sum, leg) => sum + leg.price, 0), priceP90: legs.reduce((sum, leg) => sum + leg.priceP90, 0), geometry: rideGeometry,

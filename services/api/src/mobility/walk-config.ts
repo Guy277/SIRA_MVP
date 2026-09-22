@@ -1,8 +1,8 @@
 export const SIRA_WALK = {
-  maxTotalDistanceM: 1500,
-  maxAccessOrEgressDistanceM: 1000,
+  maxTotalDistanceM: 5000,
+  maxAccessOrEgressDistanceM: 2500,
   normalTransferDistanceM: 400,
-  maxTransferDistanceM: 800,
+  maxTransferDistanceM: 1000,
   speedsKmh: { normal: 4.5, slow: 3.2, fast: 5.1 },
   allowStraightLineFallback: false,
 } as const;

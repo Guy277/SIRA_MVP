@@ -46,4 +46,8 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
-/data/abidjan-master.zip/
+
+# datasets & heavy archives
+data/
+*.zip
+*.apk
