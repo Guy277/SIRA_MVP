@@ -35,7 +35,7 @@ export default function SplashScreen() {
 
   const navigateToNextScreen = () => {
     if (isUserAuthenticated()) {
-      router.replace('/(tabs)/explore');
+      router.replace('/(tabs)');
     } else {
       router.replace('/onboarding');
     }

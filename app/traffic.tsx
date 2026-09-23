@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { OsmMapView } from '@/components/osm-map-view';
 
 const { width, height } = Dimensions.get('window');
 
@@ -158,14 +159,7 @@ export default function TrafficScreen() {
 
       {/* Full Map View */}
       <View style={styles.mapWrapper}>
-        <Image
-          source={require('@/assets/images/map-abidjan-routes.png')}
-          style={[
-            styles.mapImage,
-            { transform: [{ scale: zoomLevel }] }
-          ]}
-          contentFit="cover"
-        />
+        <OsmMapView style={styles.mapImage} />
 
         {/* Traffic Overlay Legend (Top Left) */}
         <View style={styles.legendCard}>

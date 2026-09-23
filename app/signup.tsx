@@ -43,7 +43,7 @@ export default function SignupScreen() {
 
   const handleSignup = () => {
     setAuthenticated(true);
-    router.replace('/(tabs)/explore');
+    router.replace('/(tabs)');
   };
 
   const handleGoToLogin = () => {

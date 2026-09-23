@@ -16,6 +16,9 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LocationSuggestionsList } from '@/components/location-suggestions-list';
+import { YangoLocationModal } from '@/components/yango-location-modal';
+import { OsmMapView } from '@/components/osm-map-view';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -36,19 +39,16 @@ const SEARCH_PILL_HEIGHT = (58 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 export default function HomeScreen() {
   const router = useRouter();
   const [destination, setDestination] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
+  const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
-  const handleSearchPress = () => {
-    const target = destination.trim();
-    if (target) {
-      router.push({
-        pathname: '/(tabs)/explore',
-        params: { destination: target, query: target },
-      });
-    } else {
-      router.push('/(tabs)/explore');
-    }
+  const handleLocationSelect = (selectedLoc: string) => {
+    setDestination(selectedLoc);
+    setIsYangoModalOpen(false);
+    router.push({
+      pathname: '/(tabs)/explore',
+      params: { destination: selectedLoc, query: selectedLoc },
+    });
   };
 
   const handleOpenMic = () => {
@@ -60,7 +60,6 @@ export default function HomeScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setDestination(phrase);
     setIsVoiceModalOpen(false);
-    setIsFocused(true);
     router.push({
       pathname: '/(tabs)/explore',
       params: { destination: phrase, query: phrase },
@@ -71,12 +70,8 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Background: 3D Aerial City Map with Navigation Routes */}
-      <Image
-        source={require('@/assets/images/city-route-3d-bg.png')}
-        style={styles.backgroundImage}
-        contentFit="cover"
-      />
+      {/* Real OpenStreetMap Interactive Canvas */}
+      <OsmMapView style={styles.backgroundImage} />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Top Header Bar with Circular Black Back Button */}
@@ -113,60 +108,42 @@ export default function HomeScreen() {
         </View>
 
         {/* Bottom Destination Section */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.bottomBarContainer}
-        >
+        <View style={styles.bottomBarContainer}>
           {/* Destination Search Bar (Floating Pill - Orange inactive / Dark active) */}
-          <View style={[styles.searchPill, isFocused && styles.searchPillFocused]}>
-            {!isFocused && (
-              <View style={styles.searchPinCircle}>
-                <Ionicons name="location-sharp" size={20} color="#F26522" />
-              </View>
-            )}
-
-            <View style={[styles.searchInputWrapper, isFocused && styles.searchInputWrapperFocused]}>
-              <TextInput
-                style={[styles.searchInput, isFocused && styles.searchInputFocused]}
-                placeholder={isFocused ? "Entrez votre destination" : "Où voulez-vous aller ?"}
-                placeholderTextColor={isFocused ? "#CCCCCC" : "#FFFFFF"}
-                value={destination}
-                onChangeText={setDestination}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => {
-                  if (!destination.trim()) {
-                    setIsFocused(false);
-                  }
-                }}
-                onSubmitEditing={handleSearchPress}
-                returnKeyType="search"
-                autoCapitalize="sentences"
-                autoCorrect={false}
-              />
+          <TouchableOpacity
+            style={styles.searchPill}
+            activeOpacity={0.9}
+            onPress={() => setIsYangoModalOpen(true)}
+          >
+            <View style={styles.searchPinCircle}>
+              <Ionicons name="location-sharp" size={20} color="#F26522" />
             </View>
 
-            {isFocused && (
-              <TouchableOpacity
-                style={styles.micButton}
-                onPress={handleOpenMic}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="mic" size={22} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
+            <View style={styles.searchInputWrapper}>
+              <Text style={styles.searchPlaceholderText}>
+                {destination || "Où voulez-vous aller ?"}
+              </Text>
+            </View>
 
-            {!isFocused && destination.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearCircle}
-                onPress={() => setDestination('')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="close" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+            <TouchableOpacity
+              style={styles.micButton}
+              onPress={handleOpenMic}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="mic" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
+
+      {/* Yango Full Screen Location Modal */}
+      <YangoLocationModal
+        visible={isYangoModalOpen}
+        onClose={() => setIsYangoModalOpen(false)}
+        onSelectLocation={handleLocationSelect}
+        currentLocationName="Orange Digital Center"
+        initialQuery={destination}
+      />
 
       {/* SIRA Interactive Voice Recognition Assistant Modal */}
       <Modal
@@ -350,6 +327,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 25,
   },
+  suggestionsContainer: {
+    width: SEARCH_PILL_WIDTH,
+    marginBottom: 10,
+    zIndex: 30,
+  },
   searchPill: {
     width: SEARCH_PILL_WIDTH,
     height: Math.max(56, SEARCH_PILL_HEIGHT),
@@ -380,6 +362,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  searchPlaceholderText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   searchInput: {
     width: '100%',

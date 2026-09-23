@@ -137,6 +137,7 @@ export default function HistoryScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const filteredHistory = useMemo(() => {
     if (!searchQuery.trim()) return historyList;
@@ -152,16 +153,8 @@ export default function HistoryScreen() {
   }, [historyList, searchQuery]);
 
   const handleOpenDetail = (item: HistoryItem) => {
-    router.push({
-      pathname: '/route-detail',
-      params: {
-        departure: item.departure,
-        arrival: item.arrival,
-        mode: item.option,
-        costRange: item.costRange,
-        durationMinutes: item.duration.replace(' min', ''),
-      },
-    });
+    setSelectedItem(item);
+    setIsDetailOpen(true);
   };
 
   const handleOpenMenu = (item: HistoryItem) => {
@@ -438,6 +431,106 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* History Completed Trip Detail Modal */}
+      <Modal
+        visible={isDetailOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsDetailOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsDetailOpen(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.historyDetailCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <View style={styles.historyDetailHeader}>
+              <View style={styles.completedBadge}>
+                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                <Text style={styles.completedBadgeText}>Trajet effectué</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeOrangeBtn}
+                onPress={() => setIsDetailOpen(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={14} color="#000000" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Date & Title */}
+            <Text style={styles.historyDetailDate}>{selectedItem?.date}</Text>
+            <Text style={styles.historyDetailTitle}>{selectedItem?.title}</Text>
+
+            {/* Departure & Arrival Timeline */}
+            <View style={styles.historyTimelineBox}>
+              <View style={styles.historyTimelineRow}>
+                <Ionicons name="ellipse" size={12} color="#F26522" />
+                <Text style={styles.historyTimelineLabel}>Départ : </Text>
+                <Text style={styles.historyTimelineValue}>{selectedItem?.departure}</Text>
+              </View>
+              <View style={styles.historyTimelineRow}>
+                <Ionicons name="location" size={14} color="#F26522" />
+                <Text style={styles.historyTimelineLabel}>Arrivée : </Text>
+                <Text style={styles.historyTimelineValue}>{selectedItem?.arrival}</Text>
+              </View>
+            </View>
+
+            {/* Details Badges */}
+            <View style={styles.historyMetaGrid}>
+              <View style={styles.metaBadgeItem}>
+                <Text style={styles.metaBadgeLabel}>Option</Text>
+                <Text style={styles.metaBadgeValue}>{selectedItem?.option}</Text>
+              </View>
+              <View style={styles.metaBadgeItem}>
+                <Text style={styles.metaBadgeLabel}>Transport</Text>
+                <Text style={styles.metaBadgeValue}>{selectedItem?.transport}</Text>
+              </View>
+              <View style={styles.metaBadgeItem}>
+                <Text style={styles.metaBadgeLabel}>Durée</Text>
+                <Text style={styles.metaBadgeValue}>{selectedItem?.duration}</Text>
+              </View>
+              <View style={styles.metaBadgeItem}>
+                <Text style={styles.metaBadgeLabel}>Coût payé</Text>
+                <Text style={styles.metaBadgeValue}>{selectedItem?.costRange}</Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.historyActionsCol}>
+              <TouchableOpacity
+                style={styles.historyRepeatBtn}
+                onPress={() => {
+                  setIsDetailOpen(false);
+                  handleRepeatRoute();
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="refresh" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.historyRepeatText}>Refaire ce même trajet</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.historyFavBtn}
+                onPress={() => {
+                  setIsDetailOpen(false);
+                  handleAddToFavorites();
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="bookmark-outline" size={18} color="#F26522" style={{ marginRight: 6 }} />
+                <Text style={styles.historyFavText}>Ajouter aux favoris</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Bottom Navigation Bar */}
       <CustomBottomTabBar />
     </View>
@@ -677,6 +770,127 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.1,
+  },
+
+  /* History Completed Trip Detail Modal Styles */
+  historyDetailCard: {
+    width: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  historyDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
+  },
+  completedBadgeText: {
+    color: '#16A34A',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  historyDetailDate: {
+    fontSize: 12,
+    color: '#888888',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  historyDetailTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#000000',
+    marginBottom: 16,
+  },
+  historyTimelineBox: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+    marginBottom: 16,
+  },
+  historyTimelineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyTimelineLabel: {
+    fontSize: 13,
+    color: '#666666',
+    fontWeight: '500',
+  },
+  historyTimelineValue: {
+    fontSize: 14,
+    color: '#000000',
+    fontWeight: '800',
+  },
+  historyMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+  },
+  metaBadgeItem: {
+    width: '47%',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 10,
+  },
+  metaBadgeLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  metaBadgeValue: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '800',
+  },
+  historyActionsCol: {
+    gap: 10,
+  },
+  historyRepeatBtn: {
+    backgroundColor: '#F26522',
+    borderRadius: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyRepeatText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  historyFavBtn: {
+    backgroundColor: '#FFF5F0',
+    borderWidth: 1.5,
+    borderColor: '#F26522',
+    borderRadius: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyFavText: {
+    color: '#F26522',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });
 

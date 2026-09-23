@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { OsmMapView } from '@/components/osm-map-view';
 
 const { width, height } = Dimensions.get('window');
 
@@ -50,10 +51,10 @@ export default function LocationSettingsScreen() {
         >
           {/* Top Interactive Map View Section */}
           <View style={styles.mapContainer}>
-            <Image
-              source={require('@/assets/images/map-abidjan-routes.png')}
+            <OsmMapView
+              departureName="Abobo Samaké"
+              arrivalName="Orange Digital Center"
               style={styles.mapImage}
-              contentFit="cover"
             />
 
             {/* Top Right "Votre position" Pill Badge */}

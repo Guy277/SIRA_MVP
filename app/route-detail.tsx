@@ -14,8 +14,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { useFavorites } from '@/hooks/use-favorites';
+import { OsmMapView } from '@/components/osm-map-view';
 
 const { width, height } = Dimensions.get('window');
 
@@ -36,18 +36,14 @@ export default function RouteDetailScreen() {
     optionId?: string;
   }>();
 
-  const departure = params.departure || 'Abobo Samaké';
+  const departure = params.departure || 'Abobo Terminus';
   const arrival = params.arrival || 'Orange Digital Center';
-  const mode = params.mode || 'Coulé';
-  const transport = params.suboption || 'Gbaka';
-  const duration = params.durationMinutes ? `${params.durationMinutes} min` : '24 min';
-  const costRange = params.costRange || 'entre 500F et 1.500F';
-  const tripDate = params.date || 'LUNDI 14 SEPTEMBRE 2026 À 08H40';
   const tripTitle = `D’${departure} à ${arrival}`;
 
+  const [isLiked, setIsLiked] = useState(false);
   const isFavorite = checkIsFavorite(tripTitle);
 
-  const handleRefaireTrajet = () => {
+  const handleStartNavigation = () => {
     router.push({
       pathname: '/navigation-active',
       params: { destination: arrival },
@@ -63,10 +59,10 @@ export default function RouteDetailScreen() {
       departure,
       arrival,
       title: tripTitle,
-      mode,
-      transport,
-      duration,
-      costRange,
+      mode: params.mode || 'Coulé',
+      transport: params.suboption || 'Bus + Taxi',
+      duration: '38 min',
+      costRange: '1 200 FCFA',
     });
     Alert.alert(
       nowFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris',
@@ -76,19 +72,8 @@ export default function RouteDetailScreen() {
     );
   };
 
-  const handleDeleteHistory = () => {
-    Alert.alert(
-      'Supprimer du trajet',
-      'Voulez-vous supprimer ce trajet de votre historique ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => router.back(),
-        },
-      ]
-    );
+  const handleLike = () => {
+    setIsLiked(!isLiked);
   };
 
   return (
@@ -107,7 +92,7 @@ export default function RouteDetailScreen() {
             <Ionicons name="arrow-back" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Detail trajet</Text>
+          <Text style={styles.headerTitle}>Décomposition d'itinéraire</Text>
 
           <View style={styles.headerRightActions}>
             <TouchableOpacity
@@ -136,193 +121,175 @@ export default function RouteDetailScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Upper Map View Section with Floating Departure/Arrival Card */}
+          {/* Upper Map View Section */}
           <View style={styles.mapContainer}>
-            <Image
-              source={require('@/assets/images/map-abidjan-routes.png')}
+            <OsmMapView
               style={styles.mapImage}
-              contentFit="cover"
+              departureName={departure}
+              arrivalName={arrival}
             />
 
-            {/* Floating Departure/Arrival Input Card */}
-            <View style={styles.floatingAddressCard}>
-              <View style={styles.addressLinesCol}>
-                {/* Departure Row */}
-                <View style={styles.addressRow}>
-                  <View style={styles.orangeDotCircle} />
-                  <View style={styles.addressTextWrapper}>
-                    <Text style={styles.addressLabel}>Départ</Text>
-                    <Text style={styles.addressValue} numberOfLines={1}>{departure}</Text>
-                  </View>
-                </View>
-
-                {/* Vertical Connector Line */}
-                <View style={styles.addressDashedConnector} />
-
-                {/* Arrival Row */}
-                <View style={styles.addressRow}>
-                  <Ionicons name="location" size={18} color="#F26522" style={styles.arrivalPinIcon} />
-                  <View style={styles.addressTextWrapper}>
-                    <Text style={styles.addressLabel}>Arrivée</Text>
-                    <Text style={styles.addressValue} numberOfLines={1}>{arrival}</Text>
-                  </View>
+            {/* Top Right Map Legend Badges */}
+            <View style={styles.mapLegendContainer}>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendLine, { backgroundColor: '#F26522' }]} />
+                <View style={styles.legendIconCircle}>
+                  <Ionicons name="star" size={11} color="#FFFFFF" />
                 </View>
               </View>
-
-              {/* Swap Vertical Arrow Button */}
-              <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
-                <Ionicons name="swap-vertical" size={18} color="#000000" />
-              </TouchableOpacity>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendLine, { backgroundColor: '#1E40AF' }]} />
+                <View style={styles.legendIconCircleBlue}>
+                  <Ionicons name="ribbon" size={11} color="#FFFFFF" />
+                </View>
+              </View>
             </View>
 
             {/* Orange Compass FAB Icon (Bottom Right of Map) */}
-            <View style={styles.mapCompassFab}>
+            <TouchableOpacity
+              style={styles.mapCompassFab}
+              activeOpacity={0.8}
+              onPress={() => {}}
+            >
               <Ionicons name="navigate-sharp" size={20} color="#FFFFFF" />
-            </View>
+            </TouchableOpacity>
           </View>
 
-          {/* Trajet Summary Info Banner */}
-          <View style={styles.tripSummaryHeaderContainer}>
-            <Text style={styles.tripSummaryMainDate}>
-              TRAJET EFFECTUÉ LE {tripDate.toUpperCase()}
-            </Text>
-            <View style={styles.tripSummaryRow}>
-              <Text style={styles.tripSummaryItem}>
-                Option : <Text style={styles.boldText}>{mode}</Text>
-              </Text>
-              <Text style={styles.tripSummaryItem}>
-                Transport : <Text style={styles.boldText}>{transport}</Text>
-              </Text>
-              <Text style={styles.tripSummaryItem}>
-                Durée : <Text style={styles.boldText}>{duration}</Text>
-              </Text>
-            </View>
-            <Text style={styles.tripSummarySubRow}>
-              Coût : entre <Text style={styles.boldText}>500F</Text> et <Text style={styles.boldText}>1.500F</Text>
-            </Text>
-            <Text style={styles.tripSummarySubRow}>
-              Depart : <Text style={styles.boldText}>09H30</Text>   Arrivée : <Text style={styles.boldText}>10H30</Text>
-            </Text>
-          </View>
-
-          {/* Main Content Layout (Timeline Steps) */}
-          <View style={styles.mainContentRow}>
-            {/* Timeline Breakdown Column */}
+          {/* Timeline Breakdown Section */}
+          <View style={styles.timelineSectionWrapper}>
+            {/* Timeline Steps Column */}
             <View style={styles.timelineColumn}>
-              {/* Vertical Dashed Strip Background Bar */}
-              <View style={styles.dashedBarBackground}>
-                <View style={styles.whiteDashedLine} />
+              {/* Continuous Black Vertical Road Stripe with White Dashed Center Line */}
+              <View style={styles.blackRoadStripe}>
+                <View style={styles.dashedCenterLine} />
               </View>
 
-              {/* Step 1: Walking 7 min */}
+              {/* Step 1: Walking 6 min */}
               <View style={styles.stepItemRow}>
                 <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="walk" size={20} color="#FFFFFF" />
+                  <Ionicons name="walk" size={22} color="#FFFFFF" />
                 </View>
                 <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>Marchez pendant 7 min</Text>
-                  <Text style={styles.stepSubDesc}>Marchez jusqu'à la gare de gbaka</Text>
-                  <Text style={styles.stepMetaText}>09:20 → 09:26 • 450 m</Text>
-                </View>
-              </View>
-
-              {/* Step 2: Take Gbaka */}
-              <View style={styles.stepItemRow}>
-                <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="bus" size={18} color="#FFFFFF" />
-                </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>Prenez un gbaka pour Adjamé liberté</Text>
+                  <Text style={styles.stepTitle}>Marchez pendant 6 min</Text>
                   <Text style={styles.stepSubDesc}>
-                    Le cout varira entre 200f et 500f en fonction de l'heure.
-                  </Text>
-                  <Text style={styles.stepMetaText}>09:26 → 09:46 • 450 m</Text>
-                </View>
-              </View>
-
-              {/* Step 3: Walking 25 min */}
-              <View style={styles.stepItemRow}>
-                <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="walk" size={20} color="#FFFFFF" />
-                </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>Marchez pendant 25 min</Text>
-                  <Text style={styles.stepSubDesc}>
-                    Arrivé à Adjamé liberté, tournez à votre gauche et marchez tout droit.
+                    Abobo Terminus → <Text style={styles.boldText}>Gare d'Adjamé</Text>
                   </Text>
                   <Text style={styles.stepMetaText}>09:20 → 09:26 • 450 m</Text>
                 </View>
               </View>
 
-              {/* Step 4: Destination Arrival */}
+              {/* Step 2: Bus 22 20 min */}
               <View style={styles.stepItemRow}>
                 <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="location" size={20} color="#FFFFFF" />
+                  <Ionicons name="bus" size={20} color="#FFFFFF" />
+                </View>
+                <View style={styles.stepTextWrapper}>
+                  <Text style={styles.stepTitle}>Prenez le Bus 22 (20 min)</Text>
+                  <Text style={styles.stepSubDesc}>
+                    Gare d'Adjamé → <Text style={styles.boldText}>Rond-Point Riviera</Text>
+                  </Text>
+                  <Text style={styles.stepCostText}>
+                    Coût estimé : <Text style={styles.boldText}>200 FCFA</Text>
+                  </Text>
+                  <Text style={styles.stepMetaText}>09:26 → 09:46</Text>
+                </View>
+              </View>
+
+              {/* Step 3: Taxi 7 min */}
+              <View style={styles.stepItemRow}>
+                <View style={styles.orangeStepIconCircle}>
+                  <Ionicons name="car" size={20} color="#FFFFFF" />
+                </View>
+                <View style={styles.stepTextWrapper}>
+                  <Text style={styles.stepTitle}>Prenez un taxi (7 min)</Text>
+                  <Text style={styles.stepSubDesc}>
+                    Rond-Point Riviera → <Text style={styles.boldText}>Cocody Riviera 3</Text>
+                  </Text>
+                  <Text style={styles.stepCostText}>
+                    Coût estimé : <Text style={styles.boldText}>1 000 FCFA</Text>
+                  </Text>
+                  <Text style={styles.stepMetaText}>09:46 → 09:53 • 3,2 km</Text>
+                </View>
+              </View>
+
+              {/* Step 4: Walking 5 min */}
+              <View style={styles.stepItemRow}>
+                <View style={styles.orangeStepIconCircle}>
+                  <Ionicons name="walk" size={22} color="#FFFFFF" />
+                </View>
+                <View style={styles.stepTextWrapper}>
+                  <Text style={styles.stepTitle}>Marchez pendant 5 min</Text>
+                  <Text style={styles.stepSubDesc}>Destination finale</Text>
+                  <Text style={styles.stepMetaText}>09:53 → 09:58 • 350 m</Text>
+                </View>
+              </View>
+
+              {/* Step 5: Destination Arrival */}
+              <View style={styles.stepItemRow}>
+                <View style={styles.orangeStepIconCircle}>
+                  <Ionicons name="location" size={22} color="#FFFFFF" />
                 </View>
                 <View style={styles.stepTextWrapper}>
                   <Text style={styles.stepTitle}>{arrival}</Text>
                   <Text style={styles.stepSubDesc}>Vous êtes bien arrivé !</Text>
+
+                  {/* Icon Actions Row (Thumbs Up, Share, Bookmark) */}
+                  <View style={styles.stepActionsRow}>
+                    <TouchableOpacity
+                      onPress={handleLike}
+                      activeOpacity={0.7}
+                      style={styles.stepActionIconBtn}
+                    >
+                      <Ionicons
+                        name={isLiked ? 'thumbs-up' : 'thumbs-up-outline'}
+                        size={18}
+                        color={isLiked ? '#F26522' : '#000000'}
+                      />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handleShare}
+                      activeOpacity={0.7}
+                      style={styles.stepActionIconBtn}
+                    >
+                      <Ionicons name="share-social-outline" size={18} color="#000000" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handleToggleFavorite}
+                      activeOpacity={0.7}
+                      style={styles.stepActionIconBtn}
+                    >
+                      <Ionicons
+                        name={isFavorite ? 'bookmark' : 'bookmark-outline'}
+                        size={18}
+                        color={isFavorite ? '#F26522' : '#000000'}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </View>
           </View>
 
-          {/* Bottom Action Area */}
-          <View style={styles.actionFooterArea}>
-            {/* Prominent Orange Pill Button */}
+          {/* Floating Action Button: Démarrer l'itinéraire */}
+          <View style={styles.floatingButtonContainer}>
             <TouchableOpacity
-              style={styles.refaireTrajetBtn}
-              onPress={handleRefaireTrajet}
+              style={styles.demarrerBtn}
+              onPress={handleStartNavigation}
               activeOpacity={0.88}
             >
-              <View style={styles.whiteIconCircle}>
+              <View style={styles.demarrerIconCircle}>
                 <Image
-                  source={require('@/assets/images/pin-path-decor.png')}
-                  style={styles.pinPathBtnIcon}
+                  source={require('@/assets/images/orange-pin-icon.png')}
+                  style={styles.demarrerPinIcon}
                   contentFit="contain"
                 />
               </View>
-              <Text style={styles.refaireTrajetText}>Refaire ce trajet</Text>
+              <Text style={styles.demarrerBtnText}>Démarrer l'itinéraire</Text>
             </TouchableOpacity>
-
-            {/* Action Icons Row (Share, Bookmark, Trash) */}
-            <View style={styles.smallActionsRow}>
-              <TouchableOpacity
-                style={styles.smallIconBtn}
-                onPress={handleShare}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="share-social-outline" size={20} color="#000000" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.smallIconBtn}
-                onPress={handleToggleFavorite}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons
-                  name={isFavorite ? 'bookmark' : 'bookmark-outline'}
-                  size={20}
-                  color={isFavorite ? '#F26522' : '#000000'}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.smallIconBtn}
-                onPress={handleDeleteHistory}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="trash-outline" size={20} color="#000000" />
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
-
-        {/* Bottom Navigation Bar */}
-        <CustomBottomTabBar activeTab="routes" />
       </SafeAreaView>
     </View>
   );
@@ -367,7 +334,7 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 0,
+    top: -2,
     right: -2,
     backgroundColor: '#F26522',
     borderRadius: 8,
@@ -385,10 +352,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 130,
+    paddingBottom: 40,
   },
   mapContainer: {
-    height: Math.max(260, height * 0.34),
+    height: Math.max(260, height * 0.36),
     width: '100%',
     position: 'relative',
     backgroundColor: '#EAEAEA',
@@ -397,153 +364,90 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  floatingAddressCard: {
+  mapLegendContainer: {
     position: 'absolute',
     top: 14,
-    left: 16,
-    right: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    right: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  addressLinesCol: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  addressRow: {
+  legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  orangeDotCircle: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: '#F26522',
-    backgroundColor: '#FFFFFF',
-    marginRight: 10,
-    marginLeft: 2,
-  },
-  arrivalPinIcon: {
-    marginRight: 6,
-  },
-  addressTextWrapper: {
-    flex: 1,
-  },
-  addressLabel: {
-    fontSize: 11,
-    color: '#888888',
-    fontWeight: '500',
-  },
-  addressValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#000000',
-  },
-  addressDashedConnector: {
-    width: 1,
-    height: 12,
-    backgroundColor: '#888888',
-    marginLeft: 6,
-    marginVertical: 2,
-  },
-  swapBtn: {
+  legendLine: {
     width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F5F5F5',
+    height: 4,
+    borderRadius: 2,
+  },
+  legendIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F26522',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  legendIconCircleBlue: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#1E40AF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   mapCompassFab: {
     position: 'absolute',
-    bottom: 14,
+    bottom: 16,
     right: 16,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#F26522',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 6,
     elevation: 5,
   },
-  tripSummaryHeaderContainer: {
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-  },
-  tripSummaryMainDate: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#000000',
-    letterSpacing: 0.3,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  tripSummaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    marginTop: 2,
-    marginBottom: 4,
-    flexWrap: 'wrap',
-  },
-  tripSummaryItem: {
-    fontSize: 12,
-    color: '#555555',
-  },
-  tripSummarySubRow: {
-    fontSize: 12,
-    color: '#555555',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  boldText: {
-    fontWeight: '800',
-    color: '#000000',
-  },
-  mainContentRow: {
+  timelineSectionWrapper: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    marginTop: 8,
+    paddingTop: 18,
     position: 'relative',
+    minHeight: 400,
   },
   timelineColumn: {
     flex: 1,
     position: 'relative',
     paddingRight: 0,
   },
-  dashedBarBackground: {
+  blackRoadStripe: {
     position: 'absolute',
-    left: 16,
-    top: 20,
-    bottom: 24,
-    width: 12,
+    left: 17,
+    top: 14,
+    bottom: 30,
+    width: 14,
     backgroundColor: '#000000',
-    borderRadius: 6,
+    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  whiteDashedLine: {
+  dashedCenterLine: {
     width: 2,
-    height: '90%',
+    height: '92%',
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#FFFFFF',
@@ -551,143 +455,100 @@ const styles = StyleSheet.create({
   stepItemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 22,
   },
   orangeStepIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
+    zIndex: 3,
     shadowColor: '#F26522',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
   },
   stepTextWrapper: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
+    paddingRight: 10,
   },
   stepTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
     color: '#000000',
-    lineHeight: 18,
+    lineHeight: 19,
   },
   stepSubDesc: {
-    fontSize: 11.5,
-    color: '#444444',
+    fontSize: 12.5,
+    color: '#333333',
     marginTop: 2,
-    lineHeight: 15,
+    lineHeight: 16,
+  },
+  stepCostText: {
+    fontSize: 12,
+    color: '#333333',
+    marginTop: 2,
   },
   stepMetaText: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#666666',
-    fontWeight: '500',
-    marginTop: 4,
+    fontWeight: '600',
+    marginTop: 3,
   },
-  assistantRightCol: {
-    width: 130,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  speechBubbleBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
-    elevation: 3,
-    marginBottom: 8,
-    position: 'relative',
-  },
-  speechBubbleText: {
-    fontSize: 11,
-    color: '#333333',
-    lineHeight: 14,
-    textAlign: 'center',
-  },
-  speechBold: {
-    fontWeight: '800',
+  boldText: {
+    fontWeight: '900',
     color: '#000000',
   },
-  speechBubblePointer: {
-    position: 'absolute',
-    bottom: -6,
-    left: '45%',
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 6,
-    borderStyle: 'solid',
-    backgroundColor: 'transparent',
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: '#FFFFFF',
-  },
-  characterImage: {
-    width: 130,
-    height: 190,
-  },
-  actionFooterArea: {
-    marginTop: 10,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  refaireTrajetBtn: {
+  stepActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 14,
+    marginTop: 8,
+  },
+  stepActionIconBtn: {
+    padding: 4,
+  },
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: 24,
+    right: 16,
+    zIndex: 20,
+  },
+  demarrerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F26522',
-    borderRadius: 26,
-    paddingHorizontal: 24,
+    borderRadius: 28,
+    paddingHorizontal: 18,
     paddingVertical: 12,
     gap: 10,
-    width: width * 0.72,
     shadowColor: '#F26522',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 6,
   },
-  whiteIconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  demarrerIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pinPathBtnIcon: {
-    width: 16,
-    height: 16,
-    tintColor: '#F26522',
+  demarrerPinIcon: {
+    width: 18,
+    height: 18,
   },
-  refaireTrajetText: {
+  demarrerBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0.2,
   },
-  smallActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    width: '100%',
-    gap: 16,
-    marginTop: 12,
-    paddingRight: 10,
-  },
-  smallIconBtn: {
-    padding: 6,
-  },
 });
+

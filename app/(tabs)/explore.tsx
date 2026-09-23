@@ -18,6 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SideMenuModal } from '@/components/side-menu-modal';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { LocationSuggestionsList } from '@/components/location-suggestions-list';
+import { YangoLocationModal } from '@/components/yango-location-modal';
+import { OsmMapView } from '@/components/osm-map-view';
+import { getRouteBetweenLocations } from '@/services/osrm-service';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,8 +58,32 @@ export default function RouteExploreScreen() {
   const params = useLocalSearchParams<{ query?: string; destination?: string }>();
 
   // State for Departure & Arrival (Dynamic from query params or manual entry)
-  const [departure, setDeparture] = useState('Abobo Samaké');
-  const [arrival, setArrival] = useState('Orange Digital Center');
+  const [departure, setDeparture] = useState('Orange Digital Center');
+  const [arrival, setArrival] = useState(params.destination || params.query || 'Cocody Saint-Jean');
+  const [focusedField, setFocusedField] = useState<'departure' | 'arrival' | null>(null);
+  const [osrmCoords, setOsrmCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+
+  useEffect(() => {
+    if (params.destination) {
+      setArrival(params.destination);
+    } else if (params.query) {
+      setArrival(params.query);
+    }
+  }, [params.destination, params.query]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadOsrmRoute() {
+      const res = await getRouteBetweenLocations(departure, arrival);
+      if (isMounted && res && res.coordinates) {
+        setOsrmCoords(res.coordinates);
+      }
+    }
+    loadOsrmRoute();
+    return () => {
+      isMounted = false;
+    };
+  }, [departure, arrival]);
 
   const [selectedMode, setSelectedMode] = useState<TransportMode | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType | 'Tout'>('Tout');
@@ -381,11 +409,12 @@ export default function RouteExploreScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Background Light Map Canvas */}
-      <Image
-        source={require('@/assets/images/explore-map-bg.png')}
+      {/* Real OpenStreetMap Interactive Canvas with OSRM Polyline */}
+      <OsmMapView
+        departureName={departure}
+        arrivalName={arrival}
+        routeCoordinates={osrmCoords}
         style={styles.backgroundImage}
-        contentFit="cover"
       />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -454,6 +483,7 @@ export default function RouteExploreScreen() {
                   onChangeText={setDeparture}
                   placeholder="Lieu de départ"
                   placeholderTextColor="#999999"
+                  onFocus={() => setFocusedField('departure')}
                   returnKeyType="done"
                 />
               </View>
@@ -469,6 +499,7 @@ export default function RouteExploreScreen() {
                   onChangeText={setArrival}
                   placeholder="Lieu d'arrivée"
                   placeholderTextColor="#999999"
+                  onFocus={() => setFocusedField('arrival')}
                   returnKeyType="done"
                 />
               </View>
@@ -483,6 +514,22 @@ export default function RouteExploreScreen() {
               <Ionicons name="swap-vertical" size={22} color="#F26522" />
             </TouchableOpacity>
           </View>
+
+          {/* Yango Full Screen Location Selection Modal */}
+          <YangoLocationModal
+            visible={focusedField !== null}
+            onClose={() => setFocusedField(null)}
+            initialQuery={focusedField === 'departure' ? departure : arrival}
+            currentLocationName={focusedField === 'departure' ? 'Ma position actuelle' : arrival}
+            onSelectLocation={(selectedLoc) => {
+              if (focusedField === 'departure') {
+                setDeparture(selectedLoc);
+              } else if (focusedField === 'arrival') {
+                setArrival(selectedLoc);
+              }
+              setFocusedField(null);
+            }}
+          />
 
           {/* Horizontal Transport Filter Chips Row */}
           <ScrollView
@@ -569,12 +616,13 @@ export default function RouteExploreScreen() {
             })}
           </View>
 
-          {/* Enlarged Map Display View (Expands to large canvas for clear map view) */}
+          {/* Enlarged Map Display View (Real Interactive OpenStreetMap) */}
           <View style={[styles.mapContainer, isSheetExpanded && styles.mapContainerCollapsed]}>
-            <Image
-              source={require('@/assets/images/map-abidjan-routes.png')}
+            <OsmMapView
+              departureName={departure}
+              arrivalName={arrival}
+              routeCoordinates={osrmCoords}
               style={styles.mapImage}
-              contentFit="cover"
             />
           </View>
 
@@ -762,10 +810,11 @@ export default function RouteExploreScreen() {
 
             {/* Top Half: Interactive Map Section */}
             <View style={styles.decompMapSection}>
-              <Image
-                source={require('@/assets/images/city-route-3d-bg.jpg')}
+              <OsmMapView
+                departureName={departure}
+                arrivalName={arrival}
+                routeCoordinates={osrmCoords}
                 style={styles.decompMapImage}
-                contentFit="cover"
               />
 
               {/* Map Route Legend (Top Right) */}
@@ -1999,5 +2048,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  exploreSuggestionsWrapper: {
+    marginTop: -8,
+    marginBottom: 12,
+    zIndex: 50,
   },
 });

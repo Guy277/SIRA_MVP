@@ -39,14 +39,6 @@ export default function EditProfileScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Background Image with Dark Semi-transparent Overlay */}
-      <Image
-        source={require('@/assets/images/bridge-bg.jpg')}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-      />
-      <View style={[StyleSheet.absoluteFill, styles.darkOverlay]} />
-
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardView}
@@ -193,9 +185,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-  },
-  darkOverlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.78)',
   },
   safeArea: {
     flex: 1,

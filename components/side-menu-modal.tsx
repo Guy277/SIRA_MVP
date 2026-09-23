@@ -79,12 +79,12 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 <View style={styles.sloganContainer}>
                   <Text style={styles.sloganWhite}>ON TRACE, </Text>
                   <Text style={styles.sloganOrange}>SANS STRESS.</Text>
+                  <Image
+                    source={require('@/assets/images/orange-pin-icon.png')}
+                    style={styles.locationPinDecor}
+                    contentFit="contain"
+                  />
                 </View>
-                <Image
-                  source={require('@/assets/images/orange-pin-icon.png')}
-                  style={styles.locationPinDecor}
-                  contentFit="contain"
-                />
               </View>
 
               <TouchableOpacity
@@ -324,8 +324,8 @@ const styles = StyleSheet.create({
   },
   sloganContainer: {
     position: 'absolute',
-    top: 14,
-    left: 54,
+    top: 6,
+    left: 48,
     flexDirection: 'row',
     alignItems: 'center',
     transform: [{ rotate: '-11deg' }],
@@ -344,13 +344,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   locationPinDecor: {
-    position: 'absolute',
-    top: -4,
-    right: 18,
-    width: 28,
-    height: 38,
-    transform: [{ rotate: '13.89deg' }],
-    zIndex: 10,
+    width: 22,
+    height: 28,
+    marginLeft: 6,
+    transform: [{ rotate: '14deg' }],
   },
   scrollView: {
     flex: 1,

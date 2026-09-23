@@ -54,7 +54,7 @@ export default function LoginScreen() {
 
   const handleLogin = () => {
     setAuthenticated(true);
-    router.replace('/(tabs)/explore');
+    router.replace('/(tabs)');
   };
 
   const handleGoToSignup = () => {
