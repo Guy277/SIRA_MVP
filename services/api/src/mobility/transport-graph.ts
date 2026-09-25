@@ -1,6 +1,7 @@
 import { estimateFare, estimateWait, estimateWalkingDuration, isServiceOpen, rideMinutesRaw, type SiraTransportMode } from "./estimators";
 
 export type Coordinate = [number, number];
+export type AvoidArea = { lat: number; lon: number; radiusM: number };
 
 export type TransportFeature = {
   id?: string;
@@ -117,7 +118,7 @@ export class TransportGraph {
     return { nodes: this.coordinates.size, directedEdges: Array.from(this.adjacency.values()).reduce((sum, edges) => sum + edges.length, 0), pedestrianTransferRadiusM: 350, lastExploredStates: this.lastExploredStates };
   }
 
-  route(origin: { lat: number; lon: number }, destination: { lat: number; lon: number }, strategy: "fast" | "balanced" | "cheap" | "min_transfers" | "min_walking" = "balanced", options: { maxAccessDistanceM?: number; maxTransferDistanceM?: number; maxTransfers?: number; serviceDate?: Date } = {}): NetworkJourney | null {
+  route(origin: { lat: number; lon: number }, destination: { lat: number; lon: number }, strategy: "fast" | "balanced" | "cheap" | "min_transfers" | "min_walking" = "balanced", options: { maxAccessDistanceM?: number; maxTransferDistanceM?: number; maxTransfers?: number; serviceDate?: Date; avoidAreas?: AvoidArea[] } = {}): NetworkJourney | null {
     if (!this.coordinates.size) return null;
     const originCoordinate: Coordinate = [origin.lon, origin.lat]; const destinationCoordinate: Coordinate = [destination.lon, destination.lat];
     const start = this.nearestNode(originCoordinate); const finish = this.nearestNode(destinationCoordinate);
@@ -135,30 +136,60 @@ export class TransportGraph {
     }
     if (!egressCandidates.size) egressCandidates.set(finish.key, finish.distanceKm);
 
+    // Nodes inside a community-reported blocking area cannot be ridden through,
+    // transferred to or used as an exit.
+    const avoided = this.nodesInside(options.avoidAreas ?? []);
+    for (const key of avoided) egressCandidates.delete(key);
+    if (!egressCandidates.size) return null;
+
     const maxTransfers = options.maxTransfers ?? 3;
     const serviceDate = options.serviceDate ?? new Date();
     const startState = stateOf(start.key, "__start__", 0);
     const distances = new Map<string, number>([[startState, 0]]); const previous = new Map<string, Previous>(); const heap = new MinHeap(); const visited = new Set<string>();
+    // Opening hours, waits and fares depend only on the line for a given search;
+    // parsing them once per line instead of once per explored edge keeps A* fast.
+    const openByLine = new Map<string, boolean>(); const waitByLine = new Map<string, number>(); const fareByLine = new Map<string, number>();
+    const lineOpen = (edge: Edge) => {
+      let open = openByLine.get(edge.lineId);
+      if (open === undefined) { open = isServiceOpen(edge.openingHours, serviceDate); openByLine.set(edge.lineId, open); }
+      return open;
+    };
+    const lineWait = (edge: Edge) => {
+      let wait = waitByLine.get(edge.lineId);
+      if (wait === undefined) { wait = estimateWait(edge.mode, edge.frequency, edge.frequencyExceptions, serviceDate).value; waitByLine.set(edge.lineId, wait); }
+      return wait;
+    };
+    const lineFarePenalty = (edge: Edge) => {
+      let penalty = fareByLine.get(edge.lineId);
+      if (penalty === undefined) { penalty = estimateFare(edge.mode, 5, edge.lineId).value / 100 * 3.5; fareByLine.set(edge.lineId, penalty); }
+      return penalty;
+    };
     const heuristic = (nodeKey: string) => distanceKm(this.coordinates.get(nodeKey)!, destinationCoordinate) / 24 * 60;
     heap.push([heuristic(start.key), startState]);
-    let finishState: string | null = null; let bestEgressDistKm = Number.POSITIVE_INFINITY; let explored = 0;
+    let finishState: string | null = null; let bestEgressDistKm = Number.POSITIVE_INFINITY; let bestTotal = Number.POSITIVE_INFINITY; let explored = 0;
     while (heap.size && explored < 180_000) {
-      const [, currentState] = heap.pop()!;
+      const [priority, currentState] = heap.pop()!;
+      // The heuristic never overestimates, so no remaining state can beat the best exit found.
+      if (priority >= bestTotal) break;
       if (visited.has(currentState)) continue;
       const currentDistance = distances.get(currentState);
       if (currentDistance === undefined) continue;
       visited.add(currentState); explored += 1;
       const { node: currentNode, line: currentLine, transfers: currentTransfers } = splitState(currentState);
-      // Accept any egress candidate reached while riding a line
+      // Every egress candidate reached while riding is a possible exit; its cost
+      // includes the final walk so a closer stop further down the line can win.
       if (!currentLine.startsWith("__") && egressCandidates.has(currentNode)) {
         const egressD = egressCandidates.get(currentNode)!;
-        if (!finishState || egressD < bestEgressDistKm) { finishState = currentState; bestEgressDistKm = egressD; break; }
+        const egressWalk = estimateWalkingDuration(egressD).value;
+        const total = currentDistance + egressWalk + (strategy === "min_walking" ? egressWalk * 8 : 0);
+        if (total < bestTotal) { bestTotal = total; finishState = currentState; bestEgressDistKm = egressD; }
       }
       const candidateEdges = currentLine.startsWith("__")
         ? this.adjacency.get(currentNode) ?? []
         : this.lineAdjacency.get(currentNode)?.get(currentLine) ?? [];
       for (const edge of candidateEdges) {
-        if (!isServiceOpen(edge.openingHours, serviceDate)) continue;
+        if (!lineOpen(edge)) continue;
+        if (avoided.has(edge.to)) continue;
         const boarding = currentLine === "__start__" || currentLine === "__walk__";
         // A line switch is only valid after a distinct, preselected walking
         // connector. Switching at an identical geometry vertex would otherwise
@@ -166,12 +197,12 @@ export class TransportGraph {
         const changingAtSameNode = false;
         const nextTransfers = currentTransfers;
         if (nextTransfers > maxTransfers) continue;
-        const wait = boarding || changingAtSameNode ? estimateWait(edge.mode, edge.frequency, edge.frequencyExceptions, serviceDate).value : 0;
+        const wait = boarding || changingAtSameNode ? lineWait(edge) : 0;
         let transferBuffer = changingAtSameNode ? 2 : 0;
         if (strategy === "min_transfers" && boarding && currentLine !== "__start__" && currentLine !== "__walk__") {
           transferBuffer += 45; // massive penalty for transferring
         }
-        const pricePenalty = strategy === "cheap" && (boarding || changingAtSameNode) ? estimateFare(edge.mode, 5, edge.lineId).value / 100 * 3.5 : 0;
+        const pricePenalty = strategy === "cheap" && (boarding || changingAtSameNode) ? lineFarePenalty(edge) : 0;
         const nextDistance = currentDistance + rideMinutesRaw(edge.mode, edge.distanceKm) + wait + transferBuffer + pricePenalty;
         const nextState = stateOf(edge.to, edge.lineId, nextTransfers);
         if (nextDistance < (distances.get(nextState) ?? Number.POSITIVE_INFINITY)) {
@@ -180,6 +211,7 @@ export class TransportGraph {
       }
       if (!currentLine.startsWith("__") && currentTransfers < maxTransfers) {
         for (const transfer of this.nearbyTransferNodes(currentNode, currentLine, maxTransferKm)) {
+          if (avoided.has(transfer.key)) continue;
           const walking = estimateWalkingDuration(transfer.distanceKm); 
           const walkingPenalty = strategy === "min_walking" ? walking.value * 8 : 0;
           const nextDistance = currentDistance + walking.value + 2 + walkingPenalty; 
@@ -265,9 +297,26 @@ export class TransportGraph {
     if (!fromLines.has(meta.lineId)) fromLines.set(meta.lineId, []); if (!toLines.has(meta.lineId)) toLines.set(meta.lineId, []);
     fromLines.get(meta.lineId)!.push(forward); toLines.get(meta.lineId)!.push(backward);
   }
+  private nodesInside(areas: AvoidArea[]) {
+    const inside = new Set<string>();
+    if (!areas.length) return inside;
+    for (const [key, coordinate] of this.coordinates) {
+      if (areas.some((area) => distanceKm(coordinate, [area.lon, area.lat]) * 1000 <= area.radiusM)) inside.add(key);
+    }
+    return inside;
+  }
   private gridKey([lon, lat]: Coordinate) { return `${Math.floor(lon / this.gridDegrees)},${Math.floor(lat / this.gridDegrees)}`; }
+  // Precomputes walking-transfer neighbours so the first journey request after
+  // startup is not several times slower than the following ones.
+  warmUp(radiusKm = 0.8) {
+    for (const key of this.coordinates.keys()) this.nearbyNodes(key, radiusKm);
+  }
   private nearbyTransferNodes(nodeKey: string, currentLine: string, radiusKm: number) {
     const cacheKey = `${nodeKey}|${currentLine}|${radiusKm.toFixed(3)}`; const cached = this.transferCache.get(cacheKey); if (cached) return cached;
+    const result = this.nearbyNodes(nodeKey, radiusKm).filter((candidate) => !this.nodeLines.get(candidate.key)?.has(currentLine)).slice(0, 3);
+    this.transferCache.set(cacheKey, result); return result;
+  }
+  private nearbyNodes(nodeKey: string, radiusKm: number) {
     const nearbyKey = `${nodeKey}|${radiusKm.toFixed(3)}`;
     let nearby = this.nearbyNodeCache.get(nearbyKey);
     if (!nearby) {
@@ -283,8 +332,7 @@ export class TransportGraph {
       nearby = candidates;
       this.nearbyNodeCache.set(nearbyKey, nearby);
     }
-    const result = nearby.filter((candidate) => !this.nodeLines.get(candidate.key)?.has(currentLine)).slice(0, 3);
-    this.transferCache.set(cacheKey, result); return result;
+    return nearby;
   }
   private nearestNode(target: Coordinate) {
     let nearest: { key: string; distanceKm: number } | null = null;

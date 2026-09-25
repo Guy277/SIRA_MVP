@@ -48,7 +48,7 @@ class Constraints(BaseModel):
 
 class RankingRequest(BaseModel):
     budget: int = Field(default=1500, ge=0)
-    preference: Literal["balanced", "fast", "cheap", "comfort"] = "balanced"
+    preference: Literal["balanced", "fast", "cheap", "comfort", "min_walking", "min_transfers"] = "balanced"
     constraints: Constraints | None = None
     max_results: int = Field(default=3, ge=1, le=5)
     journeys: list[Journey] = Field(min_length=1)

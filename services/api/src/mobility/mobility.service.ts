@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { TransportGraph, type NetworkJourney, type TransportFeature } from "./transport-graph";
+import { TransportGraph, type AvoidArea, type NetworkJourney, type TransportFeature } from "./transport-graph";
+import { distanceToLineM } from "../reports/reports.service";
 import { combineConfidence, type SiraTransportMode, estimateRideDuration, estimateWait } from "./estimators";
 import { decodeValhallaShape, haversineKm, routePedestrian, type PedestrianRoute } from "./pedestrian-router";
 import { classifyTransferDistance, SIRA_WALK, type WalkConnectorKind } from "./walk-config";
@@ -14,12 +15,14 @@ export type JourneyRequest = {
   destination: Point;
   budget?: number;
   departureAt?: string;
-  preference?: "balanced" | "fast" | "cheap" | "comfort";
+  preference?: "balanced" | "fast" | "cheap" | "comfort" | "min_walking" | "min_transfers";
   constraints?: {
     maxWalkingDistanceM?: number;
     maxTransfers?: number;
     excludedModes?: string[];
   };
+  // Areas to route around, typically confirmed community reports on the current journey.
+  avoid?: Array<{ lat: number; lon: number; radiusM?: number }>;
 };
 
 type TransportLineRecord = {
@@ -189,7 +192,7 @@ export class MobilityService implements OnModuleInit {
   constructor(private readonly transportRepository: TransportRepository) {}
 
   onModuleInit() {
-    this.getTransportGraph();
+    this.getTransportGraph().warmUp(SIRA_WALK.maxTransferDistanceM >= 800 ? 0.8 : SIRA_WALK.maxTransferDistanceM / 1000);
   }
 
   async searchPlaces(query: string) {
@@ -890,12 +893,14 @@ export class MobilityService implements OnModuleInit {
     if (Number.isNaN(serviceDate.getTime())) throw new BadRequestException("Heure de départ invalide.");
     const graph = profiler.measure("graph_initialization", () => this.getTransportGraph());
     const maxWalkingDistanceM = Math.min(request.constraints?.maxWalkingDistanceM ?? SIRA_WALK.maxTotalDistanceM, SIRA_WALK.maxTotalDistanceM);
-    const roadPromise = this.route(request.origin, request.destination, "auto", profiler);
+    const avoidAreas = this.parseAvoidAreas(request.avoid);
+    const roadPromise = this.route(request.origin, request.destination, "auto", profiler, avoidAreas);
     const graphOptions = {
       maxAccessDistanceM: Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM),
       maxTransferDistanceM: Math.min(SIRA_WALK.maxTransferDistanceM, maxWalkingDistanceM),
       maxTransfers: request.constraints?.maxTransfers ?? 3,
       serviceDate,
+      avoidAreas,
     };
     const strategies = ["fast", "balanced", "cheap", "min_transfers", "min_walking"] as const;
     const networks = profiler.measure("transport_graph_search", () => 
@@ -962,13 +967,18 @@ const signatures = new Set<string>();
     const globalSignatures = new Set<string>();
     const deduplicatedCandidates: Array<Record<string, unknown>> = [];
     for (const candidate of candidates) {
+      if (avoidAreas.length && this.crossesAvoidArea(candidate, avoidAreas)) continue;
       const signature = buildSignature(candidate);
       if (globalSignatures.has(signature)) continue;
       globalSignatures.add(signature);
       deduplicatedCandidates.push(candidate);
     }
 
-if (!deduplicatedCandidates.length) throw new BadRequestException("Aucun itinéraire suivant le réseau disponible n'a été trouvé.");
+if (!deduplicatedCandidates.length) {
+      throw new BadRequestException(avoidAreas.length
+        ? "Aucun itinéraire évitant les incidents signalés n'a été trouvé."
+        : "Aucun itinéraire suivant le réseau disponible n'a été trouvé.");
+    }
     
     // Budget constraint: only apply if explicitly provided by user
     const userBudget = request.budget ?? null;
@@ -1063,8 +1073,28 @@ if (!deduplicatedCandidates.length) throw new BadRequestException("Aucun itinér
     };
   }
 
-  private async route(origin: Point, destination: Point, costing: string, profiler: JourneyProfiler): Promise<ValhallaTrip> {
-    const payload = { locations: [origin, destination], costing, units: "kilometers", language: "fr-FR", shape_format: "geojson", date_time: { type: 0 }, directions_options: { units: "kilometers" } };
+  private parseAvoidAreas(value: JourneyRequest["avoid"]): AvoidArea[] {
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.length > 10) throw new BadRequestException("Zones à éviter invalides (10 maximum).");
+    return value.map((area) => {
+      this.validatePoint(area);
+      return { lat: area.lat, lon: area.lon, radiusM: Math.min(1000, Math.max(50, Number(area.radiusM) || 200)) };
+    });
+  }
+
+  private crossesAvoidArea(candidate: Record<string, unknown>, areas: AvoidArea[]) {
+    const lines = [candidate.geometry, ...(Array.isArray(candidate.legs) ? candidate.legs.map((leg: Record<string, unknown>) => leg.geometry) : [])]
+      .filter((line): line is [number, number][] => Array.isArray(line) && line.length > 0);
+    return areas.some((area) => lines.some((line) => distanceToLineM([area.lon, area.lat], line) <= area.radiusM));
+  }
+
+  private async route(origin: Point, destination: Point, costing: string, profiler: JourneyProfiler, avoidAreas: AvoidArea[] = []): Promise<ValhallaTrip> {
+    // Valhalla expects closed [lon, lat] rings; a square around each point is enough here.
+    const excludePolygons = avoidAreas.map(({ lat, lon, radiusM }) => {
+      const dLat = radiusM / 111_320; const dLon = radiusM / (111_320 * Math.cos(lat * Math.PI / 180));
+      return [[lon - dLon, lat - dLat], [lon + dLon, lat - dLat], [lon + dLon, lat + dLat], [lon - dLon, lat + dLat], [lon - dLon, lat - dLat]];
+    });
+    const payload = { locations: [origin, destination], costing, units: "kilometers", language: "fr-FR", shape_format: "geojson", date_time: { type: 0 }, directions_options: { units: "kilometers" }, ...(excludePolygons.length ? { exclude_polygons: excludePolygons } : {}) };
     try {
       const response = await profiler.measureAsync("valhalla_road", () => fetch(`${this.valhallaUrl}/route`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(1500) }));
       if (response.ok) {
@@ -1172,6 +1202,10 @@ if (!deduplicatedCandidates.length) throw new BadRequestException("Aucun itinér
     const cacheKey = `${from.join(",")}|${to.join(",")}|${maxDistanceM}|${connectorKind}`;
     const cached = this.pedestrianRouteCache.get(cacheKey);
     if (cached) return cached;
+    // A point already on the network needs no walk; Valhalla cannot route a few metres.
+    if (haversineKm({ lon: from[0], lat: from[1] }, { lon: to[0], lat: to[1] }) < 0.005) {
+      return Promise.resolve<PedestrianRoute>({ distanceKm: 0, durationMinutes: 0, durationP90: 0, coordinates: [from, to], method: "valhalla_pedestrian", confidence: 0.9, guidanceAvailable: true, connectorKind, source: "valhalla_osm", walkingDurationS: 0 });
+    }
     const pending = routePedestrian(this.valhallaUrl, { lon: from[0], lat: from[1] }, { lon: to[0], lat: to[1] }, { maxDistanceM, connectorKind, walkingSpeedKmh: SIRA_WALK.speedsKmh.normal, onValhallaTiming: (durationMs) => profiler.record("valhalla_total", durationMs) });
     this.pedestrianRouteCache.set(cacheKey, pending);
     void pending.then((result) => { if (!result) this.pedestrianRouteCache.delete(cacheKey); });

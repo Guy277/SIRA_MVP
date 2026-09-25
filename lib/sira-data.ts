@@ -70,8 +70,22 @@ export const PLACES: Place[] = [
   { id: "aéroport", name: "Aéroport Félix Houphouët-Boigny", detail: "Port-Bouët, Grand Abidjan", coordinates: [-3.9263, 5.2614] },
 ];
 
-export const REPORTS = [
-  { id: 1, type: "traffic", title: "Trafic dense", location: "Pont HKB", ago: "il y a 4 min", severity: "medium" },
-  { id: 2, type: "road", title: "Voie dégagée", location: "Boulevard de France", ago: "il y a 7 min", severity: "low" },
-  { id: 3, type: "incident", title: "Accident signalé", location: "Carrefour Indénié", ago: "il y a 12 min", severity: "high" },
-];
+export type ReportStatus = "reported" | "confirmed" | "reliable" | "expired" | "resolved";
+export type TrafficReport = {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  location: string;
+  lat: number;
+  lon: number;
+  severity: "low" | "medium" | "high";
+  status: ReportStatus;
+  confirmations: number;
+  contests: number;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+};
+export type ReportImpactItem = { report: TrafficReport; distanceM: number; delayMinutes: number; blocking: boolean; legIndex: number };
+export type ReportImpact = { affected: ReportImpactItem[]; unconfirmed: ReportImpactItem[]; delayMinutes: number; blocking: boolean; requiresReroute: boolean };

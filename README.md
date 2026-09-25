@@ -8,9 +8,10 @@ SIRA est un MVP de mobilité multimodale pour Abidjan. Il compare plusieurs mani
 - recherche de lieux via Photon, avec données locales de secours ;
 - géolocalisation via la Geolocation API du navigateur ;
 - recommandations Grand Abidjan calculées sur le réseau, sans zone prédéfinie ;
-- réglage du budget et de la préférence utilisateur ;
+- recherche à la manière de Bonjour RATP : départ, arrivée, « partir maintenant / à », et options repliées (profil, modes, marche maximale, budget optionnel) ;
 - détail étape par étape des modes et correspondances ;
-- signalements communautaires de démonstration ;
+- signalements communautaires réels : création géolocalisée, confirmation ou contestation par les autres usagers, cycle SIGNALÉ → CONFIRMÉ → FIABLE → EXPIRÉ / RÉSOLU ;
+- trajet en cours réactif : un incident confirmé sur l’itinéraire affiche un retard estimé et propose une alternative qui le contourne ;
 - assistant mobilité texte avec réponses liées au trajet ;
 - interface responsive desktop/mobile ;
 - API NestJS, passerelle Socket.IO et moteur SIRA-MORE FastAPI ;
@@ -142,8 +143,11 @@ La sélection d’itinéraire suit le pipeline SIRA-MORE Phase 1 : contraintes s
 - `GET /api/v1/mobility/search?q=plateau`
 - `POST /api/v1/mobility/journeys`
 - `GET /api/v1/reports`
-- `POST /api/v1/reports`
-- Socket.IO : namespace `/traffic`, événement `traffic.report.created`
+- `POST /api/v1/reports` (`type`, `lat`, `lon`, `location`, `description`, `clientId`)
+- `POST /api/v1/reports/:id/confirm` et `POST /api/v1/reports/:id/contest` (`clientId`)
+- `POST /api/v1/reports/impact` (`legs` du trajet) : incidents confirmés à moins de 150 m et retard estimé
+- `POST /api/v1/mobility/journeys` accepte `avoid: [{ lat, lon, radiusM }]` pour recalculer en contournant des zones
+- Socket.IO : namespace `/traffic`, événements `traffic.report.created` et `traffic.report.updated`
 - FastAPI : `POST /v1/recommendations/rank`
 - documentation FastAPI locale : `http://localhost:8000/docs`
 
@@ -171,7 +175,7 @@ Exemple de calcul :
 4. Comparer les alternatives conformes et non dominées proposées par SIRA-MORE.
 5. Sélectionner une option pour afficher son tracé et ses étapes.
 6. Ouvrir « Assistant SIRA » et demander : « Quel est le trajet le moins cher ? ».
-7. Consulter le trafic en direct et les signalements communautaires.
+7. Depuis un autre appareil ou navigateur, signaler un incident sur le trajet puis le faire confirmer par un second usager : le trajet en cours affiche le retard estimé et propose une alternative.
 8. Cliquer sur « Démarrer ce trajet » pour terminer le parcours de démonstration.
 
 ## Structure du dépôt
@@ -194,7 +198,9 @@ compose.yaml             orchestration Podman
 
 - le calcul d’itinéraire exige les services API et IA ; aucun trajet statique n’est présenté en secours ;
 - la couverture correspond aux 325 lignes historiques disponibles et à leurs raccordements ; elle n’implique pas encore une couverture exhaustive de chaque rue piétonne ;
-- les signalements sont en mémoire dans NestJS : l’écriture PostGIS sera reliée dans l’itération suivante ;
+- les signalements sont en mémoire dans NestJS (perdus au redémarrage) : l’écriture PostGIS sera reliée dans l’itération suivante ;
+- un usager est identifié par un identifiant anonyme stocké dans son navigateur, sans compte : les votes multiples restent possibles en changeant de navigateur ;
+- les retards liés aux incidents sont des valeurs-types par catégorie, affichées comme estimations ;
 - l’authentification, la modération avancée et la navigation GPS virage par virage ne sont pas encore destinées à la production ;
 - les données ouvertes datent de 2021 : le transport informel nécessite une collecte terrain et une validation communautaire avant diffusion réelle ;
 - le service public OpenFreeMap ne fournit pas de SLA : prévoir un hébergement de tuiles pour la production.

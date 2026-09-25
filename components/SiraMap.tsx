@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { FilterSpecification, LineLayerSpecification, Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
-import type { Journey, Place } from "@/lib/sira-data";
-import { ABIDJAN_CENTER, REPORTS } from "@/lib/sira-data";
+import type { Journey, Place, TrafficReport } from "@/lib/sira-data";
+import { ABIDJAN_CENTER } from "@/lib/sira-data";
 
 type Props = {
   origin: Place;
@@ -11,9 +11,12 @@ type Props = {
   journeys: Journey[];
   selectedJourneyId: string;
   userLocation?: [number, number] | null;
+  reports?: TrafficReport[];
 };
 
-export default function SiraMap({ origin, destination, journeys, selectedJourneyId, userLocation }: Props) {
+const statusLabel: Record<TrafficReport["status"], string> = { reported: "signalé, non confirmé", confirmed: "confirmé", reliable: "fiable", expired: "expiré", resolved: "résolu" };
+
+export default function SiraMap({ origin, destination, journeys, selectedJourneyId, userLocation, reports = [] }: Props) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<MapLibreMarker[]>([]);
@@ -70,13 +73,13 @@ export default function SiraMap({ origin, destination, journeys, selectedJourney
       marker(origin, "origin");
       marker(destination, "destination");
 
-      REPORTS.slice(0, 2).forEach((report, index) => {
-        const node = document.createElement("button");
-        node.className = `report-marker report-marker--${report.severity}`;
-        node.title = `${report.title} — ${report.location}`;
+      reports.forEach((report) => {
+        const node = document.createElement("div");
+        node.className = `report-marker report-marker--${report.severity} report-marker--${report.status}`;
+        node.title = `${report.title} — ${report.location} (${statusLabel[report.status]})`;
+        node.setAttribute("aria-label", node.title);
         node.textContent = "!";
-        const coordinates: [number, number] = index === 0 ? [-4.003, 5.328] : [-3.982, 5.345];
-        markersRef.current.push(new maplibregl.Marker({ element: node }).setLngLat(coordinates).addTo(map));
+        markersRef.current.push(new maplibregl.Marker({ element: node }).setLngLat([report.lon, report.lat]).addTo(map));
       });
 
       if (userLocation) {
@@ -98,7 +101,7 @@ export default function SiraMap({ origin, destination, journeys, selectedJourney
     });
 
     return () => { active = false; };
-  }, [origin, destination, journeys, selectedJourneyId, userLocation, mapStatus]);
+  }, [origin, destination, journeys, selectedJourneyId, userLocation, reports, mapStatus]);
 
   useEffect(() => {
     const map = mapRef.current;

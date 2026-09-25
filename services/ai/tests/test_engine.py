@@ -146,6 +146,25 @@ class OptimisationScenarios(unittest.TestCase):
         engine = recommend([candidate("a")])["engine"]
         self.assertEqual(engine["pipeline"], ["constraints", "pareto", "diversity", "scoring", "explanation"])
 
+    def test_31_min_walking_profile_prefers_short_walk(self):
+        routes = [candidate("short-walk", walk=2, ride=40, transfer=0, line="A"), candidate("long-walk", walk=15, ride=20, transfer=0, line="B")]
+        self.assertEqual(recommend(routes, preference="min_walking")["recommended_id"], "short-walk")
+        self.assertEqual(recommend(routes, preference="fast")["recommended_id"], "long-walk")
+
+    def test_32_min_transfers_profile_prefers_direct_route(self):
+        routes = [candidate("with-transfer", ride=20, transfer=2, line="A"), candidate("direct", ride=30, transfer=0, line="B")]
+        self.assertEqual(recommend(routes, preference="min_transfers")["recommended_id"], "direct")
+
+    def test_33_unlimited_budget_is_not_announced_as_reason(self):
+        reasons = recommend([candidate("a")], budget=999999)["journeys"][0]["reasons"]
+        self.assertFalse(any("budget" in reason.lower() for reason in reasons))
+
+    def test_34_fastest_and_cheapest_ids_are_exposed(self):
+        routes = [candidate("fast", price=1200, ride=14, line="F"), candidate("cheap", price=300, ride=42, line="C")]
+        result = recommend(routes)
+        self.assertEqual(result["fastest_id"], "fast")
+        self.assertEqual(result["cheapest_id"], "cheap")
+
 
 if __name__ == "__main__":
     unittest.main()

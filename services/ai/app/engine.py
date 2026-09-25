@@ -31,7 +31,12 @@ WEIGHTS = {
     "fast": {"duration": .51, "price": .10, "walking_distance_m": .08, "transfer_count": .07, "risk": .07, "uncertainty": .04, "unreliability": .08, "discomfort": .05},
     "cheap": {"duration": .14, "price": .51, "walking_distance_m": .10, "transfer_count": .05, "risk": .05, "uncertainty": .05, "unreliability": .05, "discomfort": .05},
     "comfort": {"duration": .17, "price": .11, "walking_distance_m": .11, "transfer_count": .10, "risk": .08, "uncertainty": .06, "unreliability": .12, "discomfort": .25},
+    "min_walking": {"duration": .20, "price": .14, "walking_distance_m": .40, "transfer_count": .08, "risk": .05, "uncertainty": .03, "unreliability": .05, "discomfort": .05},
+    "min_transfers": {"duration": .20, "price": .14, "walking_distance_m": .08, "transfer_count": .40, "risk": .05, "uncertainty": .03, "unreliability": .05, "discomfort": .05},
 }
+# The mobility service sends a very high budget when the user set no limit.
+UNLIMITED_BUDGET_THRESHOLD = 100_000
+UNKNOWN_PRICE_REFERENCE_FCFA = 1500
 PARETO_KEYS = ("duration", "price", "walking_distance_m", "transfer_count", "risk", "uncertainty", "unreliability", "discomfort")
 
 
@@ -137,7 +142,8 @@ def _price_for_comparison(journey: dict[str, Any], max_budget: int) -> float:
     """Return price for comparison, using conservative estimate for unknown prices."""
     price = journey.get("price")
     if price is None or journey.get("price_unknown"):
-        return float(max_budget)  # Conservative: assume max budget for unknown prices
+        # Conservative: assume max budget for unknown prices, capped when no budget was set.
+        return float(max_budget if max_budget < UNLIMITED_BUDGET_THRESHOLD else UNKNOWN_PRICE_REFERENCE_FCFA)
     return float(price)
 
 
@@ -203,7 +209,7 @@ def _normalised_cost(value: float, values: list[float]) -> float:
 
 
 def _reasons(journey: dict[str, Any], candidates: list[dict[str, Any]], constraints: dict[str, Any]) -> list[str]:
-    reasons = [f"Respecte le budget de {constraints['max_budget_fcfa']} FCFA"]
+    reasons = [f"Respecte le budget de {constraints['max_budget_fcfa']} FCFA"] if constraints["max_budget_fcfa"] < UNLIMITED_BUDGET_THRESHOLD else []
     if journey["duration"] == min(item["duration"] for item in candidates): reasons.append("Durée totale la plus courte")
     # Price comparison: only consider known prices
     known_prices = [item["price"] for item in candidates if item.get("price") is not None]
@@ -281,10 +287,13 @@ def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preferenc
         
         journey["profile_tags"] = tags[:2]
 
+    fastest = min(diverse, key=lambda item: item["duration"], default=None)
+    priced = [item for item in diverse if item.get("price") is not None]
+    cheapest = min(priced, key=lambda item: (item["price"], item["duration"]), default=None)
     return {
         "recommended_id": recommended_id,
-        "fastest_id": None,
-        "cheapest_id": None,
+        "fastest_id": fastest["id"] if fastest else None,
+        "cheapest_id": cheapest["id"] if cheapest else None,
         "journeys": diverse,
         "rejected": [{"id": item["id"], "constraint_violations": item["constraint_violations"]} for item in rejected],
         "engine": {"name": "SIRA-MORE", "version": "2.0-phase-1", "pipeline": ["constraints", "pareto", "diversity", "scoring", "explanation"], "preference": profile, "constraints": rules, "candidate_count": len(enriched), "feasible_count": len(feasible), "pareto_count": len(frontier), "returned_count": len(diverse)},
