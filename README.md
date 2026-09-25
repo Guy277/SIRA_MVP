@@ -24,20 +24,55 @@ SIRA est un MVP de mobilité multimodale pour Abidjan. Il compare plusieurs mani
 
 > Les géométries de transport proviennent du jeu ouvert data.gouv.ci / DigitalTransport4Africa, mis à jour en octobre 2021. Les durées, attentes, arrêts d’accès et tarifs restent des estimations MVP à valider avec les opérateurs.
 
+## Branche SIRA : le projet unifié
+
+La branche `SIRA` réunit le travail de l’équipe en une seule application :
+
+| Brique | Origine | Dossier |
+| --- | --- | --- |
+| Application mobile (maquette validée : logo, `#F26522`, écrans) | Banatou (branche `BANATOU`, historique conservé) | `mobile/` |
+| Moteur d’itinéraires, signalements, recalcul | Achille (branche `GLE`) | `services/api`, `services/ai` |
+| Comptes par SMS Orange, tarifs communautaires | Abraham (branche `AKA`, logique reprise sans ses secrets) | `services/community` |
+| Front web de secours (démos sur ordinateur) | branche `GLE` | `app/`, `components/` |
+
+Référence produit : **Bonjour RATP** (recherche, comparaison, détail), et **Waze** pour les signalements (deux touches, incidents sur la carte, « toujours là ? »). Les résultats sont rangés en trois catégories calculées par SIRA-MORE : **Coulé** (le moins cher, quelle que soit la combinaison), **Debout** (juste milieu, jamais un doublon des deux autres) et **Suspendu** (le confort).
+
+### Lancer l’application mobile
+
+1. Démarrer la stack : `npm run dev:stack` (API 4000, SIRA-MORE 8000, comptes et tarifs 8100).
+2. Dans `mobile/` : `npm install`, puis :
+   - sur ordinateur : `npm run web` → `http://localhost:8081` (carte MapLibre) ;
+   - sur téléphone : `npx expo start`, scanner le QR code avec **Expo Go**, téléphone et PC sur le même Wi-Fi. L’appli trouve seule l’adresse du PC ; sinon `EXPO_PUBLIC_API_URL=http://<IP du PC>:4000/api/v1`. Le pare-feu Windows doit autoriser le port 4000.
+3. Connexion : en développement (`SIRA_ENV=development`), le code SMS s’affiche à l’écran, sans passerelle SMS.
+
+### Golden Demo sur mobile
+
+Recherche → catégories Coulé / Debout / Suspendu → détail → « Démarrer l’itinéraire ». Pendant la navigation, un autre téléphone (ou un autre navigateur) signale un incident sur le trajet : il apparaît en direct avec « toujours là ? ». Une fois confirmé, la navigation affiche le retard estimé et propose une alternative qui évite **tous** les incidents confirmés.
+
+### Sécurité et données personnelles
+
+- Aucun secret dans le dépôt : `.env` n’est pas versionné, `.env.example` ne contient que des noms de variables. `COMMUNITY_JWT_SECRET` est obligatoire en production et le mode démo SMS y est refusé.
+- Les branches `AKA` (`.env`, `app/config.py`) et `BANATOU` (profil) contiennent dans leur historique des identifiants Orange et Supabase et des données personnelles. Le dépôt étant public, **les clés doivent être régénérées** : les retirer d’un commit ne suffit pas.
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-  U[Utilisateur] --> N[Nginx]
-  N --> W[Next.js / React]
-  N --> A[NestJS API]
+  U[Voyageur] --> MOB[Appli mobile Expo]
+  U --> N[Nginx]
+  N --> W[Front web Next.js]
+  MOB --> A[NestJS API]
+  N --> A
   A --> V[Valhalla]
   A --> P[(PostgreSQL + PostGIS)]
   A --> C[(Valkey)]
-  A --> I[FastAPI SIRA]
+  A --> I[FastAPI SIRA-MORE]
+  A --> CO[FastAPI comptes et tarifs]
+  CO --> P
+  CO --> OR[API SMS Orange]
   A --> D[325 lignes data.gouv.ci]
   A <--> S[Socket.IO]
-  W --> M[MapLibre + OpenFreeMap]
+  MOB --> M[MapLibre / OpenStreetMap]
   A --> H[Photon]
 ```
 

@@ -1,50 +1,34 @@
-# Welcome to your Expo app 👋
+# SIRA — application mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Application Expo / React Native de SIRA (maquette validée : Banatou). Elle affiche les trajets calculés par le moteur SIRA ; aucun trajet n’est écrit en dur.
 
-## Get started
+## Lancer
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Prérequis : la stack SIRA démarrée à la racine du dépôt (`npm run dev:stack`).
 
 ```bash
-npm run reset-project
+npm install
+npm run web          # sur ordinateur : http://localhost:8081
+npx expo start       # sur téléphone : scanner le QR code avec Expo Go
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Adresse de l’API : déduite automatiquement de la machine qui fait tourner Expo (même Wi-Fi). Pour la forcer : `EXPO_PUBLIC_API_URL=http://192.168.x.x:4000/api/v1`.
 
-## Learn more
+## Organisation
 
-To learn more about developing your project with Expo, look at the following resources:
+| Dossier | Rôle |
+| --- | --- |
+| `app/` | écrans (expo-router) |
+| `lib/sira-api.ts` | seul point d’accès à l’API (trajets, signalements, comptes, tarifs) |
+| `lib/journey-store.ts` | recherche, trajet choisi et trajet suivi, partagés entre écrans |
+| `lib/journey-format.ts` | textes, heures et prix affichés (français clair, pas de jargon) |
+| `lib/places.ts` | coordonnées des lieux (recherche, raccourcis, GPS) |
+| `lib/reports.ts` | signalements en direct (Socket.IO) |
+| `lib/session.ts`, `lib/use-otp-login.ts` | connexion par code SMS, session sécurisée |
+| `components/osm-map-view.tsx` / `.web.tsx` | carte native / carte web MapLibre |
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Reste à brancher
 
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- favoris, historique, notifications et réglages : encore locaux ou fictifs ;
+- assistant vocal : la bulle « SIRA VOCAL » affiche le texte, la voix viendra ensuite ;
+- Yango et moto : aucune donnée, le filtre est marqué « bientôt ».
