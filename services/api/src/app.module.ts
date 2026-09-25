@@ -6,9 +6,10 @@ import { ReportsController } from "./reports/reports.controller";
 import { ReportsGateway } from "./reports/reports.gateway";
 import { ReportsService } from "./reports/reports.service";
 import { TransportRepository } from "./mobility/transport.repository";
+import { CommunityController } from "./community/community.controller";
 
 @Module({
-  controllers: [HealthController, MobilityController, ReportsController],
+  controllers: [HealthController, MobilityController, ReportsController, CommunityController],
   providers: [MobilityService, TransportRepository, ReportsGateway, ReportsService],
 })
 export class AppModule {}

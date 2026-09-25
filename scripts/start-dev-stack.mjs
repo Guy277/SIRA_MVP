@@ -46,6 +46,12 @@ if (!canRun(venvPython, ["-c", "import fastapi, uvicorn, pydantic"])) {
   run(venvPython, ["-m", "pip", "install", "-r", join(root, "services", "ai", "requirements.txt")]);
 }
 
+// Accounts and community fares (built from the AKA branch) share the venv.
+if (!canRun(venvPython, ["-c", "import sqlalchemy, jwt, httpx"])) {
+  console.log("[SIRA] Installation des dépendances du service communautaire…");
+  run(venvPython, ["-m", "pip", "install", "-r", join(root, "services", "community", "requirements.txt")]);
+}
+
 if (!existsSync(join(root, "services", "api", "node_modules"))) {
   console.log("[SIRA] Installation des dépendances de l'API…");
   run(npm, ["--prefix", "services/api", "install"]);
@@ -82,9 +88,14 @@ start("moteur SIRA-MORE", venvPython, [
   "-m", "uvicorn", "services.ai.app.main:app", "--host", "127.0.0.1", "--port", "8000",
 ]);
 
+start("service communautaire", venvPython, [
+  "-m", "uvicorn", "services.community.app.main:app", "--host", "127.0.0.1", "--port", "8100",
+], { SIRA_ENV: "development" });
+
 const apiEnv = {
   PORT: "4000",
   AI_URL: "http://127.0.0.1:8000",
+  COMMUNITY_URL: "http://127.0.0.1:8100",
   VALHALLA_URL: routingUrl,
   OSRM_URL: process.env.OSRM_URL || (smokeTest ? "http://127.0.0.1:9" : "https://router.project-osrm.org"),
   SIRA_DATA_ROOT: join(root, "data"),
@@ -131,8 +142,10 @@ try {
   const [aiHealth, apiHealth] = await Promise.all([
     waitForJson("http://127.0.0.1:8000/health"),
     waitForJson("http://127.0.0.1:4000/api/v1/health"),
+    waitForJson("http://127.0.0.1:8100/health"),
   ]);
   console.log(`[SIRA] Moteur prêt : ${aiHealth.engine}`);
+  console.log("[SIRA] Comptes et tarifs communautaires prêts");
   console.log(`[SIRA] API prête : ${apiHealth.service}`);
 
   if (!smokeTest) {
@@ -156,7 +169,7 @@ try {
     });
     if (!response.ok) throw new Error(`Le calcul bout en bout a échoué (${response.status}).`);
     const result = await response.json();
-    if (result?.engine?.name !== "SIRA-MORE" || result?.source !== "sira-more-v1.1-phase-1" || !result?.journeys?.length) {
+    if (result?.engine?.name !== "SIRA-MORE" || result?.source !== "sira-more-v2.0" || !result?.journeys?.length) {
       throw new Error("La réponse ne prouve pas le passage par SIRA-MORE.");
     }
     console.log(`[SIRA] Test bout en bout réussi : ${result.journeys.length} trajet(s), recommandation ${result.recommended_id}.`);

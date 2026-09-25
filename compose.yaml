@@ -31,6 +31,7 @@ services:
       SIRA_JOURNEY_PROFILING: "true"
       PHOTON_URL: https://photon.komoot.io
       AI_URL: http://ai:8000
+      COMMUNITY_URL: http://community:8100
       SIRA_DATA_ROOT: /data
       SIRA_GRAPH_WORKER: "true"
       CORS_ORIGIN: http://localhost:8080
@@ -48,6 +49,24 @@ services:
       context: ./services/ai
       dockerfile: Containerfile
     expose: ["8000"]
+    restart: unless-stopped
+
+  # Accounts (OTP Orange) and community fares, from the AKA branch.
+  # Secrets only come from the environment (see .env.example).
+  community:
+    build:
+      context: ./services/community
+      dockerfile: Containerfile
+    environment:
+      SIRA_ENV: ${SIRA_ENV:-development}
+      COMMUNITY_DATABASE_URL: postgresql+psycopg://sira:sira_dev_password@postgres:5432/sira
+      COMMUNITY_JWT_SECRET: ${COMMUNITY_JWT_SECRET:-}
+      ORANGE_CLIENT_ID: ${ORANGE_CLIENT_ID:-}
+      ORANGE_CLIENT_SECRET: ${ORANGE_CLIENT_SECRET:-}
+      ORANGE_SENDER_ADDRESS: ${ORANGE_SENDER_ADDRESS:-}
+    expose: ["8100"]
+    depends_on:
+      postgres: { condition: service_healthy }
     restart: unless-stopped
 
   postgres:

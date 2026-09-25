@@ -51,3 +51,6 @@ next-env.d.ts
 data/
 *.zip
 *.apk
+
+# local databases (community service in development)
+*.db
