@@ -17,6 +17,7 @@ interface OsmMapViewProps {
   destination?: Coordinates | null;
   routeCoordinates?: { latitude: number; longitude: number }[];
   reports?: TrafficReport[];
+  onReportPress?: (report: TrafficReport) => void;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
@@ -43,6 +44,7 @@ export function OsmMapView({
   destination,
   routeCoordinates: activeRoute = [],
   reports = [],
+  onReportPress,
   style,
   showIntermediateStations = false,
 }: OsmMapViewProps) {
@@ -121,6 +123,7 @@ export function OsmMapView({
             title={report.title}
             description={`${report.location} · ${report.status === 'reported' ? 'à confirmer' : 'confirmé'}`}
             anchor={{ x: 0.5, y: 0.5 }}
+            onPress={() => onReportPress?.(report)}
           >
             <View style={[styles.reportMarker, report.status === 'reported' && styles.reportMarkerPending]}>
               <Ionicons name="warning" size={12} color="#FFFFFF" />

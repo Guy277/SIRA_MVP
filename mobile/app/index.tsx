@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Dimensions, StyleSheet } from 'react-native';
@@ -28,12 +28,16 @@ const LOGO_TOP = (338 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 
 export default function SplashScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
 
   // Animation values
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.92);
 
   const navigateToNextScreen = () => {
+    // Only leave the splash if it is still the screen shown: deep links on web
+    // mount it underneath the opened page, which must not be replaced.
+    if (!navigation.isFocused()) return;
     if (isUserAuthenticated()) {
       router.replace('/(tabs)');
     } else {

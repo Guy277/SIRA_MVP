@@ -16,140 +16,58 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
+import { notify } from '@/lib/notify';
+import { voteReport, type TrafficReport } from '@/lib/sira-api';
+import { REPORT_STATUS_LABEL, REPORT_STYLE, clientId, timeAgo, upsertReport, useLiveReports } from '@/lib/reports';
+import { formatClock } from '@/lib/journey-format';
 
 const { width, height } = Dimensions.get('window');
 
-export interface TrafficIncident {
-  id: string;
-  type: 'accident' | 'embouteillage' | 'route_bloquee' | 'inondation' | 'autre';
-  title: string;
-  location: string;
-  severity: 'Fluide' | 'Modéré' | 'Dense' | 'Très dense';
-  timeReported: string;
-  description: string;
-  topPercent: number;
-  leftPercent: number;
-}
-
-const MOCK_INCIDENTS: TrafficIncident[] = [
-  {
-    id: '1',
-    type: 'accident',
-    title: 'Accident entre 2 véhicules',
-    location: 'Voie Express Adjamé - Cocody',
-    severity: 'Très dense',
-    timeReported: 'Il y a 10 min',
-    description: 'Voie de gauche bloquée. Fort ralentissement vers l’Indénié.',
-    topPercent: 32,
-    leftPercent: 68,
-  },
-  {
-    id: '2',
-    type: 'embouteillage',
-    title: 'Ralentissement important',
-    location: 'Carrefour Agban / Adjamé',
-    severity: 'Dense',
-    timeReported: 'Il y a 15 min',
-    description: 'Bouchon habituel des heures de pointe. Avancement au pas.',
-    topPercent: 44,
-    leftPercent: 30,
-  },
-  {
-    id: '3',
-    type: 'accident',
-    title: 'Accident matériel',
-    location: 'Pont Bédié - Sortie Marcory',
-    severity: 'Très dense',
-    timeReported: 'Il y a 5 min',
-    description: 'Véhicule en panne sur le pont. Intervention en cours.',
-    topPercent: 68,
-    leftPercent: 78,
-  },
-  {
-    id: '4',
-    type: 'route_bloquee',
-    title: 'Travaux de voirie',
-    location: 'Sortie Autoroute du Nord (Abobo)',
-    severity: 'Très dense',
-    timeReported: 'Il y a 45 min',
-    description: 'Voie neutralisée pour réfection de la chaussée.',
-    topPercent: 22,
-    leftPercent: 88,
-  },
-  {
-    id: '5',
-    type: 'inondation',
-    title: 'Accumulation d’eau de pluie',
-    location: 'Zone Lagoon Abobo Samaké',
-    severity: 'Modéré',
-    timeReported: 'Il y a 30 min',
-    description: 'Chaussée glissante et grande flaque d’eau.',
-    topPercent: 12,
-    leftPercent: 6,
-  },
-  {
-    id: '6',
-    type: 'embouteillage',
-    title: 'Trafic très ralenti',
-    location: 'Boulevard de la République - Plateau',
-    severity: 'Dense',
-    timeReported: 'Il y a 8 min',
-    description: 'Affluence élevée aux abords de la cité administrative.',
-    topPercent: 57,
-    leftPercent: 48,
-  },
-];
+// Bottom panel categories filter the live map (maquette id -> API types).
+const PANEL_TYPES: Record<string, string[]> = {
+  accident: ['accident'],
+  embouteillage: ['traffic'],
+  route_bloquee: ['blocked', 'works'],
+  inondation: ['flood'],
+  autre: ['road_damage', 'breakdown', 'transport', 'other'],
+};
 
 export default function TrafficScreen() {
   const router = useRouter();
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIncident, setSelectedIncident] = useState<TrafficIncident | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [panelFilter, setPanelFilter] = useState<string | null>(null);
+  const [voting, setVoting] = useState(false);
+  const { reports, updatedAt } = useLiveReports();
+  const selectedIncident = reports.find((report) => report.id === selectedId) ?? null;
 
   const filteredIncidents = useMemo(() => {
-    if (!searchQuery.trim()) return MOCK_INCIDENTS;
-    return MOCK_INCIDENTS.filter(
-      (item) =>
-        item.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.title.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [searchQuery]);
+    const query = searchQuery.trim().toLowerCase();
+    return reports.filter((item) =>
+      (!panelFilter || PANEL_TYPES[panelFilter].includes(item.type))
+      && (!query || item.location.toLowerCase().includes(query) || item.title.toLowerCase().includes(query)));
+  }, [reports, searchQuery, panelFilter]);
 
   const handleCategoryPress = (categoryType: string) => {
-    router.push({
-      pathname: '/traffic-detail',
-      params: { category: categoryType },
-    });
+    setPanelFilter((current) => current === categoryType ? null : categoryType);
   };
 
-  const getMarkerColor = (type: string) => {
-    switch (type) {
-      case 'accident':
-        return '#EF4444';
-      case 'embouteillage':
-        return '#F97316';
-      case 'route_bloquee':
-        return '#DC2626';
-      case 'inondation':
-        return '#0284C7';
-      default:
-        return '#F26522';
-    }
-  };
+  const getMarkerColor = (type: string) => (REPORT_STYLE[type] ?? REPORT_STYLE.other).color;
+  const getMarkerIcon = (type: string) => (REPORT_STYLE[type] ?? REPORT_STYLE.other).icon;
 
-  const getMarkerIcon = (type: string) => {
-    switch (type) {
-      case 'accident':
-        return 'car-sport';
-      case 'embouteillage':
-        return 'car';
-      case 'route_bloquee':
-        return 'ban';
-      case 'inondation':
-        return 'water';
-      default:
-        return 'alert-circle';
+  // Waze-style confirmation by other users.
+  const vote = async (report: TrafficReport, kind: 'confirm' | 'contest') => {
+    setVoting(true);
+    try {
+      upsertReport(await voteReport(report.id, kind, clientId()));
+      setSelectedId(null);
+      notify('Merci', kind === 'confirm' ? 'Confirmation enregistrée.' : 'Votre avis a été enregistré.');
+    } catch (error) {
+      notify('Vote impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+    } finally {
+      setVoting(false);
     }
   };
 
@@ -159,32 +77,28 @@ export default function TrafficScreen() {
 
       {/* Full Map View */}
       <View style={styles.mapWrapper}>
-        <OsmMapView style={styles.mapImage} />
+        <OsmMapView style={styles.mapImage} reports={filteredIncidents} onReportPress={(report) => setSelectedId(report.id)} />
 
         {/* Traffic Overlay Legend (Top Left) */}
         <View style={styles.legendCard}>
           <View style={styles.legendRow}>
-            <View style={[styles.colorDot, { backgroundColor: '#22C55E' }]} />
-            <Text style={styles.legendText}>Fluide</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.colorDot, { backgroundColor: '#EAB308' }]} />
-            <Text style={styles.legendText}>Modéré</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.colorDot, { backgroundColor: '#F97316' }]} />
-            <Text style={styles.legendText}>Dense</Text>
+            <View style={[styles.colorDot, { backgroundColor: '#F59E0B' }]} />
+            <Text style={styles.legendText}>À confirmer</Text>
           </View>
           <View style={styles.legendRow}>
             <View style={[styles.colorDot, { backgroundColor: '#EF4444' }]} />
-            <Text style={styles.legendText}>Très dense</Text>
+            <Text style={styles.legendText}>Confirmé</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.colorDot, { backgroundColor: '#991B1B' }]} />
+            <Text style={styles.legendText}>Fiable</Text>
           </View>
         </View>
 
         {/* Last Updated Badge (Top Right) */}
         <View style={styles.updatedBadge}>
           <View style={styles.greenPulseDot} />
-          <Text style={styles.updatedText}>Mis à jour il y a 2 min.</Text>
+          <Text style={styles.updatedText}>{updatedAt ? `${filteredIncidents.length} signalement(s) · ${formatClock(updatedAt)}` : 'Connexion…'}</Text>
         </View>
 
         {/* Zoom Controls */}
@@ -206,29 +120,6 @@ export default function TrafficScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Interactive Map Incident Markers */}
-        {filteredIncidents.map((incident) => {
-          const bgColor = getMarkerColor(incident.type);
-          const iconName = getMarkerIcon(incident.type);
-
-          return (
-            <TouchableOpacity
-              key={incident.id}
-              style={[
-                styles.mapMarkerBadge,
-                {
-                  top: `${incident.topPercent}%`,
-                  left: `${incident.leftPercent}%`,
-                  backgroundColor: bgColor,
-                },
-              ]}
-              onPress={() => setSelectedIncident(incident)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name={iconName as any} size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          );
-        })}
       </View>
 
       {/* Header Overlay Bar */}
@@ -317,7 +208,7 @@ export default function TrafficScreen() {
             onPress={() => handleCategoryPress('accident')}
             activeOpacity={0.75}
           >
-            <View style={styles.categoryIconCircle}>
+            <View style={[styles.categoryIconCircle, panelFilter === 'accident' && styles.categoryIconCircleActive]}>
               <Ionicons name="car-sport" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
@@ -330,7 +221,7 @@ export default function TrafficScreen() {
             onPress={() => handleCategoryPress('embouteillage')}
             activeOpacity={0.75}
           >
-            <View style={styles.categoryIconCircle}>
+            <View style={[styles.categoryIconCircle, panelFilter === 'embouteillage' && styles.categoryIconCircleActive]}>
               <Ionicons name="car" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
@@ -343,7 +234,7 @@ export default function TrafficScreen() {
             onPress={() => handleCategoryPress('route_bloquee')}
             activeOpacity={0.75}
           >
-            <View style={styles.categoryIconCircle}>
+            <View style={[styles.categoryIconCircle, panelFilter === 'route_bloquee' && styles.categoryIconCircleActive]}>
               <Ionicons name="construct" size={18} color="#FFFFFF" />
             </View>
             <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
@@ -356,7 +247,7 @@ export default function TrafficScreen() {
             onPress={() => handleCategoryPress('inondation')}
             activeOpacity={0.75}
           >
-            <View style={styles.categoryIconCircle}>
+            <View style={[styles.categoryIconCircle, panelFilter === 'inondation' && styles.categoryIconCircleActive]}>
               <Ionicons name="water" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
@@ -369,7 +260,7 @@ export default function TrafficScreen() {
             onPress={() => handleCategoryPress('autre')}
             activeOpacity={0.75}
           >
-            <View style={styles.categoryIconCircle}>
+            <View style={[styles.categoryIconCircle, panelFilter === 'autre' && styles.categoryIconCircleActive]}>
               <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
             </View>
             <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
@@ -384,12 +275,12 @@ export default function TrafficScreen() {
         visible={!!selectedIncident}
         transparent
         animationType="slide"
-        onRequestClose={() => setSelectedIncident(null)}
+        onRequestClose={() => setSelectedId(null)}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setSelectedIncident(null)}
+          onPress={() => setSelectedId(null)}
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
@@ -418,44 +309,43 @@ export default function TrafficScreen() {
 
                 <View style={styles.modalInfoBox}>
                   <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Gravité :</Text>
+                    <Text style={styles.modalInfoLabel}>Statut :</Text>
                     <Text
                       style={[
                         styles.modalInfoValue,
                         { color: getMarkerColor(selectedIncident.type) },
                       ]}
                     >
-                      {selectedIncident.severity}
+                      {REPORT_STATUS_LABEL[selectedIncident.status]} · {selectedIncident.confirmations} confirmation(s)
                     </Text>
                   </View>
 
                   <View style={styles.modalInfoRow}>
                     <Text style={styles.modalInfoLabel}>Signalé :</Text>
-                    <Text style={styles.modalInfoValue}>{selectedIncident.timeReported}</Text>
+                    <Text style={styles.modalInfoValue}>{timeAgo(selectedIncident.createdAt)}</Text>
                   </View>
 
-                  <Text style={styles.modalDescription}>{selectedIncident.description}</Text>
+                  {selectedIncident.description ? <Text style={styles.modalDescription}>{selectedIncident.description}</Text> : null}
                 </View>
 
                 <View style={styles.modalActionsRow}>
                   <TouchableOpacity
                     style={styles.modalPrimaryButton}
-                    onPress={() => {
-                      setSelectedIncident(null);
-                      router.push('/notification-accident-detail');
-                    }}
+                    onPress={() => vote(selectedIncident, 'confirm')}
+                    disabled={voting}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="navigate" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.modalPrimaryButtonText}>Voir le détail</Text>
+                    <Ionicons name="thumbs-up" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.modalPrimaryButtonText}>Toujours là</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.modalCloseButton}
-                    onPress={() => setSelectedIncident(null)}
+                    onPress={() => vote(selectedIncident, 'contest')}
+                    disabled={voting}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.modalCloseButtonText}>Fermer</Text>
+                    <Text style={styles.modalCloseButtonText}>Plus là</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -678,6 +568,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flex: 1,
     paddingHorizontal: 2,
+  },
+  categoryIconCircleActive: {
+    backgroundColor: '#F26522',
   },
   categoryIconCircle: {
     width: 42,

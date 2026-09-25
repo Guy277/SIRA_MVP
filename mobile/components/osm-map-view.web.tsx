@@ -14,6 +14,7 @@ interface OsmMapViewProps {
   destination?: Coordinates | null;
   routeCoordinates?: { latitude: number; longitude: number }[];
   reports?: TrafficReport[];
+  onReportPress?: (report: TrafficReport) => void;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
@@ -27,7 +28,7 @@ function markerElement(className: string, text = '') {
   return node;
 }
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], reports = [], style }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], reports = [], onReportPress, style }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -65,6 +66,7 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       reports.forEach((report) => {
         const node = markerElement(`sira-map-report${report.status === 'reported' ? ' sira-map-report--pending' : ''}`, '!');
         node.title = `${report.title} — ${report.location}`;
+        if (onReportPress) { node.style.cursor = 'pointer'; node.addEventListener('click', () => onReportPress(report)); }
         add({ latitude: report.lat, longitude: report.lon }, node);
       });
 
@@ -79,7 +81,7 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       }
     });
     return () => { active = false; };
-  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, reports]);
+  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, reports, onReportPress]);
 
   return (
     <View style={[styles.container, style]}>

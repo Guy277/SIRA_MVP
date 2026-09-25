@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   Platform,
@@ -12,100 +12,147 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OsmMapView } from '@/components/osm-map-view';
+import { notify } from '@/lib/notify';
+import { journeyStore, useJourneyStore } from '@/lib/journey-store';
+import { fetchJourneys, journeyImpact, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
+import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import { clientId, upsertReport, useLiveReports } from '@/lib/reports';
+import { locateUser } from '@/lib/places';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
-interface NavigationStep {
-  id: number;
-  instruction: string;
-  subtext: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  modeColor: string;
-  distanceRemaining: string;
-  timeRemaining: string;
-}
+const MODE_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
+  walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus', woro: 'car-sport', taxi: 'car', boat: 'boat',
+};
+const MODE_COLORS: Record<LegMode, string> = {
+  walk: '#10B981', wait: '#64748B', transfer: '#7C3AED', sotra: '#F26522', gbaka: '#F26522', woro: '#1E6091', taxi: '#1E6091', boat: '#0284C7',
+};
 
 export default function NavigationActiveScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ destination?: string }>();
-
-  const targetDestination = params.destination || 'Orange Digital Center';
-
+  const { activeJourney: journey, search } = useJourneyStore();
+  const { reports } = useLiveReports();
+  const [startedAt] = useState(() => new Date());
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isVoiceMuted, setIsVoiceMuted] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [impact, setImpact] = useState<{ journeyId: string; value: ReportImpact } | null>(null);
+  const [alternative, setAlternative] = useState<ApiJourney | null>(null);
+  const [rerouting, setRerouting] = useState(false);
+  // Incidents the traveller chose to drive through, and reports already
+  // answered in the "toujours là ?" prompt.
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [answered, setAnswered] = useState<string[]>([]);
 
-  const steps: NavigationStep[] = [
-    {
-      id: 1,
-      instruction: "Dans 150m, prenez la rue à droite vers la Gare d'Adjamé",
-      subtext: "Étape 1/4 • Marche à pied",
-      icon: "walk",
-      modeColor: "#10B981",
-      distanceRemaining: "450 m",
-      timeRemaining: "4 min",
-    },
-    {
-      id: 2,
-      instruction: "Montez dans le Bus 22 à la Gare d'Adjamé",
-      subtext: "Étape 2/4 • Bus SUTRA",
-      icon: "bus",
-      modeColor: "#F26522",
-      distanceRemaining: "12,5 km",
-      timeRemaining: "20 min",
-    },
-    {
-      id: 3,
-      instruction: "Prenez un taxi au Rond-Point de la Riviera",
-      subtext: "Étape 3/4 • Taxi Compteur",
-      icon: "car",
-      modeColor: "#1E6091",
-      distanceRemaining: "3,2 km",
-      timeRemaining: "7 min",
-    },
-    {
-      id: 4,
-      instruction: "Vous êtes arrivé à votre destination !",
-      subtext: "Étape 4/4 • Arrivée",
-      icon: "location",
-      modeColor: "#FF4500",
-      distanceRemaining: "0 m",
-      timeRemaining: "0 min",
-    },
-  ];
+  const targetDestination = search?.arrival.name ?? 'Destination';
+  const steps = useMemo(() => journey ? timeline(journey, startedAt) : [], [journey, startedAt]);
+  const current = steps[Math.min(currentStepIndex, Math.max(steps.length - 1, 0))];
 
-  const currentStep = steps[currentStepIndex];
-
-  // Auto advance steps preview timer for simulation
+  // Re-evaluates confirmed incidents on this journey whenever reports change.
+  const reportsKey = reports.map((report) => `${report.id}:${report.status}`).join('|');
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentStepIndex((prev) => (prev < steps.length - 1 ? prev + 1 : prev));
-    }, 12000);
-    return () => clearInterval(timer);
-  }, []);
+    if (!journey) return;
+    let cancelled = false;
+    journeyImpact(journey.legs)
+      .then((value) => { if (!cancelled) setImpact({ journeyId: journey.id, value }); })
+      .catch(() => { /* signalements indisponibles : pas d'alerte */ });
+    return () => { cancelled = true; };
+  }, [journey, reportsKey]);
+
+  const currentImpact = impact?.journeyId === journey?.id ? impact?.value : null;
+  const affected = (currentImpact?.affected ?? []).filter((item) => !dismissed.includes(item.report.id));
+  const delay = affected.reduce((sum, item) => sum + item.delayMinutes, 0);
+  // Waze-style prompt for an unconfirmed report on the way.
+  const toConfirm = (currentImpact?.unconfirmed ?? []).find((item) => !answered.includes(item.report.id));
+
+  const eta = journey ? new Date(startedAt.getTime() + (journey.duration + delay) * 60_000) : null;
+
+  const findAlternative = async () => {
+    if (!search || !journey) return;
+    setRerouting(true);
+    try {
+      // Reroute from where the traveller is now when GPS allows it.
+      const here = await locateUser().catch(() => null);
+      const origin = here ? { ...here, name: 'Ma position actuelle' } : search.departure;
+      const data = await fetchJourneys({
+        origin, destination: search.arrival, departureAt: new Date(),
+        // Every confirmed incident is avoided, not only the one on this route:
+        // otherwise the detour can lead straight into an earlier incident.
+        avoid: reports
+          .filter((report) => report.status === 'confirmed' || report.status === 'reliable')
+          .slice(0, 10)
+          .map((report) => ({ lat: report.lat, lon: report.lon, radiusM: ['flood', 'blocked'].includes(report.type) ? 300 : 200 })),
+      });
+      const best = data.journeys.find((item) => item.recommended) ?? data.journeys[0];
+      if (best) setAlternative({ ...best, id: `${best.id}~${Date.now().toString(36)}` });
+      else notify('Pas d’alternative', 'Aucun trajet ne contourne l’incident. Votre trajet actuel reste le meilleur choix.');
+    } catch (error) {
+      notify('Recalcul impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+    } finally {
+      setRerouting(false);
+    }
+  };
+
+  const adoptAlternative = () => {
+    if (!alternative) return;
+    journeyStore.replaceActive(alternative);
+    setAlternative(null);
+    setCurrentStepIndex(0);
+  };
+
+  const answerStillThere = async (reportId: string, kind: 'confirm' | 'contest') => {
+    setAnswered((ids) => [...ids, reportId]);
+    try { upsertReport(await voteReport(reportId, kind, clientId())); } catch { /* déjà voté ou hors ligne */ }
+  };
+
+  const voiceText = affected.length
+    ? `${affected[0].report.title} confirmé sur votre trajet : environ ${delay} min de retard.`
+    : current ? `${stepTitle(current.leg)}. ${stepDescription(current.leg)}.` : 'Choisissez un trajet pour démarrer le guidage.';
+
+  if (!journey || !current) {
+    return (
+      <View style={[styles.container, styles.emptyContainer]}>
+        <StatusBar style="light" />
+        <Ionicons name="navigate-circle" size={54} color="#F26522" />
+        <Text style={styles.exitModalTitle}>Aucun trajet en cours</Text>
+        <TouchableOpacity style={styles.confirmExitBtn} onPress={() => router.back()} activeOpacity={0.8}>
+          <Text style={styles.confirmExitText}>Retour</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const currentLeg = current.leg;
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Full Screen 3D Live Map View */}
-      <Image
-        source={require('@/assets/images/city-route-3d-bg.jpg')}
+      {/* Live map of the journey and community reports */}
+      <OsmMapView
         style={styles.fullMapImage}
-        contentFit="cover"
+        origin={search?.departure}
+        destination={search?.arrival}
+        routeCoordinates={journeyPath(alternative ?? journey)}
+        reports={reports}
       />
 
       {/* Overlay Safe Area */}
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* Top Turn-by-Turn Instruction Banner (HUD) */}
-        <View style={styles.topHudCard}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']} pointerEvents="box-none">
+        {/* Top instruction banner: tap to move to the next step */}
+        <TouchableOpacity
+          style={styles.topHudCard}
+          activeOpacity={0.9}
+          onPress={() => setCurrentStepIndex((index) => Math.min(index + 1, steps.length - 1))}
+        >
           <View style={styles.hudHeaderRow}>
-            <View style={[styles.directionIconCircle, { backgroundColor: currentStep.modeColor }]}>
-              <Ionicons name={currentStep.icon} size={26} color="#FFFFFF" />
+            <View style={[styles.directionIconCircle, { backgroundColor: MODE_COLORS[currentLeg.mode] }]}>
+              <Ionicons name={MODE_ICONS[currentLeg.mode]} size={26} color="#FFFFFF" />
             </View>
             <View style={styles.hudTextCol}>
-              <Text style={styles.hudInstructionText}>{currentStep.instruction}</Text>
-              <Text style={styles.hudSubtext}>{currentStep.subtext}</Text>
+              <Text style={styles.hudInstructionText}>{stepTitle(currentLeg)}</Text>
+              <Text style={styles.hudSubtext}>Étape {currentStepIndex + 1}/{steps.length} • {stepDescription(currentLeg)}</Text>
             </View>
             <TouchableOpacity
               onPress={() => setShowExitConfirm(true)}
@@ -116,18 +163,23 @@ export default function NavigationActiveScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Quick Distance & Time Countdown Bar inside Top HUD */}
           <View style={styles.hudBottomRow}>
             <View style={styles.hudMetricBadge}>
-              <Ionicons name="navigate-outline" size={14} color="#FFFFFF" />
-              <Text style={styles.hudMetricText}>Reste : {currentStep.distanceRemaining}</Text>
-            </View>
-            <View style={styles.hudMetricBadge}>
               <Ionicons name="time-outline" size={14} color="#FFFFFF" />
-              <Text style={styles.hudMetricText}>Durée : {currentStep.timeRemaining}</Text>
+              <Text style={styles.hudMetricText}>{formatClock(current.start)} → {formatClock(current.end)}</Text>
+            </View>
+            {isVehicle(currentLeg) && (
+              <View style={styles.hudMetricBadge}>
+                <Ionicons name="cash-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.hudMetricText}>{formatPrice(currentLeg.price)}</Text>
+              </View>
+            )}
+            <View style={styles.hudMetricBadge}>
+              <Ionicons name="play-forward-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.hudMetricText}>Touchez : étape suivante</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Map Side Quick Action Buttons (Right Side) */}
         <View style={styles.mapSideControls}>
@@ -143,38 +195,88 @@ export default function NavigationActiveScreen() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8}>
-            <Ionicons name="locate" size={22} color="#1E6091" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8}>
-            <Ionicons name="layers" size={22} color="#334155" />
+          <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={() => router.push('/report-event')}>
+            <Ionicons name="warning" size={22} color="#EF4444" />
           </TouchableOpacity>
         </View>
 
-        {/* Traffic Alert Callout on Map */}
-        <View style={styles.liveTrafficBadge}>
-          <View style={styles.liveDotPulse} />
-          <Text style={styles.liveTrafficText}>Trafic fluide sur votre axe</Text>
+        {/* Journey traffic status from confirmed community reports */}
+        <View style={[styles.liveTrafficBadge, affected.length > 0 && styles.liveTrafficBadgeAlert]}>
+          <View style={[styles.liveDotPulse, affected.length > 0 && styles.liveDotAlert]} />
+          <Text style={styles.liveTrafficText}>
+            {affected.length ? `${affected[0].report.title} confirmé · +${delay} min` : 'Aucun incident confirmé sur votre trajet'}
+          </Text>
         </View>
 
-        {/* SIRA Live Voice Assistant Assistant Floating Bar */}
-        <View style={styles.siraVoiceFloatingBar}>
-          <Image
-            source={require('@/assets/images/sira-character-assistant.png')}
-            style={styles.siraNavAvatar}
-            contentFit="contain"
-          />
-          <View style={styles.siraSpeechBubble}>
-            <View style={styles.voiceWaveHeader}>
-              <Ionicons name="mic" size={12} color="#F26522" />
-              <Text style={styles.voiceLabel}>SIRA VOCAL</Text>
+        {/* SIRA voice assistant bubble (spoken text in a next version) */}
+        {!isVoiceMuted && (
+          <View style={styles.siraVoiceFloatingBar}>
+            <Image
+              source={require('@/assets/images/sira-character-assistant.png')}
+              style={styles.siraNavAvatar}
+              contentFit="contain"
+            />
+            <View style={styles.siraSpeechBubble}>
+              <View style={styles.voiceWaveHeader}>
+                <Ionicons name="mic" size={12} color="#F26522" />
+                <Text style={styles.voiceLabel}>SIRA VOCAL</Text>
+              </View>
+              <Text style={styles.siraSpeechText}>{voiceText}</Text>
             </View>
-            <Text style={styles.siraSpeechText}>
-              Prenez la passerelle à droite pour arriver rapidement à la gare !
-            </Text>
           </View>
-        </View>
+        )}
+
+        {/* Incident on the route: estimated delay and alternative */}
+        {affected.length > 0 && !alternative && (
+          <View style={styles.incidentCard}>
+            <Ionicons name="warning" size={22} color="#FFFFFF" />
+            <View style={styles.incidentTextCol}>
+              <Text style={styles.incidentTitle}>{affected[0].report.title} sur votre trajet</Text>
+              <Text style={styles.incidentSub}>
+                Confirmé par {affected[0].report.confirmations} usager(s) · {affected[0].report.location} · retard estimé {delay} min
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.incidentButton} onPress={findAlternative} disabled={rerouting} activeOpacity={0.85}>
+              <Text style={styles.incidentButtonText}>{rerouting ? 'Calcul…' : 'Alternative'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {alternative && (
+          <View style={styles.alternativeCard}>
+            <Text style={styles.alternativeTitle}>Alternative : {journeyTitle(alternative)}</Text>
+            <Text style={styles.alternativeSub}>
+              {formatDuration(alternative.duration)} · {formatPrice(alternative.price)} · évite l’incident (trajet actuel ≈ {formatDuration(journey.duration + delay)})
+            </Text>
+            <View style={styles.alternativeButtons}>
+              <TouchableOpacity style={styles.confirmExitBtn} onPress={adoptAlternative} activeOpacity={0.85}>
+                <Text style={styles.confirmExitText}>Prendre ce trajet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelExitBtn}
+                onPress={() => { setDismissed((ids) => [...ids, ...affected.map((item) => item.report.id)]); setAlternative(null); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.cancelExitText}>Garder le mien</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {toConfirm && !affected.length && (
+          <View style={styles.alternativeCard}>
+            <Text style={styles.alternativeTitle}>{toConfirm.report.title} signalé sur votre trajet</Text>
+            <Text style={styles.alternativeSub}>{toConfirm.report.location} · toujours là ?</Text>
+            <View style={styles.alternativeButtons}>
+              <TouchableOpacity style={styles.confirmExitBtn} onPress={() => answerStillThere(toConfirm.report.id, 'confirm')} activeOpacity={0.85}>
+                <Text style={styles.confirmExitText}>Oui, toujours là</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelExitBtn} onPress={() => answerStillThere(toConfirm.report.id, 'contest')} activeOpacity={0.85}>
+                <Text style={styles.cancelExitText}>Non, plus là</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Bottom Navigation Dashboard Card */}
         <View style={styles.bottomDashboardCard}>
@@ -186,15 +288,15 @@ export default function NavigationActiveScreen() {
             <View style={styles.milestonesRow}>
               {steps.map((step, idx) => (
                 <TouchableOpacity
-                  key={step.id}
+                  key={step.leg.id}
                   onPress={() => setCurrentStepIndex(idx)}
                   style={[
                     styles.milestoneDot,
-                    idx <= currentStepIndex && { backgroundColor: step.modeColor, borderColor: '#FFFFFF' },
+                    idx <= currentStepIndex && { backgroundColor: MODE_COLORS[step.leg.mode], borderColor: '#FFFFFF' },
                   ]}
                 >
                   <Ionicons
-                    name={step.icon}
+                    name={MODE_ICONS[step.leg.mode]}
                     size={10}
                     color={idx <= currentStepIndex ? '#FFFFFF' : '#94A3B8'}
                   />
@@ -206,7 +308,7 @@ export default function NavigationActiveScreen() {
           {/* Time, Destination & Actions Footer Row */}
           <View style={styles.dashboardFooterRow}>
             <View style={styles.etaCol}>
-              <Text style={styles.etaTimeText}>10:15</Text>
+              <Text style={styles.etaTimeText}>{eta ? formatClock(eta) : '--:--'}</Text>
               <Text style={styles.etaLabelText}>Arrivée estimée</Text>
             </View>
 
@@ -214,7 +316,9 @@ export default function NavigationActiveScreen() {
               <Text style={styles.destNameText} numberOfLines={1}>
                 {targetDestination}
               </Text>
-              <Text style={styles.destSubText}>27 min • 14,2 km au total</Text>
+              <Text style={styles.destSubText}>
+                {formatDuration(journey.duration + delay)}{journey.distance_km ? ` • ${formatDistance(journey.distance_km)} au total` : ''}
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -235,7 +339,7 @@ export default function NavigationActiveScreen() {
               <Ionicons name="alert-circle" size={44} color="#F26522" />
               <Text style={styles.exitModalTitle}>Arrêter la navigation ?</Text>
               <Text style={styles.exitModalSub}>
-                Voulez-vous vraiment quitter le guidage en direct vers {targetDestination} ?
+                Voulez-vous vraiment quitter le guidage vers {targetDestination} ?
               </Text>
               <View style={styles.exitModalButtonsRow}>
                 <TouchableOpacity
@@ -266,6 +370,71 @@ export default function NavigationActiveScreen() {
 }
 
 const styles = StyleSheet.create({
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  liveTrafficBadgeAlert: {
+    backgroundColor: '#991B1B',
+  },
+  liveDotAlert: {
+    backgroundColor: '#FCA5A5',
+  },
+  incidentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: '#DC2626',
+  },
+  incidentTextCol: {
+    flex: 1,
+  },
+  incidentTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  incidentSub: {
+    color: '#FEE2E2',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  incidentButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  incidentButtonText: {
+    color: '#DC2626',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  alternativeCard: {
+    marginHorizontal: 16,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    gap: 6,
+  },
+  alternativeTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  alternativeSub: {
+    fontSize: 12,
+    color: '#475569',
+  },
+  alternativeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
   container: {
     flex: 1,
     backgroundColor: '#0F172A',

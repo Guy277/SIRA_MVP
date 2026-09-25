@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,9 +7,9 @@ import {
   TextInput,
   ScrollView,
   Dimensions,
-  Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -17,6 +17,12 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { OsmMapView } from '@/components/osm-map-view';
+import { notify } from '@/lib/notify';
+import { createReport, type Coordinates } from '@/lib/sira-api';
+import { locateUser, nearestPlaceLabel } from '@/lib/places';
+import { REPORT_TYPE_BY_CATEGORY, clientId, upsertReport } from '@/lib/reports';
+import { journeyStore } from '@/lib/journey-store';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,20 +31,60 @@ export default function ReportEventDetailScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ categoryId?: string; title?: string }>();
 
-  const [locationText, setLocationText] = useState('Abidjan, Boulevard Lagunaire');
+  const [locationText, setLocationText] = useState('');
   const [descriptionText, setDescriptionText] = useState('');
   const [timeText, setTimeText] = useState('');
-  const [photoSelected, setPhotoSelected] = useState<string | null>(null);
+  const photoSelected: string | null = null;
+  const [position, setPosition] = useState<{ coordinates: Coordinates; approximate: boolean } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Waze-style: the position is filled in for the user; without GPS the
+  // departure of the current journey is used and the screen says so.
+  useEffect(() => {
+    let cancelled = false;
+    locateUser()
+      .then((coordinates) => {
+        if (cancelled) return;
+        setPosition({ coordinates, approximate: false });
+        setLocationText((text) => text || nearestPlaceLabel(coordinates));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const fallback = journeyStore.get().search?.departure;
+        const coordinates = fallback ? { latitude: fallback.latitude, longitude: fallback.longitude } : { latitude: 5.3260, longitude: -4.0198 };
+        setPosition({ coordinates, approximate: true });
+        setLocationText((text) => text || (fallback?.name ?? nearestPlaceLabel(coordinates)));
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   // Dynamic screen title based on selected category or default
   const headerTitle = params.title
     ? `${params.title} constaté`
     : 'Accident de la circulation constaté';
 
-  const handleSubmitReport = () => {
-    Alert.alert(
-      'Signalement transmis !',
-      'Votre signalement a été enregistré avec succès et transmis à la communauté SIRA.',
+  const handleSubmitReport = async () => {
+    if (!position || submitting) return;
+    setSubmitting(true);
+    try {
+      const report = await createReport({
+        type: REPORT_TYPE_BY_CATEGORY[params.categoryId ?? ''] ?? 'other',
+        lat: position.coordinates.latitude,
+        lon: position.coordinates.longitude,
+        location: locationText.trim() || nearestPlaceLabel(position.coordinates),
+        description: [descriptionText.trim(), timeText.trim() ? `Constaté : ${timeText.trim()}` : ''].filter(Boolean).join(' · ') || undefined,
+        clientId: clientId(),
+      });
+      upsertReport(report);
+    } catch (error) {
+      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+      return;
+    } finally {
+      setSubmitting(false);
+    }
+    notify(
+      'Merci, signalement envoyé',
+      'Il est visible sur la carte et comptera dès qu’un autre usager le confirme.',
       [
         {
           text: 'Voir sur la carte',
@@ -97,11 +143,7 @@ export default function ReportEventDetailScreen() {
           >
             {/* Upper Map Section */}
             <View style={styles.mapContainer}>
-              <Image
-                source={require('@/assets/images/explore-map-bg.png')}
-                style={styles.mapImage}
-                contentFit="cover"
-              />
+              <OsmMapView style={styles.mapImage} origin={position?.coordinates} />
               {/* Map Location Pulse Pin Pinpoint */}
               <View style={styles.mapCenterPin}>
                 <View style={styles.pinPulseRing} />
@@ -134,13 +176,11 @@ export default function ReportEventDetailScreen() {
                       placeholderTextColor="#888888"
                     />
                   </View>
-                  <TouchableOpacity
-                    style={styles.orangeChevronBtn}
-                    onPress={() => Alert.alert('Localisation', 'Modifier la position sur la carte')}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
-                  </TouchableOpacity>
+                  {position ? (
+                    <Text style={styles.positionHint}>{position.approximate ? 'Approx.' : 'GPS'}</Text>
+                  ) : (
+                    <ActivityIndicator color="#F26522" />
+                  )}
                 </View>
 
                 {/* 2. Description Row */}
@@ -169,7 +209,7 @@ export default function ReportEventDetailScreen() {
                       style={styles.textInputNormal}
                       value={timeText}
                       onChangeText={setTimeText}
-                      placeholder="À quelle heure cela s'est-il produit ?"
+                      placeholder="Depuis quand ? (optionnel)"
                       placeholderTextColor="#888888"
                     />
                   </View>
@@ -179,14 +219,14 @@ export default function ReportEventDetailScreen() {
                 <TouchableOpacity
                   style={styles.fieldRow}
                   activeOpacity={0.7}
-                  onPress={() => Alert.alert('Ajouter une photo', 'Prendre une photo ou choisir dans la galerie')}
+                  onPress={() => notify('Photo', 'L’ajout de photo arrive dans une prochaine version.')}
                 >
                   <View style={styles.orangeCircleIcon}>
                     <Ionicons name="camera" size={18} color="#FFFFFF" />
                   </View>
                   <View style={styles.inputWrapper}>
                     <Text style={[styles.textInputNormal, photoSelected ? styles.photoSelectedText : null]}>
-                      {photoSelected ? photoSelected : 'Ajouter une image ou une photo'}
+                      {photoSelected ?? 'Ajouter une photo (prochaine version)'}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -196,12 +236,13 @@ export default function ReportEventDetailScreen() {
                   <TouchableOpacity
                     style={styles.submitPillBtn}
                     onPress={handleSubmitReport}
+                    disabled={!position || submitting}
                     activeOpacity={0.88}
                   >
                     <View style={styles.whiteWarningIconCircle}>
                       <Ionicons name="warning" size={16} color="#F26522" />
                     </View>
-                    <Text style={styles.submitPillText}>Signaler l'événement</Text>
+                    <Text style={styles.submitPillText}>{submitting ? 'Envoi…' : 'Signaler l’événement'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -224,6 +265,11 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  positionHint: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F26522',
   },
   flexOne: {
     flex: 1,

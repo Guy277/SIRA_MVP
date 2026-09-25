@@ -28,6 +28,25 @@ export async function locateUser(): Promise<Coordinates> {
   return coordinates;
 }
 
+export function distanceM(a: Coordinates, b: Coordinates) {
+  const radians = (value: number) => value * Math.PI / 180;
+  const h = Math.sin(radians(b.latitude - a.latitude) / 2) ** 2
+    + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude)) * Math.sin(radians(b.longitude - a.longitude) / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+// Names a position from the closest known place, computed on the device so
+// no coordinates are sent anywhere before the user submits a report.
+export function nearestPlaceLabel(coordinates: Coordinates) {
+  let best: { title: string; distance: number } | null = null;
+  for (const [title, place] of registry) {
+    if (title === CURRENT_LOCATION) continue;
+    const distance = distanceM(coordinates, place);
+    if (!best || distance < best.distance) best = { title, distance };
+  }
+  return best && best.distance < 3000 ? `Près de ${best.title}` : `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`;
+}
+
 // Typed titles that were never picked from a list are geocoded on demand.
 export async function resolvePlace(title: string): Promise<Coordinates> {
   const known = knownPlace(title);
