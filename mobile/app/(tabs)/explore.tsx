@@ -97,7 +97,13 @@ export default function RouteExploreScreen() {
 
   // State for Departure & Arrival (Dynamic from query params or manual entry)
   const here = useCurrentPlace();
-  const [departure, setDeparture] = useState(here.status === 'ready' ? here.title : '');
+  // Departure is the traveller's own position unless they pick another one:
+  // it starts as the position placeholder and takes the landmark name once located.
+  const [departure, setDeparture] = useState(here.status === 'ready' ? here.title : CURRENT_LOCATION);
+  const departureLabel = departure === CURRENT_LOCATION
+    ? (here.status === 'locating' ? 'Ma position · localisation…' : 'Ma position')
+    : departure;
+  const ownPositionUnavailable = departure === CURRENT_LOCATION && here.status === 'unavailable';
   const [arrival, setArrival] = useState(params.destination || params.query || 'Cocody Saint-Jean');
   const [focusedField, setFocusedField] = useState<'departure' | 'arrival' | null>(null);
 
@@ -109,7 +115,7 @@ export default function RouteExploreScreen() {
   useEffect(() => {
     let cancelled = false;
     ensureCurrentPlace().then((place) => {
-      if (!cancelled && place.status === 'ready') setDeparture((value) => value || place.title);
+      if (!cancelled && place.status === 'ready') setDeparture((value) => (!value || value === CURRENT_LOCATION ? place.title : value));
     });
     return () => { cancelled = true; };
   }, []);
@@ -228,7 +234,7 @@ export default function RouteExploreScreen() {
 
       {/* Real OpenStreetMap Interactive Canvas with OSRM Polyline */}
       <OsmMapView
-        departureName={departure}
+        departureName={departureLabel}
         arrivalName={arrival}
         origin={search?.departure}
         destination={search?.arrival}
@@ -299,9 +305,7 @@ export default function RouteExploreScreen() {
                 {/* A button, not a text field: on web a focused field reopened the
                     picker as soon as it closed. Typing happens in the picker. */}
                 <TouchableOpacity onPress={() => setFocusedField('departure')} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Choisir le départ">
-                  <Text style={[styles.inputValueInput, !departure && styles.inputPlaceholder]} numberOfLines={1}>
-                    {departure || (here.status === 'locating' ? 'Localisation en cours…' : 'D’où partez-vous ?')}
-                  </Text>
+                  <Text style={styles.inputValueInput} numberOfLines={1}>{departureLabel}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -430,7 +434,7 @@ export default function RouteExploreScreen() {
           {/* Enlarged Map Display View (Real Interactive OpenStreetMap) */}
           <View style={[styles.mapContainer, isSheetExpanded && styles.mapContainerCollapsed]}>
             <OsmMapView
-              departureName={departure}
+              departureName={departureLabel}
               arrivalName={arrival}
               origin={search?.departure}
               destination={search?.arrival}
@@ -485,13 +489,13 @@ export default function RouteExploreScreen() {
                   <Text style={styles.searchStateText}>SIRA calcule vos trajets…</Text>
                 </View>
               )}
-              {!departure.trim() && here.status === 'unavailable' && (
+              {ownPositionUnavailable && (
                 <View style={styles.searchStateRow}>
                   <Ionicons name="locate" size={18} color="#F26522" />
-                  <Text style={styles.searchStateText}>Activez la localisation ou saisissez votre point de départ.</Text>
+                  <Text style={styles.searchStateText}>Position introuvable : activez la localisation ou touchez « Départ » pour choisir un lieu.</Text>
                 </View>
               )}
-              {!loading && searchError && (
+              {!loading && !ownPositionUnavailable && searchError && (
                 <View style={styles.searchStateRow}>
                   <Ionicons name="alert-circle" size={18} color="#DC2626" />
                   <Text style={styles.searchStateText}>{searchError}</Text>
@@ -644,7 +648,7 @@ export default function RouteExploreScreen() {
             {/* Top Half: Interactive Map Section */}
             <View style={styles.decompMapSection}>
               <OsmMapView
-                departureName={departure}
+                departureName={departureLabel}
                 arrivalName={arrival}
                 routeCoordinates={mapPath}
                 style={styles.decompMapImage}

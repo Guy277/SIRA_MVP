@@ -97,7 +97,11 @@ export function useCurrentPlace() {
 export async function resolvePlace(title: string): Promise<Coordinates> {
   const known = knownPlace(title);
   if (known) return known;
-  if (title === CURRENT_LOCATION) return locateUser();
+  if (title === CURRENT_LOCATION) {
+    const place = await ensureCurrentPlace();
+    if (place.status !== 'ready') throw new Error(place.status === 'unavailable' ? place.reason : 'Localisation indisponible.');
+    return place.coordinates;
+  }
   const [first] = await searchPlaces(title);
   if (!first) throw new Error(`Lieu introuvable à Abidjan : « ${title} ».`);
   rememberPlace(title, first.coordinates);
