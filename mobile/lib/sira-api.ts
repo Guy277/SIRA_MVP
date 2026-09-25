@@ -164,3 +164,8 @@ export const fareSummaries = (lineIds: string[]) =>
   apiJson<FareSummary[]>(`/fares?${lineIds.map((id) => `line_id=${encodeURIComponent(id)}`).join('&')}`);
 export const reportFare = (lineId: string, mode: LegMode, amount: number) =>
   apiJson<FareSummary>('/fares/reports', { method: 'POST', body: JSON.stringify({ line_id: lineId, mode, amount }) });
+
+export type ReversePlace = { title: string; subtitle: string; kind: 'landmark' | 'street' | 'area'; lat: number; lon: number };
+// Nearest landmark (junction, station, bus stop…) or street for a position.
+export const reversePlace = (coordinates: Coordinates) =>
+  apiJson<ReversePlace>(`/mobility/reverse?lat=${coordinates.latitude}&lon=${coordinates.longitude}`, { timeoutMs: 8_000 });

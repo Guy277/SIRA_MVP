@@ -100,6 +100,31 @@ const geometryLengthKm = (coordinates: [number, number][]): number => {
   return length;
 };
 
+// Landmarks people give directions with in Abidjan, best first.
+const LANDMARK_NAME = /carrefour|rond[- ]?point|gare|march[ée]|terminus|p[ée]age|pont|échangeur/i;
+const LANDMARK_KIND = new Set([
+  "bus_stop", "bus_station", "station", "marketplace", "fuel", "pharmacy", "hospital", "clinic", "school", "university",
+  "college", "place_of_worship", "bank", "police", "townhall", "post_office", "supermarket", "mall", "hotel", "stadium",
+]);
+
+export function pickLandmark(features: Array<{ properties?: Record<string, string> }>, latitude: number, longitude: number) {
+  const props = features.map((feature) => feature.properties ?? {});
+  const area = (p: Record<string, string>) => [p.district, p.city].filter(Boolean).join(", ") || "Abidjan";
+  // Unnamed buildings or house numbers ("5") are not landmarks.
+  const named = props.filter((p) => p.name && !/^\d+[a-z]?$/i.test(p.name.trim()));
+  const byName = named.find((p) => LANDMARK_NAME.test(p.name));
+  if (byName) return { title: byName.name, subtitle: area(byName), kind: "landmark", lat: latitude, lon: longitude };
+  const byKind = named.find((p) => LANDMARK_KIND.has(p.osm_value));
+  if (byKind) {
+    const title = byKind.osm_value === "bus_stop" && !/^arr[êe]t/i.test(byKind.name) ? `Arrêt ${byKind.name}` : byKind.name;
+    return { title, subtitle: area(byKind), kind: "landmark", lat: latitude, lon: longitude };
+  }
+  const street = props.find((p) => p.street)?.street ?? named.find((p) => p.osm_key === "highway")?.name;
+  if (street) return { title: street, subtitle: area(props.find((p) => p.street) ?? {}), kind: "street", lat: latitude, lon: longitude };
+  const district = props.find((p) => p.district || p.city);
+  return { title: district ? area(district) : "Ma position", subtitle: "Position GPS", kind: "area", lat: latitude, lon: longitude };
+}
+
 export type MultimodalRequest = {
   origin: Point;
   destination: Point;
@@ -192,6 +217,7 @@ export class MobilityService implements OnModuleInit {
   private readonly useGraphWorker = process.env.SIRA_GRAPH_WORKER === "true";
   private graphWorker?: GraphWorkerClient;
   private readonly pedestrianRouteCache = new Map<string, Promise<PedestrianRoute | null>>();
+  private readonly reverseCache = new Map<string, ReturnType<typeof pickLandmark>>();
 
   constructor(private readonly transportRepository: TransportRepository) {}
 
@@ -217,6 +243,25 @@ export class MobilityService implements OnModuleInit {
     const response = await fetch(`${this.photonUrl}/api/?${params}`);
     if (!response.ok) throw new BadRequestException("Le service de recherche est temporairement indisponible.");
     return response.json();
+  }
+
+  // Names the traveller's position after the most telling landmark nearby
+  // (junction, station, market, bus stop…), else the street or district.
+  async reversePlace(latitude: number, longitude: number) {
+    this.validatePoint({ lat: latitude, lon: longitude });
+    const key = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+    const cached = this.reverseCache.get(key);
+    if (cached) return cached;
+    const params = new URLSearchParams({ lat: String(latitude), lon: String(longitude), lang: "fr", limit: "10", radius: "0.3" });
+    let features: Array<{ properties?: Record<string, string> }> = [];
+    try {
+      const response = await fetch(`${this.photonUrl}/reverse?${params}`, { signal: AbortSignal.timeout(6_000) });
+      if (response.ok) features = ((await response.json()) as { features?: typeof features }).features ?? [];
+    } catch { /* service indisponible : repli sur une position approximative */ }
+    const place = pickLandmark(features, latitude, longitude);
+    if (this.reverseCache.size > 500) this.reverseCache.clear();
+    this.reverseCache.set(key, place);
+    return place;
   }
 
   async getTransportLines(filters: { operator?: string; network?: string; siraMode?: string; validationStatus?: string } = {}) {

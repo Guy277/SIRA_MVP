@@ -23,7 +23,7 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { fetchJourneys, type ApiJourney, type LegMode } from '@/lib/sira-api';
-import { resolvePlace } from '@/lib/places';
+import { ensureCurrentPlace, resolvePlace, useCurrentPlace } from '@/lib/places';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import {
   CATEGORY_BY_LABEL, CATEGORY_LABELS, arrivalTime, formatClock, formatDistance, formatDuration,
@@ -96,9 +96,19 @@ export default function RouteExploreScreen() {
   const params = useLocalSearchParams<{ query?: string; destination?: string }>();
 
   // State for Departure & Arrival (Dynamic from query params or manual entry)
-  const [departure, setDeparture] = useState('Orange Digital Center');
+  const here = useCurrentPlace();
+  const [departure, setDeparture] = useState(here.status === 'ready' ? here.title : '');
   const [arrival, setArrival] = useState(params.destination || params.query || 'Cocody Saint-Jean');
   const [focusedField, setFocusedField] = useState<'departure' | 'arrival' | null>(null);
+
+  // Departure defaults to where the traveller is; they can change it.
+  useEffect(() => {
+    let cancelled = false;
+    ensureCurrentPlace().then((place) => {
+      if (!cancelled && place.status === 'ready') setDeparture((value) => value || place.title);
+    });
+    return () => { cancelled = true; };
+  }, []);
   const { search, selectedId } = useJourneyStore();
   // Loading and error are derived from the last finished search, keyed by its
   // endpoints, instead of being toggled from the effect.
@@ -286,7 +296,7 @@ export default function RouteExploreScreen() {
                   style={styles.inputValueInput}
                   value={departure}
                   onChangeText={setDeparture}
-                  placeholder="Lieu de départ"
+                  placeholder={here.status === 'locating' ? 'Localisation en cours…' : 'D’où partez-vous ?'}
                   placeholderTextColor="#999999"
                   onFocus={() => setFocusedField('departure')}
                   returnKeyType="done"
@@ -302,7 +312,7 @@ export default function RouteExploreScreen() {
                   style={styles.inputValueInput}
                   value={arrival}
                   onChangeText={setArrival}
-                  placeholder="Lieu d'arrivée"
+                  placeholder="Où allez-vous ?"
                   placeholderTextColor="#999999"
                   onFocus={() => setFocusedField('arrival')}
                   returnKeyType="done"
@@ -325,7 +335,8 @@ export default function RouteExploreScreen() {
             visible={focusedField !== null}
             onClose={() => setFocusedField(null)}
             initialQuery={focusedField === 'departure' ? departure : arrival}
-            currentLocationName={focusedField === 'departure' ? 'Ma position actuelle' : arrival}
+            currentLocationName={here.status === 'ready' ? here.title : 'Ma position actuelle'}
+            placeholder={focusedField === 'departure' ? 'D’où partez-vous ?' : 'Où allez-vous ?'}
             onSelectLocation={(selectedLoc) => {
               if (focusedField === 'departure') {
                 setDeparture(selectedLoc);
@@ -474,6 +485,12 @@ export default function RouteExploreScreen() {
                 <View style={styles.searchStateRow}>
                   <ActivityIndicator color="#F26522" />
                   <Text style={styles.searchStateText}>SIRA calcule vos trajets…</Text>
+                </View>
+              )}
+              {!departure.trim() && here.status === 'unavailable' && (
+                <View style={styles.searchStateRow}>
+                  <Ionicons name="locate" size={18} color="#F26522" />
+                  <Text style={styles.searchStateText}>Activez la localisation ou saisissez votre point de départ.</Text>
                 </View>
               )}
               {!loading && searchError && (

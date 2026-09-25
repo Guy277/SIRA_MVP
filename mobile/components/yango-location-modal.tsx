@@ -14,14 +14,16 @@ interface YangoLocationModalProps {
   onSelectLocation: (locationTitle: string) => void;
   currentLocationName?: string;
   initialQuery?: string;
+  placeholder?: string;
 }
 
 export function YangoLocationModal({
   visible,
   onClose,
   onSelectLocation,
-  currentLocationName = 'Orange Digital Center',
+  currentLocationName = 'Ma position',
   initialQuery = '',
+  placeholder,
 }: YangoLocationModalProps) {
   const [query, setQuery] = React.useState(initialQuery);
 
@@ -47,6 +49,7 @@ export function YangoLocationModal({
             query={query}
             onQueryChange={setQuery}
             currentLocationName={currentLocationName}
+            placeholder={placeholder}
             showFullHeader={true}
             onBackPress={onClose}
             onOpenMap={onClose}

@@ -1,8 +1,9 @@
 // Screens pass places around by their title; this registry keeps the
 // coordinates behind each title picked from search, GPS or shortcuts.
 import * as Location from 'expo-location';
+import { useSyncExternalStore } from 'react';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
-import { searchPlaces, type Coordinates } from '@/lib/sira-api';
+import { reversePlace, searchPlaces, type Coordinates } from '@/lib/sira-api';
 
 export const CURRENT_LOCATION = 'Ma position actuelle';
 
@@ -45,6 +46,46 @@ export function nearestPlaceLabel(coordinates: Coordinates) {
     if (!best || distance < best.distance) best = { title, distance };
   }
   return best && best.distance < 3000 ? `Près de ${best.title}` : `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`;
+}
+
+// Where the traveller is, located once at start-up and named after the
+// nearest landmark (junction, station, bus stop…) so it can be the default
+// departure. The traveller can still pick another departure.
+export type CurrentPlace =
+  | { status: 'locating' }
+  | { status: 'ready'; title: string; subtitle: string; coordinates: Coordinates }
+  | { status: 'unavailable'; reason: string };
+
+let current: CurrentPlace = { status: 'locating' };
+let pending: Promise<CurrentPlace> | null = null;
+const currentListeners = new Set<() => void>();
+
+export function ensureCurrentPlace(): Promise<CurrentPlace> {
+  if (current.status === 'ready') return Promise.resolve(current);
+  pending ??= (async () => {
+    try {
+      const coordinates = await locateUser();
+      // Named on the device when the landmark service cannot be reached.
+      const named = await reversePlace(coordinates).catch(() => null);
+      const title = named?.title && named.title !== 'Ma position' ? named.title : nearestPlaceLabel(coordinates);
+      rememberPlace(title, coordinates);
+      current = { status: 'ready', title, subtitle: named?.subtitle ?? 'Position GPS', coordinates };
+    } catch (error) {
+      current = { status: 'unavailable', reason: error instanceof Error ? error.message : 'Localisation indisponible.' };
+    }
+    pending = null;
+    currentListeners.forEach((listener) => listener());
+    return current;
+  })();
+  return pending;
+}
+
+export function useCurrentPlace() {
+  return useSyncExternalStore(
+    (listener) => { currentListeners.add(listener); return () => currentListeners.delete(listener); },
+    () => current,
+    () => current,
+  );
 }
 
 // Typed titles that were never picked from a list are geocoded on demand.

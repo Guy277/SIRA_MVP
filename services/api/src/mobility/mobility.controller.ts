@@ -12,6 +12,11 @@ export class MobilityController {
     return this.mobility.searchPlaces(query);
   }
 
+  @Get("reverse")
+  reverse(@Query("lat") latitude: string, @Query("lon") longitude: string) {
+    return this.mobility.reversePlace(Number(latitude), Number(longitude));
+  }
+
   @Get("transport/lines")
   async getTransportLines(
     @Query("operator") operator?: string,

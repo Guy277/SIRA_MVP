@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,6 +20,7 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { firstName, useSession } from '@/lib/session';
+import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -40,6 +41,8 @@ const SEARCH_PILL_HEIGHT = (58 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 export default function HomeScreen() {
   const router = useRouter();
   const greetingName = firstName(useSession()?.user);
+  const here = useCurrentPlace();
+  useEffect(() => { void ensureCurrentPlace(); }, []);
   const [destination, setDestination] = useState('');
   const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
@@ -143,7 +146,8 @@ export default function HomeScreen() {
         visible={isYangoModalOpen}
         onClose={() => setIsYangoModalOpen(false)}
         onSelectLocation={handleLocationSelect}
-        currentLocationName="Orange Digital Center"
+        currentLocationName={here.status === 'ready' ? here.title : 'Ma position'}
+        placeholder="Où allez-vous ?"
         initialQuery={destination}
       />
 

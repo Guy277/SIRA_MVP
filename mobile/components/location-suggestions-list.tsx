@@ -103,6 +103,7 @@ interface LocationSuggestionsListProps {
   onOpenMap?: () => void;
   currentLocationName?: string;
   showFullHeader?: boolean;
+  placeholder?: string;
 }
 
 export function LocationSuggestionsList({
@@ -112,8 +113,9 @@ export function LocationSuggestionsList({
   onUseCurrentLocation,
   onBackPress,
   onOpenMap,
-  currentLocationName = 'Orange Digital Center',
+  currentLocationName = 'Ma position',
   showFullHeader = true,
+  placeholder = 'Quartier, gare, carrefour, lieu…',
 }: LocationSuggestionsListProps) {
   const filteredLocations = SIRA_ABIDJAN_LOCATIONS.filter((item) => {
     if (!query.trim()) return true;
@@ -184,7 +186,7 @@ export function LocationSuggestionsList({
           <Ionicons name="search-outline" size={20} color="#777777" style={styles.searchIcon} />
           <TextInput
             style={styles.searchTextInput}
-            placeholder="Que cherchez-vous ?"
+            placeholder={placeholder}
             placeholderTextColor="#888888"
             value={query}
             onChangeText={onQueryChange}
