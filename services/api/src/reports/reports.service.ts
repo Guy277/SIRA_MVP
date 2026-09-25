@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 
-export type ReportType = "accident" | "traffic" | "flood" | "works" | "blocked" | "transport" | "other";
+export type ReportType = "accident" | "traffic" | "flood" | "works" | "blocked" | "road_damage" | "breakdown" | "transport" | "other";
 export type ReportSeverity = "low" | "medium" | "high";
 // Cahier des charges §12.3 : SIGNALÉ → CONFIRMÉ → FIABLE → EXPIRÉ / RÉSOLU
 export type ReportStatus = "reported" | "confirmed" | "reliable" | "expired" | "resolved";
@@ -44,6 +44,8 @@ const REPORT_TYPES: Record<ReportType, { title: string; ttlMinutes: number; dela
   flood: { title: "Route inondée", ttlMinutes: 240, delayMinutes: 25, blocking: true, affectsWalking: true, severity: "high" },
   works: { title: "Travaux", ttlMinutes: 7 * 24 * 60, delayMinutes: 8, blocking: false, affectsWalking: false, severity: "medium" },
   blocked: { title: "Route bloquée", ttlMinutes: 360, delayMinutes: 0, blocking: true, affectsWalking: true, severity: "high" },
+  road_damage: { title: "Route dégradée", ttlMinutes: 3 * 24 * 60, delayMinutes: 6, blocking: false, affectsWalking: false, severity: "medium" },
+  breakdown: { title: "Véhicule en panne", ttlMinutes: 60, delayMinutes: 8, blocking: false, affectsWalking: false, severity: "medium" },
   transport: { title: "Problème de transport", ttlMinutes: 60, delayMinutes: 12, blocking: false, affectsWalking: false, severity: "medium" },
   other: { title: "Autre événement", ttlMinutes: 60, delayMinutes: 5, blocking: false, affectsWalking: false, severity: "low" },
 };

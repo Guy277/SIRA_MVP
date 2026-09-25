@@ -159,6 +159,35 @@ class OptimisationScenarios(unittest.TestCase):
         reasons = recommend([candidate("a")], budget=999999)["journeys"][0]["reasons"]
         self.assertFalse(any("budget" in reason.lower() for reason in reasons))
 
+    def test_35_categories_rank_budget_middle_and_comfort(self):
+        routes = [
+            candidate("bus", price=200, ride=45, line="B", comfort=2, reliability=70),
+            candidate("mixte", price=700, ride=25, line="M", comfort=3, reliability=78),
+            candidate("taxi", price=2000, ride=15, walk=0, wait=3, transfer=0, mode="taxi", line="T", comfort=5, reliability=85),
+        ]
+        categories = recommend(routes, budget=999999)["categories"]
+        self.assertEqual(categories["coule"][0], "bus")
+        self.assertEqual(categories["suspendu"][0], "taxi")
+        self.assertEqual(set(categories), {"coule", "debout", "suspendu"})
+
+    def test_36_category_leaders_are_always_returned_and_labelled(self):
+        routes = [candidate("bus", price=200, ride=45, line="B", comfort=2), candidate("taxi", price=2000, ride=15, transfer=0, mode="taxi", line="T", comfort=5)]
+        result = recommend(routes, budget=999999, preference="fast", max_results=1)
+        ids = {journey["id"] for journey in result["journeys"]}
+        self.assertIn(result["categories"]["coule"][0], ids)
+        self.assertIn(result["categories"]["suspendu"][0], ids)
+        bus = next(journey for journey in result["journeys"] if journey["id"] == "bus")
+        self.assertIn("coule", bus["categories"])
+
+    def test_37_single_journey_leads_every_category(self):
+        result = recommend([candidate("seul")])
+        self.assertEqual(result["categories"], {"coule": ["seul"], "debout": ["seul"], "suspendu": ["seul"]})
+        self.assertEqual(sorted(result["journeys"][0]["categories"]), ["coule", "debout", "suspendu"])
+
+    def test_38_no_feasible_journey_gives_empty_categories(self):
+        result = recommend([candidate("cher", price=5000)], budget=1000)
+        self.assertEqual(result["categories"], {"coule": [], "debout": [], "suspendu": []})
+
     def test_34_fastest_and_cheapest_ids_are_exposed(self):
         routes = [candidate("fast", price=1200, ride=14, line="F"), candidate("cheap", price=300, ride=42, line="C")]
         result = recommend(routes)

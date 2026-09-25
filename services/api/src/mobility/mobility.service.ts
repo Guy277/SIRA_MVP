@@ -938,7 +938,6 @@ const signatures = new Set<string>();
         `network-${strategy}`,
         `Option ${strategy}`,
         result,
-        strategy === "cheap" ? 3 : (strategy === "min_walking" ? 5 : 4),
         strategy === "cheap" ? 72 : (strategy === "fast" ? 80 : 78),
         maxWalkingDistanceM,
         profiler
@@ -1118,7 +1117,7 @@ if (!deduplicatedCandidates.length) {
     return { trip: { summary: { length: km, time: km / (costing === "multimodal" ? 18 : 24) * 3600 }, legs: [] } };
   }
 
-  private async toNetworkCandidate(id: string, label: string, route: NetworkJourney, comfort: number, reliabilityPrior: number, maxWalkingDistanceM: number, profiler: JourneyProfiler) {
+  private async toNetworkCandidate(id: string, label: string, route: NetworkJourney, reliabilityPrior: number, maxWalkingDistanceM: number, profiler: JourneyProfiler) {
     const accessEndpoints = route.access.coordinates;
     const egressEndpoints = route.egress.coordinates;
     const [access, egress] = await Promise.all([
@@ -1174,6 +1173,11 @@ if (!deduplicatedCandidates.length) {
       ...route.legs.flatMap((leg) => [leg.sourceConfidence, leg.waitConfidence, leg.priceConfidence]),
     ]);
     const reliability = Math.min(reliabilityPrior, Math.round(confidence * 100));
+    // Comfort (1-5) follows the least comfortable vehicle used, then drops with
+    // changes and long walks; it drives the "Suspendu" category.
+    const modeComfort: Record<string, number> = { boat: 4, sotra: 4, woro: 3, gbaka: 2 };
+    const seatComfort = Math.min(...route.legs.map((leg) => modeComfort[leg.mode] ?? 3));
+    const comfort = Math.max(1, Math.min(5, seatComfort - (route.transfers.length >= 2 ? 1 : 0) - (walkingDistanceM > 1200 ? 1 : 0)));
     const geometry = legs.flatMap((leg) => (leg.geometry as Array<[number, number]> | undefined) ?? []);
     return {
       id, label, profile: "citywide-transport-network",

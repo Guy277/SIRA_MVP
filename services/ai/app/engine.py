@@ -223,6 +223,39 @@ def _reasons(journey: dict[str, Any], candidates: list[dict[str, Any]], constrai
     return reasons[:4]
 
 
+def _profile_scores(frontier: list[dict[str, Any]], profile: str, max_budget: int) -> dict[str, float]:
+    """Score each journey 0-100 for a weight profile, normalised within the frontier."""
+    weights = WEIGHTS[profile]
+    # Unknown prices use the conservative comparison price.
+    values = {key: [_price_for_comparison(item, max_budget) if key == "price" else _number(item[key]) for item in frontier] for key in weights}
+    scores = {}
+    for journey in frontier:
+        cost = sum(_normalised_cost(_price_for_comparison(journey, max_budget) if key == "price" else _number(journey[key]), values[key]) * weight for key, weight in weights.items())
+        scores[journey["id"]] = round((1 - cost) * 100, 1)
+    return scores
+
+
+# SIRA result categories, decided by the team: Coulé minimises what the trip
+# costs whatever the combination, Debout is the middle ground, Suspendu puts
+# comfort first. Categories rank the same frontier; they never filter modes.
+CATEGORY_PROFILES = {"coule": "cheap", "debout": "balanced", "suspendu": "comfort"}
+
+
+def categorize(frontier: list[dict[str, Any]], max_budget: int, max_per_category: int = 3) -> dict[str, list[str]]:
+    if not frontier:
+        return {name: [] for name in CATEGORY_PROFILES}
+    categories = {}
+    for name, profile in CATEGORY_PROFILES.items():
+        scores = _profile_scores(frontier, profile, max_budget)
+        if name == "coule":
+            # Strictly the cheapest first; score and duration only break ties.
+            key = lambda item: (_price_for_comparison(item, max_budget), -scores[item["id"]], item["duration"])
+        else:
+            key = lambda item: (-scores[item["id"]], item["duration"], _price_for_comparison(item, max_budget))
+        categories[name] = [item["id"] for item in sorted(frontier, key=key)[:max_per_category]]
+    return categories
+
+
 from datetime import datetime
 
 def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preference: str = "balanced", constraints: dict[str, Any] | None = None, max_results: int = 3) -> dict[str, Any]:
@@ -243,18 +276,10 @@ def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preferenc
         (feasible if not violations else rejected).append(journey)
 
     frontier = pareto_frontier(feasible, max_budget)
-    weights = WEIGHTS[profile]
     if frontier:
-        # For scoring, use conservative price estimate for unknown prices
-        values = {}
-        for key in weights:
-            if key == "price":
-                values[key] = [_price_for_comparison(item, max_budget) for item in frontier]
-            else:
-                values[key] = [_number(item[key]) for item in frontier]
+        scores = _profile_scores(frontier, profile, max_budget)
         for journey in frontier:
-            cost = sum(_normalised_cost(_price_for_comparison(journey, max_budget) if key == "price" else _number(journey[key]), values[key]) * weight for key, weight in weights.items())
-            journey["sira_score"] = round((1 - cost) * 100, 1)
+            journey["sira_score"] = scores[journey["id"]]
             journey["reasons"] = _reasons(journey, frontier, rules)
         # Sort: score desc, duration asc, price asc (unknown prices last)
         frontier.sort(key=lambda item: (-item["sira_score"], item["duration"], _price_for_comparison(item, max_budget)))
@@ -287,14 +312,30 @@ def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preferenc
         
         journey["profile_tags"] = tags[:2]
 
-    fastest = min(diverse, key=lambda item: item["duration"], default=None)
-    priced = [item for item in diverse if item.get("price") is not None]
+    categories = categorize(frontier, max_budget, max_per_category=max_results)
+    # Every journey referenced by a category must be returned, even when the
+    # requested profile's diversity pass did not keep it.
+    returned = list(diverse)
+    returned_ids = {journey["id"] for journey in returned}
+    by_id = {journey["id"]: journey for journey in frontier}
+    for ids in categories.values():
+        for journey_id in ids:
+            if journey_id not in returned_ids:
+                returned.append(by_id[journey_id]); returned_ids.add(journey_id)
+    for journey in returned:
+        journey["categories"] = [name for name, ids in categories.items() if ids and ids[0] == journey["id"]]
+        journey.setdefault("recommended", False)
+        journey.setdefault("profile_tags", [])
+
+    fastest = min(returned, key=lambda item: item["duration"], default=None)
+    priced = [item for item in returned if item.get("price") is not None]
     cheapest = min(priced, key=lambda item: (item["price"], item["duration"]), default=None)
     return {
         "recommended_id": recommended_id,
         "fastest_id": fastest["id"] if fastest else None,
         "cheapest_id": cheapest["id"] if cheapest else None,
-        "journeys": diverse,
+        "categories": categories,
+        "journeys": returned,
         "rejected": [{"id": item["id"], "constraint_violations": item["constraint_violations"]} for item in rejected],
         "engine": {"name": "SIRA-MORE", "version": "2.0-phase-1", "pipeline": ["constraints", "pareto", "diversity", "scoring", "explanation"], "preference": profile, "constraints": rules, "candidate_count": len(enriched), "feasible_count": len(feasible), "pareto_count": len(frontier), "returned_count": len(diverse)},
         "source": "sira-more-v2.0",
