@@ -19,6 +19,7 @@ import * as Haptics from 'expo-haptics';
 import { LocationSuggestionsList } from '@/components/location-suggestions-list';
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
+import { firstName, useSession } from '@/lib/session';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -38,6 +39,7 @@ const SEARCH_PILL_HEIGHT = (58 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const greetingName = firstName(useSession()?.user);
   const [destination, setDestination] = useState('');
   const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
@@ -88,7 +90,7 @@ export default function HomeScreen() {
         {/* Speech / Greeting Bubble (Positioned above character's head with speech pointer tail) */}
         <View style={styles.speechBubble}>
           <Text style={styles.speechGreeting}>
-            <Text style={styles.speechGreetingBold}>Akwaba !</Text>
+            <Text style={styles.speechGreetingBold}>Akwaba{greetingName ? ` ${greetingName}` : ''} !</Text>
           </Text>
           <Text style={styles.speechMain}>
             Je suis <Text style={styles.siraBold}>SIRA</Text>, votre

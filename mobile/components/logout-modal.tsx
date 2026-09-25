@@ -18,12 +18,14 @@ interface LogoutModalProps {
 }
 
 import { logoutUser } from '@/hooks/use-auth';
+import { setSession } from '@/lib/session';
 
 export function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
   const router = useRouter();
 
   const handleConfirmLogout = () => {
     logoutUser();
+    setSession(null);
     onClose();
     if (onConfirm) {
       onConfirm();

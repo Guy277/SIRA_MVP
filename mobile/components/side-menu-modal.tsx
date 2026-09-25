@@ -16,6 +16,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LogoutModal } from './logout-modal';
+import { useSession } from '@/lib/session';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,6 +26,7 @@ interface SideMenuModalProps {
 }
 
 export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
+  const account = useSession()?.user;
   const router = useRouter();
 
   const handleShareApp = async () => {
@@ -117,8 +119,8 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 </View>
 
                 <View style={styles.profileTextInfo}>
-                  <Text style={styles.userName}>Diata</Text>
-                  <Text style={styles.userPhone}>+225 0703352619</Text>
+                  <Text style={styles.userName}>{account?.full_name || (account ? 'Voyageur SIRA' : 'Invité')}</Text>
+                  <Text style={styles.userPhone}>{account?.phone_number ?? 'Non connecté'}</Text>
                 </View>
 
                 <View style={styles.smallChevronCircle}>

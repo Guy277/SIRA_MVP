@@ -34,16 +34,18 @@ const PHONE_MOCKUP_HEIGHT = (245 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const PHONE_MOCKUP_TOP = (292 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const PHONE_MOCKUP_LEFT = (11 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
-import { setAuthenticated } from '@/hooks/use-auth';
+import { useOtpLogin } from '@/lib/use-otp-login';
 
 export default function SignupScreen() {
   const router = useRouter();
   const [firstName, setFirstName] = useState('');
   const [phone, setPhone] = useState('');
 
-  const handleSignup = () => {
-    setAuthenticated(true);
-    router.replace('/(tabs)');
+  const otp = useOtpLogin();
+
+  // Same SMS flow as login; the first name is saved on the new account.
+  const handleSignup = async () => {
+    if (await otp.submit(phone, firstName)) router.replace('/(tabs)');
   };
 
   const handleGoToLogin = () => {
@@ -147,21 +149,27 @@ export default function SignupScreen() {
                 </View>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Entrez votre numéro Orange"
+                  placeholder={otp.step === 'phone' ? 'Entrez votre numéro Orange' : 'Code reçu par SMS'}
                   placeholderTextColor="#B0B0B0"
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={setPhone}
+                  keyboardType={otp.step === 'phone' ? 'phone-pad' : 'number-pad'}
+                  value={otp.step === 'phone' ? phone : otp.code}
+                  onChangeText={otp.step === 'phone' ? setPhone : otp.setCode}
                 />
               </View>
+              {otp.info && (
+                <Text style={styles.otpInfo} onPress={otp.changeNumber}>
+                  {otp.info} · Changer de numéro
+                </Text>
+              )}
 
               {/* Orange Inscription Button */}
               <TouchableOpacity
                 style={styles.signupButton}
                 onPress={handleSignup}
+                disabled={otp.busy}
                 activeOpacity={0.85}
               >
-                <Text style={styles.signupButtonText}>S'INSCRIRE</Text>
+                <Text style={styles.signupButtonText}>{otp.busy ? 'PATIENTEZ…' : otp.step === 'phone' ? 'RECEVOIR MON CODE' : 'CRÉER MON COMPTE'}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -172,6 +180,14 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
+  otpInfo: {
+    color: '#F26522',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 6,
+  },
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',

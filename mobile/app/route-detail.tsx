@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   ScrollView,
+  TextInput,
   Dimensions,
   Platform,
   Alert,
@@ -18,7 +19,9 @@ import { useFavorites } from '@/hooks/use-favorites';
 import { OsmMapView } from '@/components/osm-map-view';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
 import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
-import type { LegMode } from '@/lib/sira-api';
+import { fareSummaries, reportFare, type FareSummary, type LegMode } from '@/lib/sira-api';
+import { currentToken } from '@/lib/session';
+import { notify } from '@/lib/notify';
 
 const STEP_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
   walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus', woro: 'car-sport', taxi: 'car', boat: 'boat',
@@ -37,6 +40,43 @@ export default function RouteDetailScreen() {
   const arrival = search?.arrival.name ?? '';
   const tripTitle = `D’${departure} à ${arrival}`;
   const steps = journey && search ? timeline(journey, search.departureAt) : [];
+
+  // Community fares (cahier des charges : prix confirmé ou corrigé par les
+  // voyageurs). Taxi prices depend on distance and are not crowd-sourced.
+  const fareLegs = (journey?.legs ?? []).filter((leg) => isVehicle(leg) && leg.mode !== 'taxi' && leg.line_id);
+  const fareLegKey = fareLegs.map((leg) => leg.line_id).join('|');
+  const [fares, setFares] = useState<Record<string, FareSummary>>({});
+  const [paidInput, setPaidInput] = useState<string | null>(null);
+  useEffect(() => {
+    const ids = fareLegKey ? fareLegKey.split('|') : [];
+    if (!ids.length) return;
+    let cancelled = false;
+    fareSummaries(ids)
+      .then((list) => { if (!cancelled) setFares(Object.fromEntries(list.map((item) => [item.line_id, item]))); })
+      .catch(() => { /* service des tarifs indisponible : estimations seules */ });
+    return () => { cancelled = true; };
+  }, [fareLegKey]);
+
+  const submitPaidPrice = async () => {
+    const leg = fareLegs[0];
+    const amount = Number((paidInput ?? '').replace(/\s/g, ''));
+    if (!leg?.line_id || !Number.isFinite(amount) || amount <= 0) {
+      notify('Prix invalide', 'Indiquez le montant payé en francs CFA, par exemple 200.');
+      return;
+    }
+    if (!currentToken()) {
+      notify('Connexion requise', 'Connectez-vous avec votre numéro pour partager le prix payé.', [{ text: 'Se connecter', onPress: () => router.push('/login') }]);
+      return;
+    }
+    try {
+      const summary = await reportFare(leg.line_id, leg.mode, amount);
+      setFares((current) => ({ ...current, [summary.line_id]: summary }));
+      setPaidInput(null);
+      notify('Merci !', summary.validated ? 'Ce prix est maintenant confirmé par la communauté.' : 'Votre prix aide les prochains voyageurs.');
+    } catch (error) {
+      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+    }
+  };
 
   const [isLiked, setIsLiked] = useState(false);
   const isFavorite = checkIsFavorite(tripTitle);
@@ -186,6 +226,13 @@ export default function RouteDetailScreen() {
                         Coût estimé : <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
                       </Text>
                     )}
+                    {leg.line_id && fares[leg.line_id]?.reports ? (
+                      <Text style={styles.communityFareText}>
+                        {fares[leg.line_id].validated
+                          ? `Prix confirmé par ${fares[leg.line_id].agreeing} voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)}`
+                          : `${fares[leg.line_id].reports} avis de voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)} (à confirmer)`}
+                      </Text>
+                    ) : null}
                     <Text style={styles.stepMetaText}>{formatClock(start)} → {formatClock(end)}</Text>
                   </View>
                 </View>
@@ -210,6 +257,25 @@ export default function RouteDetailScreen() {
                 <View style={styles.stepTextWrapper}>
                   <Text style={styles.stepTitle}>{arrival}</Text>
                   <Text style={styles.stepSubDesc}>Vous êtes bien arrivé !</Text>
+                  {fareLegs.length > 0 && (paidInput === null ? (
+                    <TouchableOpacity onPress={() => setPaidInput('')} activeOpacity={0.8}>
+                      <Text style={styles.communityFareLink}>Combien avez-vous payé pour le {journeyTitle({ ...journey!, legs: [fareLegs[0]] })} ?</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.paidRow}>
+                      <TextInput
+                        style={styles.paidInput}
+                        value={paidInput}
+                        onChangeText={setPaidInput}
+                        keyboardType="number-pad"
+                        placeholder="Montant en F"
+                        placeholderTextColor="#999999"
+                      />
+                      <TouchableOpacity style={styles.paidButton} onPress={submitPaidPrice} activeOpacity={0.85}>
+                        <Text style={styles.paidButtonText}>Envoyer</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
 
                   {/* Icon Actions Row (Thumbs Up, Share, Bookmark) */}
                   <View style={styles.stepActionsRow}>
@@ -274,6 +340,45 @@ export default function RouteDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  communityFareText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+    marginTop: 2,
+  },
+  communityFareLink: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#F26522',
+    marginTop: 6,
+  },
+  paidRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  paidInput: {
+    flex: 1,
+    height: 36,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: '#000000',
+  },
+  paidButton: {
+    backgroundColor: '#F26522',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  paidButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

@@ -16,23 +16,37 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfilePhotoModal } from '@/components/profile-photo-modal';
+import { setSession, useSession, type SessionUser } from '@/lib/session';
+import { apiJson } from '@/lib/sira-api';
+import { notify } from '@/lib/notify';
 
 export default function EditProfileScreen() {
   const router = useRouter();
 
-  const [nom, setNom] = useState('Ouattara');
-  const [prenom, setPrenom] = useState('Diata');
-  const [numero, setNumero] = useState('+225 0703352619');
-  const [adresse, setAdresse] = useState('Abobo samaké');
-  const [email, setEmail] = useState('ninninouatt114@gmail.com');
-  const [dateNaissance, setDateNaissance] = useState('04/11/1999');
+  // Filled from the signed-in account; only the name is stored for now.
+  const session = useSession();
+  const [prenom0, ...nom0] = (session?.user.full_name ?? '').split(' ');
+  const [nom, setNom] = useState(nom0.join(' '));
+  const [prenom, setPrenom] = useState(prenom0 ?? '');
+  const [numero, setNumero] = useState(session?.user.phone_number ?? '');
+  const [adresse, setAdresse] = useState('');
+  const [email, setEmail] = useState('');
+  const [dateNaissance, setDateNaissance] = useState('');
 
   const [showPhotoModal, setShowPhotoModal] = useState(false);
 
-  const handleSave = () => {
-    Alert.alert('Succès', 'Vos modifications ont bien été enregistrées.', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+  const handleSave = async () => {
+    if (!session) {
+      notify('Connexion requise', 'Connectez-vous pour enregistrer votre profil.', [{ text: 'OK', onPress: () => router.push('/login') }]);
+      return;
+    }
+    try {
+      const user = await apiJson<SessionUser>('/users/me', { method: 'PATCH', body: JSON.stringify({ full_name: `${prenom} ${nom}`.trim() }) });
+      setSession({ token: session.token, user });
+      notify('Profil enregistré', 'Vos modifications ont bien été enregistrées.', [{ text: 'OK', onPress: () => router.back() }]);
+    } catch (error) {
+      notify('Enregistrement impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+    }
   };
 
   return (

@@ -46,15 +46,16 @@ const WHITE_LOGO_HEIGHT = (107 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_TOP = (270 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_LEFT = (148 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
-import { setAuthenticated } from '@/hooks/use-auth';
+import { useOtpLogin } from '@/lib/use-otp-login';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [phone, setPhone] = useState('');
+  const otp = useOtpLogin();
 
-  const handleLogin = () => {
-    setAuthenticated(true);
-    router.replace('/(tabs)');
+  // Orange number -> SMS code -> session (community service).
+  const handleLogin = async () => {
+    if (await otp.submit(phone)) router.replace('/(tabs)');
   };
 
   const handleGoToSignup = () => {
@@ -149,21 +150,27 @@ export default function LoginScreen() {
               </View>
               <TextInput
                 style={styles.textInput}
-                placeholder="07 XX XX XX XX"
+                placeholder={otp.step === 'phone' ? '07 XX XX XX XX' : 'Code reçu par SMS'}
                 placeholderTextColor="#AAAAAA"
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
+                keyboardType={otp.step === 'phone' ? 'phone-pad' : 'number-pad'}
+                value={otp.step === 'phone' ? phone : otp.code}
+                onChangeText={otp.step === 'phone' ? setPhone : otp.setCode}
               />
             </View>
+            {otp.info && (
+              <Text style={styles.otpInfo} onPress={otp.changeNumber}>
+                {otp.info} · Changer de numéro
+              </Text>
+            )}
 
             {/* Orange Connect Button */}
             <TouchableOpacity
               style={styles.loginButton}
               onPress={handleLogin}
+              disabled={otp.busy}
               activeOpacity={0.85}
             >
-              <Text style={styles.loginButtonText}>SE CONNECTER</Text>
+              <Text style={styles.loginButtonText}>{otp.busy ? 'PATIENTEZ…' : otp.step === 'phone' ? 'RECEVOIR MON CODE' : 'SE CONNECTER'}</Text>
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -216,6 +223,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 6,
     elevation: 4,
+  },
+  otpInfo: {
+    color: '#F26522',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 10,
   },
   keyboardView: {
     flex: 1,

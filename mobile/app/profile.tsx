@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LogoutModal } from '@/components/logout-modal';
 import { ProfilePhotoModal } from '@/components/profile-photo-modal';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { useSession } from '@/lib/session';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ interface MenuItem {
 }
 
 export default function ProfileScreen() {
+  const account = useSession()?.user;
   const router = useRouter();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -133,14 +135,14 @@ export default function ProfileScreen() {
               onPress={() => router.push('/edit-profile')}
               activeOpacity={0.8}
             >
-              <Text style={styles.userName}>Diata</Text>
+              <Text style={styles.userName}>{account?.full_name || (account ? 'Voyageur SIRA' : 'Invité')}</Text>
               <View style={styles.smallChevronCircle}>
                 <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
 
             {/* Phone Number */}
-            <Text style={styles.userPhone}>+225 0703352619</Text>
+            <Text style={styles.userPhone}>{account?.phone_number ?? 'Non connecté'}</Text>
           </View>
 
           <View style={styles.divider} />

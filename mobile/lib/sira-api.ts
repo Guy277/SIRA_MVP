@@ -2,6 +2,7 @@
 // through this module; no screen talks to the network on its own.
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { currentToken } from '@/lib/session';
 
 export type Coordinates = { latitude: number; longitude: number };
 export type CategoryName = 'coule' | 'debout' | 'suspendu';
@@ -17,6 +18,7 @@ export type ApiLeg = {
   geometry: [number, number][];
   dataStatus?: string;
   confidence?: number;
+  line_id?: string;
 };
 
 export type ApiJourney = {
@@ -84,7 +86,12 @@ export async function apiJson<T>(path: string, init: RequestInit & { timeoutMs?:
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, { ...rest, headers: { 'content-type': 'application/json', ...rest.headers }, signal: controller.signal });
+    const token = currentToken();
+    response = await fetch(`${apiBaseUrl()}${path}`, {
+      ...rest,
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...rest.headers },
+      signal: controller.signal,
+    });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') throw new SiraApiError('Le serveur SIRA met trop de temps à répondre. Réessayez dans un instant.');
     throw new SiraApiError('Serveur SIRA injoignable. Vérifiez votre connexion.');
@@ -143,3 +150,17 @@ export const voteReport = (id: string, kind: 'confirm' | 'contest', clientId: st
   apiJson<TrafficReport>(`/reports/${encodeURIComponent(id)}/${kind}`, { method: 'POST', body: JSON.stringify({ clientId }) });
 export const journeyImpact = (legs: ApiLeg[]) =>
   apiJson<ReportImpact>('/reports/impact', { method: 'POST', body: JSON.stringify({ legs: legs.map((leg) => ({ mode: leg.mode, geometry: leg.geometry })) }) });
+
+// Accounts (OTP by SMS) and community fares, served by the community service.
+export type OtpRequestResult = { phone_number: string; expires_in_seconds: number; sms_sent: boolean; demo_code: string | null };
+export type LoginResult = { access_token: string; is_new_user: boolean; user: { id: string; phone_number: string; full_name: string | null; role: string } };
+export type FareSummary = { line_id: string; reports: number; median_fcfa: number | null; agreeing?: number; validated: boolean };
+
+export const requestOtp = (phone: string) =>
+  apiJson<OtpRequestResult>('/auth/request-otp', { method: 'POST', body: JSON.stringify({ phone_number: phone }) });
+export const verifyOtp = (phone: string, code: string, fullName?: string) =>
+  apiJson<LoginResult>('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ phone_number: phone, code, full_name: fullName }) });
+export const fareSummaries = (lineIds: string[]) =>
+  apiJson<FareSummary[]>(`/fares?${lineIds.map((id) => `line_id=${encodeURIComponent(id)}`).join('&')}`);
+export const reportFare = (lineId: string, mode: LegMode, amount: number) =>
+  apiJson<FareSummary>('/fares/reports', { method: 'POST', body: JSON.stringify({ line_id: lineId, mode, amount }) });

@@ -1,12 +1,15 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import { useEffect } from 'react';
+import { restoreSession } from '@/lib/session';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
 export default function RootLayout() {
+  useEffect(() => { void restoreSession(); }, []);
   return (
     <>
       <Stack
