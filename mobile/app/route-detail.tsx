@@ -16,6 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFavorites } from '@/hooks/use-favorites';
 import { OsmMapView } from '@/components/osm-map-view';
+import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
+import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import type { LegMode } from '@/lib/sira-api';
+
+const STEP_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
+  walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus', woro: 'car-sport', taxi: 'car', boat: 'boat',
+};
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,31 +30,21 @@ export default function RouteDetailScreen() {
   const router = useRouter();
   const { isFavorite: checkIsFavorite, toggleFavorite } = useFavorites();
 
-  const params = useLocalSearchParams<{
-    departure?: string;
-    arrival?: string;
-    mode?: string;
-    suboption?: string;
-    subtext?: string;
-    costRange?: string;
-    durationMinutes?: string;
-    distance?: string;
-    date?: string;
-    optionId?: string;
-  }>();
-
-  const departure = params.departure || 'Abobo Terminus';
-  const arrival = params.arrival || 'Orange Digital Center';
+  const store = useJourneyStore();
+  const journey = selectedJourney(store);
+  const search = store.search;
+  const departure = search?.departure.name ?? '';
+  const arrival = search?.arrival.name ?? '';
   const tripTitle = `D’${departure} à ${arrival}`;
+  const steps = journey && search ? timeline(journey, search.departureAt) : [];
 
   const [isLiked, setIsLiked] = useState(false);
   const isFavorite = checkIsFavorite(tripTitle);
 
   const handleStartNavigation = () => {
-    router.push({
-      pathname: '/navigation-active',
-      params: { destination: arrival },
-    });
+    if (!journey) return;
+    journeyStore.start(journey);
+    router.push({ pathname: '/navigation-active', params: { destination: arrival } });
   };
 
   const handleShare = () => {
@@ -59,10 +56,10 @@ export default function RouteDetailScreen() {
       departure,
       arrival,
       title: tripTitle,
-      mode: params.mode || 'Coulé',
-      transport: params.suboption || 'Bus + Taxi',
-      duration: '38 min',
-      costRange: '1 200 FCFA',
+      mode: (journey?.categories?.[0] ?? 'coule') === 'suspendu' ? 'Suspendu' : (journey?.categories?.[0] === 'debout' ? 'Debout' : 'Coulé'),
+      transport: journey ? journeyTitle(journey) : '',
+      duration: journey ? formatDuration(journey.duration) : '',
+      costRange: formatPrice(journey?.price),
     });
     Alert.alert(
       nowFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris',
@@ -127,6 +124,9 @@ export default function RouteDetailScreen() {
               style={styles.mapImage}
               departureName={departure}
               arrivalName={arrival}
+              origin={search?.departure}
+              destination={search?.arrival}
+              routeCoordinates={journeyPath(journey)}
             />
 
             {/* Top Right Map Legend Badges */}
@@ -164,65 +164,43 @@ export default function RouteDetailScreen() {
                 <View style={styles.dashedCenterLine} />
               </View>
 
-              {/* Step 1: Walking 6 min */}
-              <View style={styles.stepItemRow}>
-                <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="walk" size={22} color="#FFFFFF" />
+              {!journey && (
+                <View style={styles.stepItemRow}>
+                  <View style={styles.stepTextWrapper}>
+                    <Text style={styles.stepTitle}>Aucun trajet sélectionné</Text>
+                    <Text style={styles.stepSubDesc}>Revenez aux résultats et choisissez un itinéraire.</Text>
+                  </View>
                 </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>Marchez pendant 6 min</Text>
-                  <Text style={styles.stepSubDesc}>
-                    Abobo Terminus → <Text style={styles.boldText}>Gare d'Adjamé</Text>
-                  </Text>
-                  <Text style={styles.stepMetaText}>09:20 → 09:26 • 450 m</Text>
-                </View>
-              </View>
+              )}
 
-              {/* Step 2: Bus 22 20 min */}
-              <View style={styles.stepItemRow}>
-                <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="bus" size={20} color="#FFFFFF" />
+              {steps.map(({ leg, start, end }) => (
+                <View key={leg.id} style={styles.stepItemRow}>
+                  <View style={styles.orangeStepIconCircle}>
+                    <Ionicons name={STEP_ICONS[leg.mode] ?? 'ellipse'} size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.stepTextWrapper}>
+                    <Text style={styles.stepTitle}>{stepTitle(leg)}</Text>
+                    <Text style={styles.stepSubDesc}>{stepDescription(leg)}</Text>
+                    {isVehicle(leg) && (
+                      <Text style={styles.stepCostText}>
+                        Coût estimé : <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
+                      </Text>
+                    )}
+                    <Text style={styles.stepMetaText}>{formatClock(start)} → {formatClock(end)}</Text>
+                  </View>
                 </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>Prenez le Bus 22 (20 min)</Text>
-                  <Text style={styles.stepSubDesc}>
-                    Gare d'Adjamé → <Text style={styles.boldText}>Rond-Point Riviera</Text>
-                  </Text>
-                  <Text style={styles.stepCostText}>
-                    Coût estimé : <Text style={styles.boldText}>200 FCFA</Text>
-                  </Text>
-                  <Text style={styles.stepMetaText}>09:26 → 09:46</Text>
-                </View>
-              </View>
+              ))}
 
-              {/* Step 3: Taxi 7 min */}
-              <View style={styles.stepItemRow}>
-                <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="car" size={20} color="#FFFFFF" />
+              {journey && (
+                <View style={styles.stepItemRow}>
+                  <View style={styles.stepTextWrapper}>
+                    <Text style={styles.stepSubDesc}>
+                      Total : <Text style={styles.boldText}>{formatDuration(journey.duration)}</Text> · <Text style={styles.boldText}>{formatPrice(journey.price)}</Text>{journey.distance_km ? ` · ${formatDistance(journey.distance_km)}` : ''}
+                    </Text>
+                    <Text style={styles.stepMetaText}>Durées et prix estimés à partir des lignes open data 2021.</Text>
+                  </View>
                 </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>Prenez un taxi (7 min)</Text>
-                  <Text style={styles.stepSubDesc}>
-                    Rond-Point Riviera → <Text style={styles.boldText}>Cocody Riviera 3</Text>
-                  </Text>
-                  <Text style={styles.stepCostText}>
-                    Coût estimé : <Text style={styles.boldText}>1 000 FCFA</Text>
-                  </Text>
-                  <Text style={styles.stepMetaText}>09:46 → 09:53 • 3,2 km</Text>
-                </View>
-              </View>
-
-              {/* Step 4: Walking 5 min */}
-              <View style={styles.stepItemRow}>
-                <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="walk" size={22} color="#FFFFFF" />
-                </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>Marchez pendant 5 min</Text>
-                  <Text style={styles.stepSubDesc}>Destination finale</Text>
-                  <Text style={styles.stepMetaText}>09:53 → 09:58 • 350 m</Text>
-                </View>
-              </View>
+              )}
 
               {/* Step 5: Destination Arrival */}
               <View style={styles.stepItemRow}>

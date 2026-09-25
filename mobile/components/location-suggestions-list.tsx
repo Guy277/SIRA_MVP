@@ -6,8 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { searchPlaces, type PlaceResult } from '@/lib/sira-api';
+import { rememberPlace } from '@/lib/places';
 
 export interface LocationItem {
   id: string;
@@ -121,6 +124,28 @@ export function LocationSuggestionsList({
     );
   });
 
+  // Real places from the SIRA API (Photon / OpenStreetMap), debounced.
+  const [results, setResults] = React.useState<PlaceResult[]>([]);
+  const [searching, setSearching] = React.useState(false);
+  React.useEffect(() => {
+    const text = query.trim();
+    if (text.length < 3) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      searchPlaces(text)
+        .then((places) => { if (!cancelled) setResults(places); })
+        .catch(() => { if (!cancelled) setResults([]); })
+        .finally(() => { if (!cancelled) setSearching(false); });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const selectResult = (place: PlaceResult) => {
+    rememberPlace(place.title, place.coordinates);
+    onSelectLocation(place.title);
+  };
+
   return (
     <View style={styles.screenContainer}>
       {/* Top Header Section (Exact Yango Header) */}
@@ -203,7 +228,27 @@ export function LocationSuggestionsList({
           </TouchableOpacity>
         )}
 
-        {/* Predefined / Filtered Locations List */}
+        {searching && <ActivityIndicator style={styles.searchingIndicator} color="#F26522" />}
+
+        {/* Search results from OpenStreetMap (hidden for queries under 3 letters) */}
+        {query.trim().length >= 3 && results.map((place, index) => (
+          <TouchableOpacity
+            key={`result-${index}-${place.coordinates.latitude}`}
+            style={styles.locationCardRow}
+            onPress={() => selectResult(place)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.iconSquareBadge}>
+              <Ionicons name="location-outline" size={22} color="#F26522" />
+            </View>
+            <View style={styles.locationTextCol}>
+              <Text style={styles.locationTitle} numberOfLines={1}>{place.title}</Text>
+              <Text style={styles.locationSubtitle} numberOfLines={1}>{place.subtitle}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+
+        {/* Frequent places shortcuts */}
         {filteredLocations.map((item) => (
           <TouchableOpacity
             key={item.id}
@@ -226,10 +271,6 @@ export function LocationSuggestionsList({
               </Text>
             </View>
 
-            {/* Right Duration Metric */}
-            {item.duration && (
-              <Text style={styles.durationText}>{item.duration}</Text>
-            )}
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -238,6 +279,9 @@ export function LocationSuggestionsList({
 }
 
 const styles = StyleSheet.create({
+  searchingIndicator: {
+    marginVertical: 10,
+  },
   screenContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',

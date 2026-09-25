@@ -10,6 +10,7 @@ import {
   Platform,
   LayoutAnimation,
   UIManager,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -21,18 +22,26 @@ import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { LocationSuggestionsList } from '@/components/location-suggestions-list';
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
-import { getRouteBetweenLocations } from '@/services/osrm-service';
+import { fetchJourneys, type ApiJourney, type LegMode } from '@/lib/sira-api';
+import { resolvePlace } from '@/lib/places';
+import { journeyStore, useJourneyStore } from '@/lib/journey-store';
+import {
+  CATEGORY_BY_LABEL, CATEGORY_LABELS, arrivalTime, formatClock, formatDistance, formatDuration,
+  formatPrice, isVehicle, journeyPath, journeySummary, journeyTitle, type CategoryLabel,
+} from '@/lib/journey-format';
 
 const { width, height } = Dimensions.get('window');
 
-type TransportMode = 'Coulé' | 'Debout' | 'Suspendu';
+// Coulé / Debout / Suspendu are result categories ranked by the engine
+// (budget, middle ground, comfort); they do not restrict transport modes.
+type TransportMode = CategoryLabel;
 type FilterType = 'Tout' | 'Marche' | 'Bus' | 'Gbaka' | 'wôro-wôro' | 'Taxi' | 'Yango';
 
-const MODE_ALLOWED_FILTERS: Record<TransportMode, FilterType[]> = {
-  Coulé: ['Tout', 'Marche', 'Bus', 'Gbaka'],
-  Debout: ['Tout', 'Gbaka', 'wôro-wôro', 'Taxi', 'Yango'],
-  Suspendu: ['Tout', 'Taxi', 'Yango'],
+const FILTER_MODES: Record<Exclude<FilterType, 'Tout'>, LegMode[]> = {
+  Marche: ['walk'], Bus: ['sotra', 'boat'], Gbaka: ['gbaka'], 'wôro-wôro': ['woro'], Taxi: ['taxi'], Yango: [],
 };
+// No Yango data yet: the chip stays visible but is disabled rather than faked.
+const UNAVAILABLE_FILTERS: FilterType[] = ['Yango'];
 
 interface RouteStep {
   type: 'walk' | 'bus' | 'taxi' | 'arrow-right' | 'arrow-left';
@@ -41,9 +50,11 @@ interface RouteStep {
 
 interface RouteOption {
   id: string;
-  mode: TransportMode;
+  mode: TransportMode | null;
+  leads: TransportMode[];
   suboption: FilterType;
   subtext: string;
+  title: string;
   steps: RouteStep[];
   trafficStatus: string;
   distance: string;
@@ -51,6 +62,33 @@ interface RouteOption {
   costRange: string;
   departureTime: string;
   arrivalTime: string;
+  journey: ApiJourney;
+}
+
+function toRouteOption(journey: ApiJourney, departureAt: Date, mode: TransportMode | null): RouteOption {
+  const vehicles = journey.legs.filter(isVehicle);
+  const steps: RouteStep[] = [];
+  journey.legs.filter((leg) => leg.mode !== 'wait' && leg.duration > 0).forEach((leg, index) => {
+    if (index > 0) steps.push({ type: 'arrow-right' });
+    steps.push({ type: leg.mode === 'walk' || leg.mode === 'transfer' ? 'walk' : leg.mode === 'taxi' ? 'taxi' : 'bus', duration: `${leg.duration} min` });
+  });
+  const mainMode = vehicles[0]?.mode;
+  return {
+    id: journey.id,
+    mode,
+    leads: (journey.categories ?? []).map((name) => CATEGORY_LABELS[name]),
+    suboption: mainMode === 'taxi' ? 'Taxi' : mainMode === 'gbaka' ? 'Gbaka' : mainMode === 'woro' ? 'wôro-wôro' : mainMode ? 'Bus' : 'Marche',
+    subtext: journeySummary(journey),
+    title: journeyTitle(journey),
+    steps,
+    trafficStatus: '',
+    distance: formatDistance(journey.distance_km),
+    durationMinutes: formatDuration(journey.duration).replace(/ min$/, ''),
+    costRange: formatPrice(journey.price),
+    departureTime: formatClock(departureAt),
+    arrivalTime: formatClock(arrivalTime(journey, departureAt)),
+    journey,
+  };
 }
 
 export default function RouteExploreScreen() {
@@ -61,7 +99,16 @@ export default function RouteExploreScreen() {
   const [departure, setDeparture] = useState('Orange Digital Center');
   const [arrival, setArrival] = useState(params.destination || params.query || 'Cocody Saint-Jean');
   const [focusedField, setFocusedField] = useState<'departure' | 'arrival' | null>(null);
-  const [osrmCoords, setOsrmCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  const { search, selectedId } = useJourneyStore();
+  // Loading and error are derived from the last finished search, keyed by its
+  // endpoints, instead of being toggled from the effect.
+  const searchKey = `${departure}→${arrival}`;
+  const [finished, setFinished] = useState<{ key: string; error: string | null } | null>(null);
+  const sameEndpoints = departure.trim() !== '' && departure === arrival;
+  const loading = !sameEndpoints && departure.trim() !== '' && arrival.trim() !== '' && finished?.key !== searchKey;
+  const searchError = sameEndpoints
+    ? 'Le départ et l’arrivée sont identiques : choisissez une autre destination.'
+    : finished?.key === searchKey ? finished.error : null;
 
   useEffect(() => {
     if (params.destination) {
@@ -71,18 +118,28 @@ export default function RouteExploreScreen() {
     }
   }, [params.destination, params.query]);
 
+  // Every departure/arrival change asks the SIRA engine for real journeys.
   useEffect(() => {
-    let isMounted = true;
-    async function loadOsrmRoute() {
-      const res = await getRouteBetweenLocations(departure, arrival);
-      if (isMounted && res && res.coordinates) {
-        setOsrmCoords(res.coordinates);
+    if (!departure.trim() || !arrival.trim() || departure === arrival) return;
+    let cancelled = false;
+    const key = `${departure}→${arrival}`;
+    (async () => {
+      try {
+        const [from, to] = await Promise.all([resolvePlace(departure), resolvePlace(arrival)]);
+        const departureAt = new Date();
+        const data = await fetchJourneys({ origin: { ...from, name: departure }, destination: { ...to, name: arrival }, departureAt });
+        if (cancelled) return;
+        journeyStore.setSearch({
+          departure: { ...from, name: departure }, arrival: { ...to, name: arrival }, departureAt,
+          journeys: data.journeys.filter((journey) => journey.legs?.length),
+          categories: data.categories ?? { coule: [], debout: [], suspendu: [] },
+        });
+        setFinished({ key, error: data.journeys.length ? null : data.rejected?.length ? 'Aucun trajet ne respecte vos contraintes.' : 'Aucun trajet trouvé entre ces deux lieux.' });
+      } catch (error) {
+        if (!cancelled) setFinished({ key, error: error instanceof Error ? error.message : 'Recherche impossible pour le moment.' });
       }
-    }
-    loadOsrmRoute();
-    return () => {
-      isMounted = false;
-    };
+    })();
+    return () => { cancelled = true; };
   }, [departure, arrival]);
 
   const [selectedMode, setSelectedMode] = useState<TransportMode | null>(null);
@@ -99,35 +156,15 @@ export default function RouteExploreScreen() {
     }
   }, []);
 
+  // Mode chips filter on the modes a journey actually uses, in every category.
   const handleFilterChange = (filter: FilterType | 'Tout') => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setActiveFilter(filter);
-
-    if (filter === 'Tout') {
-      // If global 'Tout' chip pressed, reset mode selection so all 3 mode cards turn black
-      setSelectedMode(null);
-    } else if (filter === 'Marche' || filter === 'Bus' || filter === 'Gbaka') {
-      setSelectedMode('Coulé');
-    } else if (filter === 'wôro-wôro') {
-      setSelectedMode('Debout');
-    } else if (filter === 'Taxi' || filter === 'Yango') {
-      setSelectedMode('Suspendu');
-    }
   };
 
   const handleModeChange = (mode: TransportMode) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    if (selectedMode === mode && activeFilter !== 'Tout') {
-      // Toggle off to Tout mode if pressed again
-      setSelectedMode(null);
-      setActiveFilter('Tout');
-      return;
-    }
-
-    setSelectedMode(mode);
-    const allowed = MODE_ALLOWED_FILTERS[mode] || [];
-    // Set active filter to first transport option (e.g. 'Taxi' for Suspendu, 'Marche' for Coulé, 'Gbaka' for Debout)
-    setActiveFilter(allowed[1] || 'Tout');
+    setSelectedMode(selectedMode === mode ? null : mode);
   };
 
   // Sync incoming search params from Home screen into arrival state
@@ -145,265 +182,31 @@ export default function RouteExploreScreen() {
     setArrival(temp);
   };
 
-  const routeOptions: RouteOption[] = [
-    // === 1. MODE COULÉ (Économique - Marche, Bus, Gbaka) ===
-    {
-      id: 'coule-marche-1',
-      mode: 'Coulé',
-      suboption: 'Marche',
-      subtext: 'Gratuit • 100% Marche',
-      steps: [
-        { type: 'walk', duration: '5 min' },
-        { type: 'arrow-right' },
-        { type: 'walk', duration: '9 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '9 min' },
-      ],
-      trafficStatus: '',
-      distance: '1,8 Km',
-      durationMinutes: '23',
-      costRange: 'gratuit',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'coule-marche-2',
-      mode: 'Coulé',
-      suboption: 'Marche',
-      subtext: 'Gratuit • Marche Éco',
-      steps: [
-        { type: 'walk', duration: '8 min' },
-        { type: 'arrow-right' },
-        { type: 'walk', duration: '12 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '6 min' },
-      ],
-      trafficStatus: '',
-      distance: '2,1 Km',
-      durationMinutes: '26',
-      costRange: 'gratuit',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'coule-bus-1',
-      mode: 'Coulé',
-      suboption: 'Bus',
-      subtext: 'Bus SOTRA Ligne 22',
-      steps: [
-        { type: 'walk', duration: '4 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '18 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '5 min' },
-      ],
-      trafficStatus: 'Fluide',
-      distance: '8,5 Km',
-      durationMinutes: '27',
-      costRange: '200 FCFA',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'coule-gbaka-1',
-      mode: 'Coulé',
-      suboption: 'Gbaka',
-      subtext: 'Gbaka Samaké Adjamé',
-      steps: [
-        { type: 'walk', duration: '3 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '15 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '4 min' },
-      ],
-      trafficStatus: 'Ralenti',
-      distance: '10 Km',
-      durationMinutes: '22',
-      costRange: '300 FCFA',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-
-    // === 2. MODE DEBOUT (Standard - Gbaka, wôro-wôro, Taxi, Yango) ===
-    {
-      id: 'debout-gbaka-1',
-      mode: 'Debout',
-      suboption: 'Gbaka',
-      subtext: 'Gbaka Express Boulevard',
-      steps: [
-        { type: 'walk', duration: '2 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '14 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '4 min' },
-      ],
-      trafficStatus: 'Trafic modéré',
-      distance: '11 Km',
-      durationMinutes: '20',
-      costRange: '400 FCFA',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'debout-woro-1',
-      mode: 'Debout',
-      suboption: 'wôro-wôro',
-      subtext: 'Wôro-Wôro Ligne Jaune',
-      steps: [
-        { type: 'walk', duration: '3 min' },
-        { type: 'arrow-right' },
-        { type: 'taxi', duration: '10 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '5 min' },
-      ],
-      trafficStatus: 'Fluide',
-      distance: '7,2 Km',
-      durationMinutes: '18',
-      costRange: '500 FCFA',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'debout-woro-2',
-      mode: 'Debout',
-      suboption: 'wôro-wôro',
-      subtext: 'Wôro-Wôro Vert Angré',
-      steps: [
-        { type: 'walk', duration: '4 min' },
-        { type: 'arrow-right' },
-        { type: 'taxi', duration: '12 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '3 min' },
-      ],
-      trafficStatus: 'Trafic modéré',
-      distance: '8 Km',
-      durationMinutes: '19',
-      costRange: '600 FCFA',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'debout-taxi-1',
-      mode: 'Debout',
-      suboption: 'Taxi',
-      subtext: 'Taxi Collectif Communal',
-      steps: [
-        { type: 'walk', duration: '4 min' },
-        { type: 'arrow-right' },
-        { type: 'taxi', duration: '11 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '2 min' },
-      ],
-      trafficStatus: 'Fluide',
-      distance: '9,5 Km',
-      durationMinutes: '17',
-      costRange: '700 FCFA',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'debout-yango-1',
-      mode: 'Debout',
-      suboption: 'Yango',
-      subtext: 'Yango Éco Partagé',
-      steps: [
-        { type: 'walk', duration: '2 min' },
-        { type: 'arrow-right' },
-        { type: 'taxi', duration: '13 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '3 min' },
-      ],
-      trafficStatus: 'Trafic modéré',
-      distance: '10 Km',
-      durationMinutes: '18',
-      costRange: '1.000 FCFA',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-
-    // === 3. MODE SUSPENDU (Confort / VIP - Taxi & Yango) ===
-    {
-      id: 'suspendu-taxi-1',
-      mode: 'Suspendu',
-      suboption: 'Taxi',
-      subtext: 'Taxi Compteur Confort',
-      steps: [
-        { type: 'walk', duration: '5 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '7 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '9 min' },
-      ],
-      trafficStatus: 'Trafic modéré',
-      distance: '18 Km',
-      durationMinutes: '24',
-      costRange: 'entre 500F et 1.500F',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'suspendu-taxi-2',
-      mode: 'Suspendu',
-      suboption: 'Taxi',
-      subtext: 'Taxi Compteur Express',
-      steps: [
-        { type: 'walk', duration: '5 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '7 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '9 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '3 min' },
-      ],
-      trafficStatus: 'Trafic modéré',
-      distance: '18 Km',
-      durationMinutes: '24',
-      costRange: 'entre 500F et 1.500F',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
-    {
-      id: 'suspendu-yango-1',
-      mode: 'Suspendu',
-      suboption: 'Yango',
-      subtext: 'Yango Comfort Direct',
-      steps: [
-        { type: 'walk', duration: '5 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '7 min' },
-        { type: 'arrow-left' },
-        { type: 'walk', duration: '9 min' },
-        { type: 'arrow-right' },
-        { type: 'bus', duration: '3 min' },
-      ],
-      trafficStatus: 'Trafic modéré',
-      distance: '18 Km',
-      durationMinutes: '24',
-      costRange: 'entre 500F et 1.500F',
-      departureTime: '09H30',
-      arrivalTime: '10H30',
-    },
+  const modesList: { name: TransportMode; subtitle: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { name: 'Coulé', subtitle: 'Moins cher', icon: 'people' },
+    { name: 'Debout', subtitle: 'Juste milieu', icon: 'sparkles' },
+    { name: 'Suspendu', subtitle: 'Confort', icon: 'trophy' },
   ];
 
-  const modesList: { name: TransportMode; subtitle: string; icon: keyof typeof Ionicons.glyphMap; isVip?: boolean }[] = [
-    { name: 'Coulé', subtitle: 'Moindre cher', icon: 'people' },
-    { name: 'Debout', subtitle: 'Standard', icon: 'sparkles' },
-    { name: 'Suspendu', subtitle: 'Confort', icon: 'trophy', isVip: true },
-  ];
+  // Journeys of the chosen category in the engine's order, or every journey
+  // (category leaders first) when no category is selected.
+  const departureAt = search?.departureAt ?? new Date();
+  const journeys = search?.journeys ?? [];
+  const byId = new Map(journeys.map((journey) => [journey.id, journey]));
+  const ordered: ApiJourney[] = selectedMode
+    ? (search?.categories[CATEGORY_BY_LABEL[selectedMode]] ?? []).map((id) => byId.get(id)).filter((journey): journey is ApiJourney => Boolean(journey))
+    : [...journeys].sort((a, b) => (b.categories?.length ?? 0) - (a.categories?.length ?? 0) || a.duration - b.duration);
 
-  // Filter options based on active selection and transport mode
-  const filteredRouteOptions = routeOptions.filter((opt) => {
-    if (activeFilter === 'Tout' && !selectedMode) {
-      return true;
-    }
-    if (selectedMode) {
-      if (activeFilter === 'Tout') {
-        return opt.mode === selectedMode;
-      }
-      return opt.mode === selectedMode && opt.suboption === activeFilter;
-    }
-    return opt.suboption === activeFilter;
-  });
+  const filteredRouteOptions = ordered
+    .filter((journey) => activeFilter === 'Tout' || journey.legs.some((leg) => FILTER_MODES[activeFilter].includes(leg.mode)))
+    .map((journey) => toRouteOption(journey, departureAt, selectedMode));
+
+  const shownJourney = (selectedId ? byId.get(selectedId) : null) ?? filteredRouteOptions[0]?.journey ?? null;
+  const mapPath = journeyPath(shownJourney);
+  const categoryPreview = (mode: TransportMode) => {
+    const leader = byId.get(search?.categories[CATEGORY_BY_LABEL[mode]]?.[0] ?? '');
+    return leader ? `${formatPrice(leader.price)} · ${formatDuration(leader.duration)}` : null;
+  };
 
   return (
     <View style={styles.container}>
@@ -413,7 +216,9 @@ export default function RouteExploreScreen() {
       <OsmMapView
         departureName={departure}
         arrivalName={arrival}
-        routeCoordinates={osrmCoords}
+        origin={search?.departure}
+        destination={search?.arrival}
+        routeCoordinates={mapPath}
         style={styles.backgroundImage}
       />
 
@@ -539,10 +344,7 @@ export default function RouteExploreScreen() {
             contentContainerStyle={styles.filtersContentContainer}
           >
             {(['Tout', 'Marche', 'Bus', 'Gbaka', 'wôro-wôro', 'Taxi', 'Yango'] as FilterType[]).map((filterItem) => {
-              const allowedFilters = (!selectedMode || activeFilter === 'Tout')
-                ? ['Tout', 'Marche', 'Bus', 'Gbaka', 'wôro-wôro', 'Taxi', 'Yango']
-                : (MODE_ALLOWED_FILTERS[selectedMode] || []);
-              const isEnabled = allowedFilters.includes(filterItem);
+              const isEnabled = !UNAVAILABLE_FILTERS.includes(filterItem);
               const isActive = activeFilter === filterItem && isEnabled;
 
               const iconName: keyof typeof Ionicons.glyphMap =
@@ -584,7 +386,7 @@ export default function RouteExploreScreen() {
                       !isEnabled && styles.filterChipTextDisabled,
                     ]}
                   >
-                    {filterItem}
+                    {filterItem}{isEnabled ? '' : ' · bientôt'}
                   </Text>
                 </TouchableOpacity>
               );
@@ -607,9 +409,9 @@ export default function RouteExploreScreen() {
                 >
                   <Ionicons name={modeItem.icon} size={17} color="#FFFFFF" />
                   <View style={styles.modeCardTextWrapper}>
-                    {modeItem.isVip && <Text style={styles.vipBadgeText}>VIP</Text>}
                     <Text style={styles.modeCardTitle}>{modeItem.name}</Text>
                     <Text style={styles.modeCardSub}>{modeItem.subtitle}</Text>
+                    {categoryPreview(modeItem.name) && <Text style={styles.modeCardPreview}>{categoryPreview(modeItem.name)}</Text>}
                   </View>
                 </TouchableOpacity>
               );
@@ -621,7 +423,9 @@ export default function RouteExploreScreen() {
             <OsmMapView
               departureName={departure}
               arrivalName={arrival}
-              routeCoordinates={osrmCoords}
+              origin={search?.departure}
+              destination={search?.arrival}
+              routeCoordinates={mapPath}
               style={styles.mapImage}
             />
           </View>
@@ -666,17 +470,43 @@ export default function RouteExploreScreen() {
 
             {/* Route Options Result Cards (Coulé, Debout, Suspendu) */}
             <View style={[styles.resultsContainer, !isSheetExpanded && styles.resultsContainerCollapsed]}>
-              {filteredRouteOptions.map((option) => (
+              {loading && (
+                <View style={styles.searchStateRow}>
+                  <ActivityIndicator color="#F26522" />
+                  <Text style={styles.searchStateText}>SIRA calcule vos trajets…</Text>
+                </View>
+              )}
+              {!loading && searchError && (
+                <View style={styles.searchStateRow}>
+                  <Ionicons name="alert-circle" size={18} color="#DC2626" />
+                  <Text style={styles.searchStateText}>{searchError}</Text>
+                </View>
+              )}
+              {!loading && !searchError && search && filteredRouteOptions.length === 0 && (
+                <View style={styles.searchStateRow}>
+                  <Ionicons name="information-circle" size={18} color="#F26522" />
+                  <Text style={styles.searchStateText}>Aucun trajet dans cette catégorie pour ce filtre.</Text>
+                </View>
+              )}
+              {!loading && filteredRouteOptions.map((option) => (
               <View
                 key={option.id}
                 style={[
                   styles.resultCard,
-                  selectedMode === option.mode && styles.resultCardHighlighted,
+                  option.id === shownJourney?.id && styles.resultCardHighlighted,
                 ]}
               >
                 {/* Left Column: Title, Steps, Cost, Schedule */}
                 <View style={styles.cardLeftCol}>
-                  <Text style={styles.resultModeTitle}>{option.mode}</Text>
+                  {option.leads.length > 0 && (
+                    <View style={styles.leadBadgesRow}>
+                      {option.leads.map((lead) => (
+                        <Text key={lead} style={styles.leadBadge}>{option.leads.length === 3 ? 'Meilleur choix · 3 catégories' : lead}</Text>
+                      )).slice(0, option.leads.length === 3 ? 1 : 3)}
+                    </View>
+                  )}
+                  <Text style={styles.resultModeTitle} numberOfLines={1}>{option.title}</Text>
+                  <Text style={styles.resultSubtext} numberOfLines={1}>{option.subtext}</Text>
 
                   <View style={styles.stepsPillsRow}>
                     {option.steps.map((step, sIdx) => {
@@ -736,27 +566,15 @@ export default function RouteExploreScreen() {
                   <View style={styles.durationWrapper}>
                     <Text style={styles.durationPrefix}>en </Text>
                     <Text style={styles.durationBold}>{option.durationMinutes}</Text>
-                    <Text style={styles.durationUnit}> min</Text>
+                    {option.journey.duration < 60 && <Text style={styles.durationUnit}> min</Text>}
                   </View>
 
                   <TouchableOpacity
                     style={styles.detailPillBtn}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/route-detail',
-                        params: {
-                          departure,
-                          arrival,
-                          mode: option.mode,
-                          suboption: option.suboption,
-                          subtext: option.subtext,
-                          costRange: option.costRange,
-                          durationMinutes: option.durationMinutes,
-                          distance: option.distance,
-                          optionId: option.id,
-                        },
-                      })
-                    }
+                    onPress={() => {
+                      journeyStore.select(option.id);
+                      router.push('/route-detail');
+                    }}
                     activeOpacity={0.85}
                   >
                     <View style={styles.plusIconCircle}>
@@ -813,7 +631,7 @@ export default function RouteExploreScreen() {
               <OsmMapView
                 departureName={departure}
                 arrivalName={arrival}
-                routeCoordinates={osrmCoords}
+                routeCoordinates={mapPath}
                 style={styles.decompMapImage}
               />
 
@@ -1263,6 +1081,45 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  modeCardPreview: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  searchStateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+  },
+  searchStateText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333333',
+  },
+  leadBadgesRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 2,
+  },
+  leadBadge: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#F26522',
+    backgroundColor: '#FFF4EE',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  resultSubtext: {
+    fontSize: 10,
+    color: '#666666',
+    marginTop: 1,
   },
   modeCardSub: {
     fontSize: 9,

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "sira_proj",
+    "name": "SIRA",
     "slug": "sira_proj",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,7 +20,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -35,6 +35,12 @@
           "dark": {
             "backgroundColor": "#010101"
           }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SIRA utilise votre position pour calculer les trajets depuis l'endroit où vous êtes et pour localiser vos signalements."
         }
       ],
       "expo-font",

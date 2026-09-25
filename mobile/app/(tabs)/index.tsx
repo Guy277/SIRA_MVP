@@ -88,7 +88,7 @@ export default function HomeScreen() {
         {/* Speech / Greeting Bubble (Positioned above character's head with speech pointer tail) */}
         <View style={styles.speechBubble}>
           <Text style={styles.speechGreeting}>
-            salut <Text style={styles.speechGreetingBold}>diata</Text>
+            <Text style={styles.speechGreetingBold}>Akwaba !</Text>
           </Text>
           <Text style={styles.speechMain}>
             Je suis <Text style={styles.siraBold}>SIRA</Text>, votre

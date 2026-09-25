@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, ViewStyle, Text } from 'react-native';
 import MapView, {
   Marker,
@@ -6,15 +6,17 @@ import MapView, {
   PROVIDER_DEFAULT,
 } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  ABIDJAN_COORDINATES_MAP,
-  getRouteBetweenLocations,
-} from '@/services/osrm-service';
+import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
+import type { Coordinates, TrafficReport } from '@/lib/sira-api';
 
 interface OsmMapViewProps {
   departureName?: string;
   arrivalName?: string;
+  // Real coordinates win over the name lookup when known.
+  origin?: Coordinates | null;
+  destination?: Coordinates | null;
   routeCoordinates?: { latitude: number; longitude: number }[];
+  reports?: TrafficReport[];
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
@@ -35,43 +37,19 @@ const INTERMEDIATE_STATIONS = [
 ];
 
 export function OsmMapView({
-  departureName = 'Abobo Terminus',
-  arrivalName = 'Orange Digital Center',
-  routeCoordinates: externalRoute = [],
+  departureName,
+  arrivalName,
+  origin,
+  destination,
+  routeCoordinates: activeRoute = [],
+  reports = [],
   style,
-  showIntermediateStations = true,
+  showIntermediateStations = false,
 }: OsmMapViewProps) {
   const mapRef = useRef<MapView>(null);
-  const [fetchedRoute, setFetchedRoute] = useState<{ latitude: number; longitude: number }[]>([]);
 
-  const startCoords =
-    ABIDJAN_COORDINATES_MAP[departureName] ||
-    ABIDJAN_COORDINATES_MAP['Abobo Samaké'] ||
-    { latitude: 5.4160, longitude: -4.0150 };
-
-  const endCoords =
-    ABIDJAN_COORDINATES_MAP[arrivalName] ||
-    ABIDJAN_COORDINATES_MAP['Orange Digital Center'] ||
-    { latitude: 5.3260, longitude: -4.0198 };
-
-  // Fetch real OSRM driving route if external coordinates are not provided
-  useEffect(() => {
-    let isMounted = true;
-
-    if (externalRoute.length === 0) {
-      getRouteBetweenLocations(departureName, arrivalName).then((result) => {
-        if (isMounted && result && result.coordinates.length > 0) {
-          setFetchedRoute(result.coordinates);
-        }
-      });
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [departureName, arrivalName, externalRoute]);
-
-  const activeRoute = externalRoute.length > 0 ? externalRoute : fetchedRoute;
+  const startCoords = origin ?? (departureName ? ABIDJAN_COORDINATES_MAP[departureName] : undefined);
+  const endCoords = destination ?? (arrivalName ? ABIDJAN_COORDINATES_MAP[arrivalName] : undefined);
 
   // Fit bounds dynamically when route or markers update
   useEffect(() => {
@@ -88,7 +66,7 @@ export function OsmMapView({
         });
       }
     }
-  }, [activeRoute, departureName, arrivalName]);
+  }, [activeRoute, startCoords, endCoords]);
 
   return (
     <View style={[styles.container, style]}>
@@ -135,25 +113,27 @@ export function OsmMapView({
           </Marker>
         )}
 
-        {/* OSRM Route Polyline */}
-        {activeRoute.length > 0 ? (
+        {/* Community reports, Waze style */}
+        {reports.map((report) => (
+          <Marker
+            key={report.id}
+            coordinate={{ latitude: report.lat, longitude: report.lon }}
+            title={report.title}
+            description={`${report.location} · ${report.status === 'reported' ? 'à confirmer' : 'confirmé'}`}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View style={[styles.reportMarker, report.status === 'reported' && styles.reportMarkerPending]}>
+              <Ionicons name="warning" size={12} color="#FFFFFF" />
+            </View>
+          </Marker>
+        ))}
+
+        {/* Journey computed by the SIRA engine */}
+        {activeRoute.length > 1 && (
           <Polyline
             coordinates={activeRoute}
             strokeColor="#F26522"
             strokeWidth={5}
-            lineDashPattern={undefined}
-          />
-        ) : (
-          <Polyline
-            coordinates={[
-              startCoords,
-              INTERMEDIATE_STATIONS[0],
-              INTERMEDIATE_STATIONS[1],
-              INTERMEDIATE_STATIONS[2],
-              endCoords,
-            ]}
-            strokeColor="#F26522"
-            strokeWidth={4}
           />
         )}
       </MapView>
@@ -201,6 +181,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
+  },
+  reportMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#DC2626',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportMarkerPending: {
+    opacity: 0.6,
   },
   endMarkerBadge: {
     alignItems: 'center',
