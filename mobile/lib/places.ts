@@ -80,6 +80,11 @@ export function ensureCurrentPlace(): Promise<CurrentPlace> {
   return pending;
 }
 
+// True for labels that stand for the traveller's own position.
+export function isOwnPosition(label: string) {
+  return label === CURRENT_LOCATION || label === 'Ma position' || (current.status === 'ready' && label === current.title);
+}
+
 export function useCurrentPlace() {
   return useSyncExternalStore(
     (listener) => { currentListeners.add(listener); return () => currentListeners.delete(listener); },

@@ -22,7 +22,7 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { fetchJourneys, type ApiJourney, type LegMode } from '@/lib/sira-api';
-import { CURRENT_LOCATION, ensureCurrentPlace, resolvePlace, useCurrentPlace } from '@/lib/places';
+import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, resolvePlace, useCurrentPlace } from '@/lib/places';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import {
   CATEGORY_BY_LABEL, CATEGORY_LABELS, arrivalTime, formatClock, formatDistance, formatDuration,
@@ -338,7 +338,7 @@ export default function RouteExploreScreen() {
             onSelectLocation={(selectedLoc) => {
               if (focusedField === 'departure') {
                 setDeparture(selectedLoc);
-              } else if (focusedField === 'arrival') {
+              } else if (focusedField === 'arrival' && !isOwnPosition(selectedLoc)) {
                 setArrival(selectedLoc);
               }
               setFocusedField(null);

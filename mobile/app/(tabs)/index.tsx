@@ -20,8 +20,8 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { firstName, useSession } from '@/lib/session';
-import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
-import { goBack } from '@/lib/navigation';
+import { ensureCurrentPlace, isOwnPosition, useCurrentPlace } from '@/lib/places';
+import { notify } from '@/lib/notify';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -44,13 +44,16 @@ export default function HomeScreen() {
   const greetingName = firstName(useSession()?.user);
   const here = useCurrentPlace();
   useEffect(() => { void ensureCurrentPlace(); }, []);
-  const [destination, setDestination] = useState('');
   const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
   const handleLocationSelect = (selectedLoc: string) => {
-    setDestination(selectedLoc);
     setIsYangoModalOpen(false);
+    // The departure is already the traveller's position: it cannot be the destination.
+    if (isOwnPosition(selectedLoc)) {
+      notify('Choisissez une destination', 'Vous êtes déjà à cet endroit : indiquez où vous voulez aller.');
+      return;
+    }
     router.push({
       pathname: '/(tabs)/explore',
       params: { destination: selectedLoc, query: selectedLoc },
@@ -64,7 +67,6 @@ export default function HomeScreen() {
 
   const handleVoiceSelect = (phrase: string) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    setDestination(phrase);
     setIsVoiceModalOpen(false);
     router.push({
       pathname: '/(tabs)/explore',
@@ -82,17 +84,16 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Top Header Bar with Circular Black Back Button */}
         <View style={styles.topHeader}>
-          {/* Home is the first screen: no back arrow when there is nothing behind it. */}
-          {router.canGoBack() && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => goBack(router)}
-              activeOpacity={0.8}
-              accessibilityLabel="Retour"
-            >
-              <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
+          {/* Home is the first screen of the app: its back arrow leads to the
+              login page (history "back" would only reach the splash, also at "/"). */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push('/login')}
+            activeOpacity={0.8}
+            accessibilityLabel="Retour"
+          >
+            <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
 
         {/* Speech / Greeting Bubble (Positioned above character's head with speech pointer tail) */}
@@ -131,7 +132,7 @@ export default function HomeScreen() {
 
             <View style={styles.searchInputWrapper}>
               <Text style={styles.searchPlaceholderText}>
-                {destination || "Où voulez-vous aller ?"}
+                Où allez-vous ?
               </Text>
             </View>
 
@@ -153,7 +154,7 @@ export default function HomeScreen() {
         onSelectLocation={handleLocationSelect}
         currentLocationName={here.status === 'ready' ? here.title : 'Ma position'}
         placeholder="Où allez-vous ?"
-        initialQuery={destination}
+        initialQuery=""
       />
 
       {/* SIRA Interactive Voice Recognition Assistant Modal */}
