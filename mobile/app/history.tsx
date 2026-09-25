@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { useFavorites } from '@/hooks/use-favorites';
+import { goBack } from '@/lib/navigation';
 
 const { width } = Dimensions.get('window');
 
@@ -220,7 +221,7 @@ export default function HistoryScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.headerIconButton}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

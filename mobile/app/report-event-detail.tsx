@@ -23,6 +23,7 @@ import { createReport, type Coordinates } from '@/lib/sira-api';
 import { locateUser, nearestPlaceLabel } from '@/lib/places';
 import { REPORT_TYPE_BY_CATEGORY, clientId, upsertReport } from '@/lib/reports';
 import { journeyStore } from '@/lib/journey-store';
+import { goBack } from '@/lib/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -107,7 +108,7 @@ export default function ReportEventDetailScreen() {
         <View style={styles.headerBar}>
           <TouchableOpacity
             style={styles.backBtnWrapper}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

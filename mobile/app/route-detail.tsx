@@ -22,6 +22,7 @@ import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, jo
 import { fareSummaries, reportFare, type FareSummary, type LegMode } from '@/lib/sira-api';
 import { currentToken } from '@/lib/session';
 import { notify } from '@/lib/notify';
+import { goBack } from '@/lib/navigation';
 
 const STEP_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
   walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus', woro: 'car-sport', taxi: 'car', boat: 'boat',
@@ -121,7 +122,7 @@ export default function RouteDetailScreen() {
         {/* Top Header Bar */}
         <View style={styles.headerBar}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             style={styles.backBtnWrapper}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

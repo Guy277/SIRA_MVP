@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SideMenuModal } from '@/components/side-menu-modal';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { goBack } from '@/lib/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,7 +39,7 @@ export default function NotificationAccidentDetailScreen() {
         <View style={styles.headerBar}>
           <TouchableOpacity
             style={styles.backBtnWrapper}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={24} color="#000000" />

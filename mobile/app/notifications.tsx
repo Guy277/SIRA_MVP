@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { goBack } from '@/lib/navigation';
 
 const { width } = Dimensions.get('window');
 
@@ -134,7 +135,7 @@ export default function NotificationsScreen() {
         <View style={styles.headerContainer}>
           <TouchableOpacity
             style={styles.headerIconButton}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

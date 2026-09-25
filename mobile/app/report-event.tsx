@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { goBack } from '@/lib/navigation';
 
 const { width } = Dimensions.get('window');
 
@@ -94,7 +95,7 @@ export default function ReportEventScreen() {
         {/* Header Bar */}
         <View style={styles.headerBar}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             style={styles.backBtnWrapper}
             activeOpacity={0.7}
           >

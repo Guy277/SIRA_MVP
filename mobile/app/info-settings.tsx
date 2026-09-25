@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { goBack } from '@/lib/navigation';
 
 interface InfoItem {
   id: string;
@@ -76,7 +77,7 @@ export default function InfoSettingsScreen() {
         <View style={styles.headerBar}>
           <TouchableOpacity
             style={styles.darkBackBtn}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

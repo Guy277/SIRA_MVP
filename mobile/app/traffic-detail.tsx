@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { goBack } from '@/lib/navigation';
 
 export interface ZoneReportItem {
   id: string;
@@ -98,7 +99,7 @@ export default function TrafficDetailScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.headerIconCircle}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

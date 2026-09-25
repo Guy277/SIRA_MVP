@@ -20,6 +20,7 @@ import { notify } from '@/lib/notify';
 import { voteReport, type TrafficReport } from '@/lib/sira-api';
 import { REPORT_STATUS_LABEL, REPORT_STYLE, clientId, timeAgo, upsertReport, useLiveReports } from '@/lib/reports';
 import { formatClock } from '@/lib/journey-format';
+import { goBack } from '@/lib/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -128,7 +129,7 @@ export default function TrafficScreen() {
           {/* Back Button */}
           <TouchableOpacity
             style={styles.headerIconCircle}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   Dimensions,
@@ -23,12 +22,13 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { fetchJourneys, type ApiJourney, type LegMode } from '@/lib/sira-api';
-import { ensureCurrentPlace, resolvePlace, useCurrentPlace } from '@/lib/places';
+import { CURRENT_LOCATION, ensureCurrentPlace, resolvePlace, useCurrentPlace } from '@/lib/places';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import {
   CATEGORY_BY_LABEL, CATEGORY_LABELS, arrivalTime, formatClock, formatDistance, formatDuration,
   formatPrice, isVehicle, journeyPath, journeySummary, journeyTitle, type CategoryLabel,
 } from '@/lib/journey-format';
+import { goBack } from '@/lib/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -100,6 +100,10 @@ export default function RouteExploreScreen() {
   const [departure, setDeparture] = useState(here.status === 'ready' ? here.title : '');
   const [arrival, setArrival] = useState(params.destination || params.query || 'Cocody Saint-Jean');
   const [focusedField, setFocusedField] = useState<'departure' | 'arrival' | null>(null);
+
+  // Own-position labels are not search terms.
+  const pickerQuery = (value: string) =>
+    value === CURRENT_LOCATION || (here.status === 'ready' && value === here.title) ? '' : value;
 
   // Departure defaults to where the traveller is; they can change it.
   useEffect(() => {
@@ -236,7 +240,7 @@ export default function RouteExploreScreen() {
         {/* Top Header Bar */}
         <View style={styles.topHeader}>
           <View style={styles.logoRow}>
-            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtnWrapper}>
+            <TouchableOpacity onPress={() => goBack(router)} activeOpacity={0.7} style={styles.backBtnWrapper}>
               <Ionicons name="arrow-back" size={20} color="#000000" />
             </TouchableOpacity>
             <Image
@@ -292,15 +296,13 @@ export default function RouteExploreScreen() {
               {/* Departure Row */}
               <View style={styles.inputItemRow}>
                 <Text style={styles.inputLabel}>Départ</Text>
-                <TextInput
-                  style={styles.inputValueInput}
-                  value={departure}
-                  onChangeText={setDeparture}
-                  placeholder={here.status === 'locating' ? 'Localisation en cours…' : 'D’où partez-vous ?'}
-                  placeholderTextColor="#999999"
-                  onFocus={() => setFocusedField('departure')}
-                  returnKeyType="done"
-                />
+                {/* A button, not a text field: on web a focused field reopened the
+                    picker as soon as it closed. Typing happens in the picker. */}
+                <TouchableOpacity onPress={() => setFocusedField('departure')} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Choisir le départ">
+                  <Text style={[styles.inputValueInput, !departure && styles.inputPlaceholder]} numberOfLines={1}>
+                    {departure || (here.status === 'locating' ? 'Localisation en cours…' : 'D’où partez-vous ?')}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.cardInputDivider} />
@@ -308,15 +310,11 @@ export default function RouteExploreScreen() {
               {/* Arrival Row */}
               <View style={styles.inputItemRow}>
                 <Text style={styles.inputLabel}>Arrivée</Text>
-                <TextInput
-                  style={styles.inputValueInput}
-                  value={arrival}
-                  onChangeText={setArrival}
-                  placeholder="Où allez-vous ?"
-                  placeholderTextColor="#999999"
-                  onFocus={() => setFocusedField('arrival')}
-                  returnKeyType="done"
-                />
+                <TouchableOpacity onPress={() => setFocusedField('arrival')} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Choisir l’arrivée">
+                  <Text style={[styles.inputValueInput, !arrival && styles.inputPlaceholder]} numberOfLines={1}>
+                    {arrival || 'Où allez-vous ?'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -334,7 +332,7 @@ export default function RouteExploreScreen() {
           <YangoLocationModal
             visible={focusedField !== null}
             onClose={() => setFocusedField(null)}
-            initialQuery={focusedField === 'departure' ? departure : arrival}
+            initialQuery={pickerQuery(focusedField === 'departure' ? departure : arrival)}
             currentLocationName={here.status === 'ready' ? here.title : 'Ma position actuelle'}
             placeholder={focusedField === 'departure' ? 'D’où partez-vous ?' : 'Où allez-vous ?'}
             onSelectLocation={(selectedLoc) => {
@@ -1007,6 +1005,10 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 9.5,
     color: '#888888',
+    fontWeight: '500',
+  },
+  inputPlaceholder: {
+    color: '#999999',
     fontWeight: '500',
   },
   inputValueInput: {

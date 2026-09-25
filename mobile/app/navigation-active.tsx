@@ -19,6 +19,7 @@ import { fetchJourneys, journeyImpact, voteReport, type ApiJourney, type LegMode
 import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
 import { clientId, upsertReport, useLiveReports } from '@/lib/reports';
 import { locateUser } from '@/lib/places';
+import { goBack } from '@/lib/navigation';
 
 const { height } = Dimensions.get('window');
 
@@ -116,7 +117,7 @@ export default function NavigationActiveScreen() {
         <StatusBar style="light" />
         <Ionicons name="navigate-circle" size={54} color="#F26522" />
         <Text style={styles.exitModalTitle}>Aucun trajet en cours</Text>
-        <TouchableOpacity style={styles.confirmExitBtn} onPress={() => router.back()} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.confirmExitBtn} onPress={() => goBack(router)} activeOpacity={0.8}>
           <Text style={styles.confirmExitText}>Retour</Text>
         </TouchableOpacity>
       </View>
@@ -354,7 +355,7 @@ export default function NavigationActiveScreen() {
                   style={styles.confirmExitBtn}
                   onPress={() => {
                     setShowExitConfirm(false);
-                    router.back();
+                    goBack(router);
                   }}
                   activeOpacity={0.8}
                 >

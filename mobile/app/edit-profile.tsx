@@ -19,6 +19,7 @@ import { ProfilePhotoModal } from '@/components/profile-photo-modal';
 import { setSession, useSession, type SessionUser } from '@/lib/session';
 import { apiJson } from '@/lib/sira-api';
 import { notify } from '@/lib/notify';
+import { goBack } from '@/lib/navigation';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -43,7 +44,7 @@ export default function EditProfileScreen() {
     try {
       const user = await apiJson<SessionUser>('/users/me', { method: 'PATCH', body: JSON.stringify({ full_name: `${prenom} ${nom}`.trim() }) });
       setSession({ token: session.token, user });
-      notify('Profil enregistré', 'Vos modifications ont bien été enregistrées.', [{ text: 'OK', onPress: () => router.back() }]);
+      notify('Profil enregistré', 'Vos modifications ont bien été enregistrées.', [{ text: 'OK', onPress: () => goBack(router) }]);
     } catch (error) {
       notify('Enregistrement impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
     }
@@ -62,7 +63,7 @@ export default function EditProfileScreen() {
           <View style={styles.headerContainer}>
             <TouchableOpacity
               style={styles.backButtonCircle}
-              onPress={() => router.back()}
+              onPress={() => goBack(router)}
               activeOpacity={0.8}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >

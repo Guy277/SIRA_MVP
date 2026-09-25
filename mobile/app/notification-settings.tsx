@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { goBack } from '@/lib/navigation';
 
 interface NotificationSettingItem {
   id: string;
@@ -93,7 +94,7 @@ export default function NotificationSettingsScreen() {
         <View style={styles.headerBar}>
           <TouchableOpacity
             style={styles.darkBackBtn}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

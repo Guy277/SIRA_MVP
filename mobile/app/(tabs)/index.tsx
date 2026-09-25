@@ -21,6 +21,7 @@ import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { firstName, useSession } from '@/lib/session';
 import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
+import { goBack } from '@/lib/navigation';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -81,13 +82,17 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Top Header Bar with Circular Black Back Button */}
         <View style={styles.topHeader}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* Home is the first screen: no back arrow when there is nothing behind it. */}
+          {router.canGoBack() && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => goBack(router)}
+              activeOpacity={0.8}
+              accessibilityLabel="Retour"
+            >
+              <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Speech / Greeting Bubble (Positioned above character's head with speech pointer tail) */}

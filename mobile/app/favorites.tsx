@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFavorites, FavoriteRoute } from '@/hooks/use-favorites';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { goBack } from '@/lib/navigation';
 
 export default function FavoritesScreen() {
   const router = useRouter();
@@ -115,7 +116,7 @@ export default function FavoritesScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.darkBackBtn}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

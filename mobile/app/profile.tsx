@@ -18,6 +18,7 @@ import { LogoutModal } from '@/components/logout-modal';
 import { ProfilePhotoModal } from '@/components/profile-photo-modal';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { useSession } from '@/lib/session';
+import { goBack } from '@/lib/navigation';
 
 const { width } = Dimensions.get('window');
 
@@ -95,7 +96,7 @@ export default function ProfileScreen() {
         <View style={styles.headerContainer}>
           <TouchableOpacity
             style={styles.closeButtonCircle}
-            onPress={() => router.back()}
+            onPress={() => goBack(router)}
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
