@@ -253,6 +253,14 @@ def categorize(frontier: list[dict[str, Any]], max_budget: int, max_per_category
         else:
             key = lambda item: (-scores[item["id"]], item["duration"], _price_for_comparison(item, max_budget))
         categories[name] = [item["id"] for item in sorted(frontier, key=key)[:max_per_category]]
+    # Debout is a middle ground: it never repeats the cheapest or the most
+    # comfortable journey, and stays empty when no in-between option exists.
+    if len(frontier) > 1:
+        extremes = {categories["coule"][0], categories["suspendu"][0]}
+        scores = _profile_scores(frontier, "balanced", max_budget)
+        middle = [item for item in frontier if item["id"] not in extremes]
+        middle.sort(key=lambda item: (-scores[item["id"]], item["duration"], _price_for_comparison(item, max_budget)))
+        categories["debout"] = [item["id"] for item in middle[:max_per_category]]
     return categories
 
 

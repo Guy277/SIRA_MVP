@@ -88,7 +88,9 @@ const apiEnv = {
   VALHALLA_URL: routingUrl,
   OSRM_URL: process.env.OSRM_URL || (smokeTest ? "http://127.0.0.1:9" : "https://router.project-osrm.org"),
   SIRA_DATA_ROOT: join(root, "data"),
-  CORS_ORIGIN: "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080",
+  SIRA_GRAPH_WORKER: "true",
+  // 8081: Expo web build of the mobile app.
+  CORS_ORIGIN: "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,http://localhost:8081",
 };
 
 if (smokeTest) {

@@ -8,6 +8,7 @@ import { decodeValhallaShape, haversineKm, routePedestrian, type PedestrianRoute
 import { classifyTransferDistance, SIRA_WALK, type WalkConnectorKind } from "./walk-config";
 import { JourneyProfiler } from "./journey-profiler";
 import { TransportRepository } from "./transport.repository";
+import { GraphWorkerClient } from "./graph-client";
 
 type Point = { lat: number; lon: number; name?: string };
 export type JourneyRequest = {
@@ -187,12 +188,27 @@ export class MobilityService implements OnModuleInit {
   private readonly profileJourneys = process.env.SIRA_JOURNEY_PROFILING === "true";
   private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
   private transportGraph?: TransportGraph;
+  // Off-thread graph search keeps the API responsive during a search.
+  private readonly useGraphWorker = process.env.SIRA_GRAPH_WORKER === "true";
+  private graphWorker?: GraphWorkerClient;
   private readonly pedestrianRouteCache = new Map<string, Promise<PedestrianRoute | null>>();
 
   constructor(private readonly transportRepository: TransportRepository) {}
 
   onModuleInit() {
-    this.getTransportGraph().warmUp(SIRA_WALK.maxTransferDistanceM >= 800 ? 0.8 : SIRA_WALK.maxTransferDistanceM / 1000);
+    const warmRadiusKm = SIRA_WALK.maxTransferDistanceM >= 800 ? 0.8 : SIRA_WALK.maxTransferDistanceM / 1000;
+    if (this.useGraphWorker) this.graphWorker = new GraphWorkerClient(this.transportDatasetPath(), warmRadiusKm);
+    else this.getTransportGraph().warmUp(warmRadiusKm);
+  }
+
+  private routeGraph(...args: Parameters<TransportGraph["route"]>): Promise<NetworkJourney | null> {
+    const [origin, destination, strategy = "balanced", options = {}] = args;
+    if (this.graphWorker) return this.graphWorker.route(origin, destination, strategy, { ...options, serviceDate: options.serviceDate ?? new Date() });
+    return Promise.resolve(this.getTransportGraph().route(origin, destination, strategy, options));
+  }
+
+  private graphStats() {
+    return this.graphWorker ? this.graphWorker.stats : this.getTransportGraph().stats;
   }
 
   async searchPlaces(query: string) {
@@ -891,10 +907,11 @@ export class MobilityService implements OnModuleInit {
     this.validatePoint(request.destination);
     const serviceDate = request.departureAt ? new Date(request.departureAt) : new Date();
     if (Number.isNaN(serviceDate.getTime())) throw new BadRequestException("Heure de départ invalide.");
-    const graph = profiler.measure("graph_initialization", () => this.getTransportGraph());
     const maxWalkingDistanceM = Math.min(request.constraints?.maxWalkingDistanceM ?? SIRA_WALK.maxTotalDistanceM, SIRA_WALK.maxTotalDistanceM);
     const avoidAreas = this.parseAvoidAreas(request.avoid);
-    const roadPromise = this.route(request.origin, request.destination, "auto", profiler, avoidAreas);
+    // The graph search is synchronous and would starve this request's timeout,
+    // so the road route (taxi) completes first.
+    const road = await this.route(request.origin, request.destination, "auto", profiler, avoidAreas);
     const graphOptions = {
       maxAccessDistanceM: Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM),
       maxTransferDistanceM: Math.min(SIRA_WALK.maxTransferDistanceM, maxWalkingDistanceM),
@@ -903,12 +920,11 @@ export class MobilityService implements OnModuleInit {
       avoidAreas,
     };
     const strategies = ["fast", "balanced", "cheap", "min_transfers", "min_walking"] as const;
-    const networks = profiler.measure("transport_graph_search", () => 
-      strategies.map(strategy => ({ strategy, result: graph.route(request.origin, request.destination, strategy, graphOptions) }))
+    const networks = await profiler.measureAsync("transport_graph_search", () =>
+      Promise.all(strategies.map(async (strategy) => ({ strategy, result: await this.routeGraph(request.origin, request.destination, strategy, graphOptions) })))
     );
 
     const candidates: Array<Record<string, unknown>> = [];
-    const road = await roadPromise;
     if (road.geometry?.length || road.trip?.legs?.[0]?.shape) {
       candidates.push(this.toRoadCandidate("road-fast", "Taxi / route directe", road, 5, 82));
     }
@@ -932,17 +948,36 @@ export class MobilityService implements OnModuleInit {
     }
 
 const signatures = new Set<string>();
-    for (const { strategy, result } of networks) {
-      if (!result) continue;
-      const candidate = await this.toNetworkCandidate(
-        `network-${strategy}`,
-        `Option ${strategy}`,
-        result,
-        strategy === "cheap" ? 72 : (strategy === "fast" ? 80 : 78),
-        maxWalkingDistanceM,
-        profiler
-      );
-      if (!candidate) continue;
+    // Stops that look close as the crow flies but are far to reach on foot
+    // (lagoon, motorway, ravine) are set aside and the search runs again.
+    const unwalkableStops: AvoidArea[] = [];
+    const usesUnwalkableStop = (route: NetworkJourney) => [route.access.coordinates[route.access.coordinates.length - 1], route.egress.coordinates[0]]
+      .some((node) => unwalkableStops.some((area) => distanceToLineM([area.lon, area.lat], [node]) <= area.radiusM));
+    for (const network of networks) {
+      const { strategy } = network;
+      let result = network.result;
+      let candidate: Awaited<ReturnType<MobilityService["toNetworkCandidate"]>> = null;
+      for (let attempt = 0; attempt < 3 && result; attempt += 1) {
+        if (attempt === 0 && unwalkableStops.length && usesUnwalkableStop(result)) {
+          result = await this.routeGraph(request.origin, request.destination, strategy, { ...graphOptions, avoidAreas: [...avoidAreas, ...unwalkableStops] });
+          if (!result) break;
+        }
+        const rejection: { node: [number, number] | null } = { node: null };
+        candidate = await this.toNetworkCandidate(
+          `network-${strategy}`,
+          `Option ${strategy}`,
+          result,
+          strategy === "cheap" ? 72 : (strategy === "fast" ? 80 : 78),
+          maxWalkingDistanceM,
+          profiler,
+          (node) => { rejection.node = node; },
+        );
+        if (candidate || !rejection.node || attempt === 2) break;
+        const [lon, lat] = rejection.node;
+        unwalkableStops.push({ lon, lat, radiusM: 40 });
+        result = await profiler.measureAsync("transport_graph_retry", () => this.routeGraph(request.origin, request.destination, strategy, { ...graphOptions, avoidAreas: [...avoidAreas, ...unwalkableStops] }));
+      }
+      if (!candidate || !result) continue;
       const signature = result.legs.map(l => l.lineId).join("->");
       if (signatures.has(signature)) continue;
       signatures.add(signature);
@@ -1016,16 +1051,18 @@ if (!deduplicatedCandidates.length) {
       recommended_id: feasible[0]?.id ?? null,
       rejected_count: deduplicatedCandidates.length - feasible.length,
       source,
-      graph: graph.stats,
+      graph: this.graphStats(),
     }, profiler);
   }
 
-  private readTransportDataset(): { type: "FeatureCollection"; features: TransportFeature[] } {
+  private transportDatasetPath() {
     const rawPath = join(this.dataRoot, "processed", "transport-lines-normalized.geojson");
     const fallbackPath = join(this.dataRoot, "LigneArete", "SIRA_Phase1_Dataset_Synthetique_Abidjan_v1.geojson");
-    const chosenPath = existsSync(rawPath) ? rawPath : fallbackPath;
-    const file = readFileSync(chosenPath, "utf8");
-    return JSON.parse(file);
+    return existsSync(rawPath) ? rawPath : fallbackPath;
+  }
+
+  private readTransportDataset(): { type: "FeatureCollection"; features: TransportFeature[] } {
+    return JSON.parse(readFileSync(this.transportDatasetPath(), "utf8"));
   }
 
   private getTransportGraph() {
@@ -1117,20 +1154,30 @@ if (!deduplicatedCandidates.length) {
     return { trip: { summary: { length: km, time: km / (costing === "multimodal" ? 18 : 24) * 3600 }, legs: [] } };
   }
 
-  private async toNetworkCandidate(id: string, label: string, route: NetworkJourney, reliabilityPrior: number, maxWalkingDistanceM: number, profiler: JourneyProfiler) {
+  // onReject receives the network node whose walking connection failed, so the
+  // caller can route again around it.
+  private async toNetworkCandidate(id: string, label: string, route: NetworkJourney, reliabilityPrior: number, maxWalkingDistanceM: number, profiler: JourneyProfiler, onReject?: (node: [number, number]) => void) {
     const accessEndpoints = route.access.coordinates;
     const egressEndpoints = route.egress.coordinates;
+    const accessNode = accessEndpoints[accessEndpoints.length - 1];
+    const egressNode = egressEndpoints[0];
     const [access, egress] = await Promise.all([
-      profiler.measureAsync("access_walk", () => this.walkingRoute(accessEndpoints[0], accessEndpoints[accessEndpoints.length - 1], Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM), "access", profiler)),
-      profiler.measureAsync("egress_walk", () => this.walkingRoute(egressEndpoints[0], egressEndpoints[egressEndpoints.length - 1], Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM), "egress", profiler)),
+      profiler.measureAsync("access_walk", () => this.walkingRoute(accessEndpoints[0], accessNode, Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM), "access", profiler)),
+      profiler.measureAsync("egress_walk", () => this.walkingRoute(egressNode, egressEndpoints[egressEndpoints.length - 1], Math.min(SIRA_WALK.maxAccessOrEgressDistanceM, maxWalkingDistanceM), "egress", profiler)),
     ]);
-    if (!access || !egress) return null;
+    if (!access || !egress) { onReject?.(!egress ? egressNode : accessNode); return null; }
 
     const routedTransfers = await Promise.all(route.transfers.map((transfer) => profiler.measureAsync("transfer_walk", () => this.walkingRoute(transfer.from, transfer.to, Math.min(SIRA_WALK.maxTransferDistanceM, maxWalkingDistanceM), "transfer", profiler))));
-    if (routedTransfers.some((transfer) => !transfer)) return null;
+    const failedTransfer = route.transfers.find((_, index) => !routedTransfers[index]);
+    if (failedTransfer) { onReject?.(failedTransfer.to); return null; }
     const confirmedTransfers = routedTransfers as PedestrianRoute[];
     const walkingDistanceM = Math.round((access.distanceKm + egress.distanceKm + confirmedTransfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)) * 1000);
-    if (walkingDistanceM > maxWalkingDistanceM) return null;
+    if (walkingDistanceM > maxWalkingDistanceM) {
+      // Blame the connector whose real path strays furthest from the straight line.
+      const detour = (walked: number, straight: number) => walked / Math.max(straight, 0.05);
+      onReject?.(detour(egress.distanceKm, route.egress.distanceKm) >= detour(access.distanceKm, route.access.distanceKm) ? egressNode : accessNode);
+      return null;
+    }
 
     const legs: Array<Record<string, unknown>> = [this.walkingLeg(`${id}-access`, "Rejoindre le réseau de transport", access)];
     route.legs.forEach((leg, index) => {

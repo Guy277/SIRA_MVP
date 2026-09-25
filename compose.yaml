@@ -32,6 +32,7 @@ services:
       PHOTON_URL: https://photon.komoot.io
       AI_URL: http://ai:8000
       SIRA_DATA_ROOT: /data
+      SIRA_GRAPH_WORKER: "true"
       CORS_ORIGIN: http://localhost:8080
     volumes:
       - ./data:/data:ro,Z

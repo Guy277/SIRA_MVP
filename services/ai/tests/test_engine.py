@@ -168,7 +168,14 @@ class OptimisationScenarios(unittest.TestCase):
         categories = recommend(routes, budget=999999)["categories"]
         self.assertEqual(categories["coule"][0], "bus")
         self.assertEqual(categories["suspendu"][0], "taxi")
+        self.assertEqual(categories["debout"], ["mixte"])
         self.assertEqual(set(categories), {"coule", "debout", "suspendu"})
+
+    def test_39_debout_is_empty_without_an_in_between_option(self):
+        routes = [candidate("bus", price=200, ride=45, line="B", comfort=2), candidate("taxi", price=2000, ride=15, transfer=0, mode="taxi", line="T", comfort=5)]
+        categories = recommend(routes, budget=999999)["categories"]
+        self.assertEqual((categories["coule"][0], categories["suspendu"][0]), ("bus", "taxi"))
+        self.assertEqual(categories["debout"], [])
 
     def test_36_category_leaders_are_always_returned_and_labelled(self):
         routes = [candidate("bus", price=200, ride=45, line="B", comfort=2), candidate("taxi", price=2000, ride=15, transfer=0, mode="taxi", line="T", comfort=5)]
