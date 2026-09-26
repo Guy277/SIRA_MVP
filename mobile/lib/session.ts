@@ -9,21 +9,31 @@ export type SessionUser = { id: string; phone_number: string; full_name: string 
 type Session = { token: string; user: SessionUser } | null;
 
 const KEY = 'sira-session';
+// Last traveller signed in on this device, kept after logout so the login
+// screen can greet them by name and prefill their number.
+const KNOWN_KEY = 'sira-known-traveller';
+export type KnownTraveller = { phone_number: string; full_name: string | null };
 let session: Session = null;
+let known: KnownTraveller | null = null;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
 
-async function persist(value: Session) {
+async function persist(key: string, value: unknown) {
   const text = value ? JSON.stringify(value) : null;
   try {
     if (Platform.OS === 'web') {
-      if (text) window.localStorage.setItem(KEY, text); else window.localStorage.removeItem(KEY);
+      if (text) window.localStorage.setItem(key, text); else window.localStorage.removeItem(key);
     } else if (text) {
-      await SecureStore.setItemAsync(KEY, text);
+      await SecureStore.setItemAsync(key, text);
     } else {
-      await SecureStore.deleteItemAsync(KEY);
+      await SecureStore.deleteItemAsync(key);
     }
-  } catch { /* stockage indisponible : session gardée en mémoire */ }
+  } catch { /* stockage indisponible : gardé en mémoire */ }
+}
+
+async function load<T>(key: string): Promise<T | null> {
+  const text = Platform.OS === 'web' ? window.localStorage.getItem(key) : await SecureStore.getItemAsync(key);
+  return text ? JSON.parse(text) as T : null;
 }
 
 export function currentToken() {
@@ -33,16 +43,45 @@ export function currentToken() {
 export function setSession(value: Session) {
   session = value;
   setAuthenticated(Boolean(value));
-  void persist(value);
+  void persist(KEY, value);
+  if (value) {
+    known = { phone_number: value.user.phone_number, full_name: value.user.full_name };
+    void persist(KNOWN_KEY, known);
+  }
   emit();
 }
 
 // Restores a previous session at start-up.
 export async function restoreSession() {
   try {
-    const text = Platform.OS === 'web' ? window.localStorage.getItem(KEY) : await SecureStore.getItemAsync(KEY);
-    if (text) { session = JSON.parse(text) as Session; setAuthenticated(true); emit(); }
+    known = await load<KnownTraveller>(KNOWN_KEY);
+    session = await load<NonNullable<Session>>(KEY);
+    if (session) {
+      setAuthenticated(true);
+      known ??= { phone_number: session.user.phone_number, full_name: session.user.full_name };
+    }
   } catch { /* session illisible : on repart déconnecté */ }
+  restored = true;
+  emit();
+}
+
+let restored = false;
+
+export function useKnownTraveller() {
+  return useSyncExternalStore(
+    (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
+    () => (restored ? known : undefined),
+    () => (restored ? known : undefined),
+  );
+}
+
+// False until the stored session has been read at start-up.
+export function useSessionRestored() {
+  return useSyncExternalStore(
+    (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
+    () => restored,
+    () => restored,
+  );
 }
 
 export function useSession() {
@@ -53,4 +92,4 @@ export function useSession() {
   );
 }
 
-export const firstName = (user: SessionUser | null | undefined) => user?.full_name?.trim().split(/\s+/)[0] ?? null;
+export const firstName = (user: { full_name: string | null } | null | undefined) => user?.full_name?.trim().split(/\s+/)[0] ?? null;

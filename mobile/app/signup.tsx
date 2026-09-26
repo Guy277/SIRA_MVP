@@ -35,7 +35,6 @@ const PHONE_MOCKUP_TOP = (292 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const PHONE_MOCKUP_LEFT = (11 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
 import { useOtpLogin } from '@/lib/use-otp-login';
-import { goBack } from '@/lib/navigation';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -78,7 +77,7 @@ export default function SignupScreen() {
             <View style={styles.topNavHeader}>
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => goBack(router)}
+                onPress={() => router.replace('/onboarding')}
                 activeOpacity={0.8}
               >
                 <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
