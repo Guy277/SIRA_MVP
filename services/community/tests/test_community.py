@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -11,6 +12,7 @@ os.environ["COMMUNITY_OTP_DEMO"] = "true"
 os.environ["COMMUNITY_JWT_SECRET"] = "test-secret-not-for-production-use-0123456789"
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+import jwt  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from fastapi import HTTPException  # noqa: E402
 
@@ -41,7 +43,7 @@ class AuthTests(unittest.TestCase):
     def test_login_creates_account_and_session(self):
         phone = "05 11 22 33 44"
         request = client.post("/auth/request-otp", json={"phone_number": phone}).json()
-        self.assertEqual(len(request["demo_code"]), 6)
+        self.assertEqual(len(request["demo_code"]), 4)
         verified = client.post("/auth/verify-otp", json={"phone_number": phone, "code": request["demo_code"], "full_name": "Koffi"}).json()
         self.assertTrue(verified["is_new_user"])
         me = client.get("/auth/me", headers={"Authorization": f"Bearer {verified['access_token']}"}).json()
@@ -49,10 +51,20 @@ class AuthTests(unittest.TestCase):
 
     def test_wrong_code_is_rejected_and_attempts_are_limited(self):
         phone = "01 02 03 04 05"
-        client.post("/auth/request-otp", json={"phone_number": phone})
-        for _ in range(5):
-            self.assertEqual(client.post("/auth/verify-otp", json={"phone_number": phone, "code": "000000"}).status_code, 400)
-        self.assertEqual(client.post("/auth/verify-otp", json={"phone_number": phone, "code": "000000"}).status_code, 429)
+        code = client.post("/auth/request-otp", json={"phone_number": phone}).json()["demo_code"]
+        wrong = f"{(int(code) + 1) % 10_000:04d}"
+        for _ in range(3):
+            self.assertEqual(client.post("/auth/verify-otp", json={"phone_number": phone, "code": wrong}).status_code, 400)
+        self.assertEqual(client.post("/auth/verify-otp", json={"phone_number": phone, "code": wrong}).status_code, 429)
+        # Once blocked, even the right code needs a new request.
+        self.assertEqual(client.post("/auth/verify-otp", json={"phone_number": phone, "code": code}).status_code, 429)
+
+    def test_session_lasts_thirty_days(self):
+        phone = "07 55 66 77 88"
+        code = client.post("/auth/request-otp", json={"phone_number": phone}).json()["demo_code"]
+        token = client.post("/auth/verify-otp", json={"phone_number": phone, "code": code}).json()["access_token"]
+        claims = jwt.decode(token, options={"verify_signature": False})
+        self.assertAlmostEqual(claims["exp"] - time.time(), 30 * 24 * 3600, delta=120)
 
     def test_code_cannot_be_reused(self):
         phone = "07 77 77 77 77"

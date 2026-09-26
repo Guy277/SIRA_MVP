@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 
@@ -100,15 +99,9 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleBack = () => {
-    router.replace('/');
-  };
-
-  const handleGoToSignup = () => {
-    router.push('/signup');
-  };
-
-  const handleGoToLogin = () => {
+  // One entry, as in Orange Max it: the phone number tells whether the
+  // traveller signs in or creates an account.
+  const handleStart = () => {
     router.push('/login');
   };
 
@@ -146,16 +139,6 @@ export default function OnboardingScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Layer 4: Top Left Circular Back Arrow Button (←) */}
-      <SafeAreaView style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.backArrowText}>←</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
 
       {/* Horizontal Slide Carousel */}
       <FlatList
@@ -200,26 +183,17 @@ export default function OnboardingScreen() {
           {SLIDES[currentIndex].description}
         </Text>
 
-        {/* Actions Row: S'INSCRIRE & J'ai déjà un compte. SE CONNECTER */}
+        {/* Single entry: number, then SMS code (new or returning traveller). */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={styles.registerButton}
-            onPress={handleGoToSignup}
+            onPress={handleStart}
             activeOpacity={0.85}
+            accessibilityRole="button"
           >
-            <Text style={styles.registerButtonText}>S'INSCRIRE</Text>
+            <Text style={styles.registerButtonText}>COMMENCER</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={handleGoToLogin}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.loginPrefixText} numberOfLines={1}>
-              J'ai déjà un compte.{' '}
-              <Text style={styles.loginOrangeText}>SE CONNECTER</Text>
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.loginPrefixText}>Avec votre numéro de téléphone{'\n'}et un code reçu par SMS.</Text>
         </View>
       </View>
     </View>
@@ -231,25 +205,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  topBar: {
-    position: 'absolute',
-    top: 10,
-    left: 18,
-    zIndex: 50,
-  },
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backArrowText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
+
   flatList: {
     flex: 1,
     zIndex: 10,
@@ -373,8 +329,8 @@ const styles = StyleSheet.create({
   /* Button "S'INSCRIRE": Rayon 25px, Background #F26522 */
   registerButton: {
     backgroundColor: '#F26522',
-    minWidth: 95,
-    height: 34,
+    minWidth: 120,
+    height: 38,
     paddingHorizontal: 14,
     borderRadius: 25,
     justifyContent: 'center',
@@ -387,20 +343,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  /* Link "SE CONNECTER" */
-  loginButton: {
-    paddingVertical: 4,
-    flex: 1,
-    justifyContent: 'center',
-  },
   loginPrefixText: {
+    flex: 1,
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '500',
-  },
-  loginOrangeText: {
-    color: '#F26522',
-    fontWeight: '700',
-    letterSpacing: 0.3,
   },
 });

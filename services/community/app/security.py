@@ -22,8 +22,12 @@ from .models import OtpCode, User, get_db
 logger = logging.getLogger("sira.community")
 bearer = HTTPBearer(auto_error=False)
 
-OTP_TTL = timedelta(minutes=10)
-MAX_ATTEMPTS = 5
+# Same rules as Orange Max it: a 4-digit single-use code, asked again when
+# the session ends (every 30 days). The short life and 3 attempts offset the
+# smaller number of combinations.
+OTP_DIGITS = 4
+OTP_TTL = timedelta(minutes=5)
+MAX_ATTEMPTS = 3
 MAX_REQUESTS_PER_WINDOW = 3
 REQUEST_WINDOW = timedelta(minutes=10)
 
@@ -81,10 +85,10 @@ def request_otp(db: Session, raw_phone: str) -> dict:
     if recent >= MAX_REQUESTS_PER_WINDOW:
         raise HTTPException(status_code=429, detail="Trop de demandes de code. Réessayez dans quelques minutes.")
     db.query(OtpCode).filter(OtpCode.phone_number == phone, OtpCode.used.is_(False)).update({"used": True})
-    code = f"{secrets.randbelow(1_000_000):06d}"
+    code = f"{secrets.randbelow(10 ** OTP_DIGITS):0{OTP_DIGITS}d}"
     db.add(OtpCode(phone_number=phone, code_hash=_hash_code(phone, code), expires_at=now + OTP_TTL))
     db.commit()
-    sent = send_sms(phone, f"Votre code SIRA : {code}. Valable 10 minutes.")
+    sent = send_sms(phone, f"Votre code SIRA : {code}. Valable 5 minutes. Ne le partagez avec personne.")
     if not sent and not settings.otp_demo:
         raise HTTPException(status_code=503, detail="Envoi du SMS impossible pour le moment.")
     return {

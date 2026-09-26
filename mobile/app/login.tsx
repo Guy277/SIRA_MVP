@@ -46,10 +46,12 @@ const WHITE_LOGO_HEIGHT = (107 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_TOP = (270 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_LEFT = (148 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
-import { useOtpLogin } from '@/lib/use-otp-login';
+import { OTP_LENGTH, useOtpLogin } from '@/lib/use-otp-login';
 import { goBack } from '@/lib/navigation';
 import { firstName, setSession, useKnownTraveller, useSession } from '@/lib/session';
 import { logoutUser } from '@/hooks/use-auth';
+import { updateName } from '@/lib/sira-api';
+import { notify } from '@/lib/notify';
 
 // +2250701020304 -> "07 01 02 03 04", as typed by travellers.
 const localNumber = (phone: string) => phone.replace(/^\+225/, '').replace(/(\d{2})(?=\d)/g, '$1 ');
@@ -61,20 +63,44 @@ export default function LoginScreen() {
   const [switching, setSwitching] = useState(false);
   const [typedPhone, setPhone] = useState<string | null>(null);
   const [typedName, setName] = useState('');
+  // Asked once, right after the first code, as a new account has no name.
+  const [askName, setAskName] = useState(false);
   const otp = useOtpLogin();
 
   // Signed in: greeted by name, no code. Known on this phone but signed out:
   // greeted by name, number prefilled, code required. Otherwise: welcome.
   const traveller = switching ? null : session?.user ?? known ?? null;
   const signedIn = Boolean(session) && !switching;
-  const firstTime = known !== undefined && !traveller;
   const name = firstName(traveller);
   const phone = typedPhone ?? (traveller ? localNumber(traveller.phone_number) : '');
 
-  // Orange number -> SMS code -> session (community service).
-  const handleLogin = async () => {
-    if (signedIn) { router.replace('/(tabs)'); return; }
-    if (await otp.submit(phone, firstTime && typedName.trim() ? typedName.trim() : undefined)) router.replace('/(tabs)');
+  // Number -> 4-digit SMS code -> session; a new number creates the account.
+  const handleLogin = async (typedCode?: string) => {
+    if (signedIn && !askName) { router.replace('/(tabs)'); return; }
+    const result = await otp.submit(phone, typedCode);
+    if (!result) return;
+    if (result.is_new_user && !result.user.full_name) setAskName(true);
+    else router.replace('/(tabs)');
+  };
+
+  // The code is checked as soon as its 4th digit is typed.
+  const handleCodeChange = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    otp.setCode(digits);
+    if (digits.length === OTP_LENGTH) void handleLogin(digits);
+  };
+
+  const saveName = async () => {
+    const value = typedName.trim();
+    if (value && session) {
+      try {
+        const user = await updateName(value);
+        setSession({ token: session.token, user });
+      } catch (error) {
+        notify('Prénom non enregistré', error instanceof Error ? error.message : 'Vous pourrez l’ajouter dans votre profil.');
+      }
+    }
+    router.replace('/(tabs)');
   };
 
   // "Ce n'est pas vous ?": signs out and starts again with an empty form.
@@ -85,7 +111,7 @@ export default function LoginScreen() {
     setSwitching(true);
   };
 
-  // Before this screen comes the presentation (S'inscrire / Se connecter);
+  // Before this screen comes the presentation (COMMENCER);
   // going back must never open the app without signing in.
   const handleBack = () => (session ? goBack(router) : router.replace('/onboarding'));
 
@@ -157,7 +183,18 @@ export default function LoginScreen() {
 
             {/* Welcome Headlines */}
             <View style={styles.textContainer}>
-              {known === undefined ? null : traveller ? (
+              {askName ? (
+                <>
+                  <Text style={styles.titleLine1}>ENCHANTÉ !</Text>
+                  <Text style={styles.titleLine2}>
+                    VOTRE COMPTE <Text style={styles.titleOrange}>EST PRÊT</Text>
+                  </Text>
+                  <Text style={styles.subtitle}>
+                    <Text style={styles.subtitleBold}>Comment doit-on vous appeler ?</Text>{'\n'}
+                    SIRA vous saluera par votre prénom.
+                  </Text>
+                </>
+              ) : known === undefined ? null : traveller ? (
                 <>
                   <Text style={styles.titleLine1}>HEUREUX</Text>
                   <Text style={styles.titleLine2}>
@@ -168,7 +205,7 @@ export default function LoginScreen() {
                     {signedIn ? (
                       <>Votre compte est déjà actif sur ce téléphone.{'\n'}<Text style={styles.subtitleBold}>Continuez directement, sans code.</Text></>
                     ) : (
-                      <>Votre mobilité à Abidjan vous attend.{'\n'}<Text style={styles.subtitleBold}>Confirmez votre numéro Orange</Text>{'\n'}et recevez votre code par SMS.</>
+                      <>Votre mobilité à Abidjan vous attend.{'\n'}<Text style={styles.subtitleBold}>Confirmez votre numéro</Text>{'\n'}et recevez votre code à 4 chiffres par SMS.</>
                     )}
                   </Text>
                 </>
@@ -181,62 +218,74 @@ export default function LoginScreen() {
                   <Text style={styles.subtitle}>
                     Bus, gbaka, wôrô-wôrô, bateau, taxi :{'\n'}
                     SIRA trouve le meilleur trajet pour votre budget.{'\n'}
-                    <Text style={styles.subtitleBold}>Entrez votre numéro Orange</Text>,{'\n'}
-                    vous recevrez un code par SMS pour commencer.
+                    <Text style={styles.subtitleBold}>Entrez votre numéro de téléphone</Text>,{'\n'}
+                    vous recevrez un code à 4 chiffres par SMS.
                   </Text>
                 </>
               )}
             </View>
 
-            {firstTime && otp.step === 'phone' && (
+            {askName && (
               <View style={styles.inputWrapper}>
                 <View style={styles.iconCircle}>
                   <Ionicons name="happy" size={17} color="#FFFFFF" />
                 </View>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Votre prénom (facultatif)"
+                  placeholder="Votre prénom"
                   placeholderTextColor="#AAAAAA"
                   value={typedName}
                   onChangeText={setName}
                   autoComplete="given-name"
+                  autoFocus
+                  onSubmitEditing={saveName}
                 />
               </View>
             )}
 
             {/* Input Field: Orange User Icon + Dark Pill */}
-            {!signedIn && (
+            {!signedIn && !askName && (
             <View style={styles.inputWrapper}>
               <View style={styles.iconCircle}>
                 <Ionicons name="person" size={17} color="#FFFFFF" />
               </View>
               <TextInput
                 style={styles.textInput}
-                placeholder={otp.step === 'phone' ? '07 XX XX XX XX' : 'Code reçu par SMS'}
+                placeholder={otp.step === 'phone' ? '07 XX XX XX XX' : `Code à ${OTP_LENGTH} chiffres`}
                 placeholderTextColor="#AAAAAA"
                 keyboardType={otp.step === 'phone' ? 'phone-pad' : 'number-pad'}
+                maxLength={otp.step === 'phone' ? 14 : OTP_LENGTH}
+                autoComplete={otp.step === 'phone' ? 'tel' : 'sms-otp'}
+                textContentType={otp.step === 'phone' ? 'telephoneNumber' : 'oneTimeCode'}
                 value={otp.step === 'phone' ? phone : otp.code}
-                onChangeText={otp.step === 'phone' ? setPhone : otp.setCode}
+                onChangeText={otp.step === 'phone' ? setPhone : handleCodeChange}
               />
             </View>
             )}
-            {otp.info && (
-              <Text style={styles.otpInfo} onPress={otp.changeNumber}>
-                {otp.info} · Changer de numéro
+            {otp.info && !askName && (
+              <Text style={styles.otpInfo}>
+                {otp.info}{'\n'}
+                <Text onPress={() => otp.resend(phone)} accessibilityRole="button">Renvoyer le code</Text>
+                {'  ·  '}
+                <Text onPress={otp.changeNumber} accessibilityRole="button">Changer de numéro</Text>
               </Text>
             )}
 
             {/* Orange Connect Button */}
             <TouchableOpacity
               style={styles.loginButton}
-              onPress={handleLogin}
+              onPress={() => (askName ? saveName() : handleLogin())}
               disabled={otp.busy}
               activeOpacity={0.85}
             >
-              <Text style={styles.loginButtonText}>{signedIn ? 'CONTINUER' : otp.busy ? 'PATIENTEZ…' : otp.step === 'phone' ? 'RECEVOIR MON CODE' : 'SE CONNECTER'}</Text>
+              <Text style={styles.loginButtonText}>{askName ? "C'EST PARTI" : signedIn ? 'CONTINUER' : otp.busy ? 'PATIENTEZ…' : otp.step === 'phone' ? 'RECEVOIR MON CODE' : 'VALIDER'}</Text>
             </TouchableOpacity>
 
-            {traveller && (
+            {askName && (
+              <Text style={styles.switchLink} onPress={() => router.replace('/(tabs)')} accessibilityRole="button">Plus tard</Text>
+            )}
+
+            {traveller && !askName && (
               <Text style={styles.switchLink} onPress={switchAccount} accessibilityRole="button">
                 {name ? `Vous n'êtes pas ${name} ? ` : 'Pas votre compte ? '}<Text style={styles.subtitleBold}>Changer de compte</Text>
               </Text>

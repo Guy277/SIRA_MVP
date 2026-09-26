@@ -31,7 +31,7 @@ class OtpRequest(BaseModel):
 
 class OtpVerify(BaseModel):
     phone_number: str
-    code: str = Field(min_length=4, max_length=8)
+    code: str = Field(pattern=r"^\s*\d{4}\s*$")
     full_name: str | None = Field(default=None, max_length=100)
     role: Role | None = None
 

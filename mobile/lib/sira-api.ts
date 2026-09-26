@@ -2,7 +2,7 @@
 // through this module; no screen talks to the network on its own.
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { currentToken } from '@/lib/session';
+import { currentToken, expireSession } from '@/lib/session';
 
 export type Coordinates = { latitude: number; longitude: number };
 export type CategoryName = 'coule' | 'debout' | 'suspendu';
@@ -104,11 +104,14 @@ export async function apiJson<T>(path: string, init: RequestInit & { timeoutMs?:
     clearTimeout(timer);
   }
   if (!response.ok) {
+    // After 30 days the session ends and the SMS code is asked again.
+    if (response.status === 401 && currentToken()) expireSession();
     let message = `La requête SIRA a échoué (${response.status}).`;
     try {
-      const payload = await response.json() as { message?: string | string[] };
+      const payload = await response.json() as { message?: string | string[]; detail?: unknown };
       if (Array.isArray(payload.message)) message = payload.message.join(' ');
       else if (payload.message) message = payload.message;
+      else if (typeof payload.detail === 'string') message = payload.detail;
     } catch { /* réponse non JSON */ }
     throw new SiraApiError(message);
   }
@@ -165,6 +168,8 @@ export const requestOtp = (phone: string) =>
   apiJson<OtpRequestResult>('/auth/request-otp', { method: 'POST', body: JSON.stringify({ phone_number: phone }) });
 export const verifyOtp = (phone: string, code: string, fullName?: string) =>
   apiJson<LoginResult>('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ phone_number: phone, code, full_name: fullName }) });
+export const updateName = (fullName: string) =>
+  apiJson<LoginResult['user']>('/users/me', { method: 'PATCH', body: JSON.stringify({ full_name: fullName }) });
 export const fareSummaries = (lineIds: string[]) =>
   apiJson<FareSummary[]>(`/fares?${lineIds.map((id) => `line_id=${encodeURIComponent(id)}`).join('&')}`);
 export const reportFare = (lineId: string, mode: LegMode, amount: number) =>

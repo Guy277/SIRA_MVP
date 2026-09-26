@@ -22,7 +22,8 @@ class Settings:
     environment: str = field(default_factory=lambda: os.getenv("SIRA_ENV", "development"))
     database_url: str = field(default_factory=lambda: os.getenv("COMMUNITY_DATABASE_URL", "sqlite:///./services/community/data/community.db"))
     jwt_secret: str = field(default_factory=lambda: os.getenv("COMMUNITY_JWT_SECRET", ""))
-    token_ttl_minutes: int = field(default_factory=lambda: int(os.getenv("COMMUNITY_TOKEN_TTL_MINUTES", str(60 * 24 * 7))))
+    # 30 days, then the SMS code is asked again (as in Orange Max it).
+    token_ttl_minutes: int = field(default_factory=lambda: int(os.getenv("COMMUNITY_TOKEN_TTL_MINUTES", str(60 * 24 * 30))))
     # Orange Developer API (SMS). Without credentials, codes are only logged.
     orange_client_id: str = field(default_factory=lambda: os.getenv("ORANGE_CLIENT_ID", ""))
     orange_client_secret: str = field(default_factory=lambda: os.getenv("ORANGE_CLIENT_SECRET", ""))

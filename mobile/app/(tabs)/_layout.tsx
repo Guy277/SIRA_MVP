@@ -5,15 +5,17 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useSession, useSessionRestored } from '@/lib/session';
+import { useKnownTraveller, useSession, useSessionRestored } from '@/lib/session';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const session = useSession();
   const restored = useSessionRestored();
+  const known = useKnownTraveller();
 
-  // The app is reached only once signed in (SMS code).
-  if (restored && !session) return <Redirect href="/onboarding" />;
+  // The app is reached only once signed in (SMS code). A traveller known on
+  // this phone (session over after 30 days) goes straight to the code screen.
+  if (restored && !session) return <Redirect href={known ? '/login' : '/onboarding'} />;
 
   return (
     <Tabs

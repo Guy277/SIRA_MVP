@@ -56,6 +56,7 @@ export async function restoreSession() {
   try {
     known = await load<KnownTraveller>(KNOWN_KEY);
     session = await load<NonNullable<Session>>(KEY);
+    if (session && tokenExpired(session.token)) { session = null; void persist(KEY, null); }
     if (session) {
       setAuthenticated(true);
       known ??= { phone_number: session.user.phone_number, full_name: session.user.full_name };
@@ -66,6 +67,22 @@ export async function restoreSession() {
 }
 
 let restored = false;
+
+// Reads the expiry of the signed token; unreadable tokens count as expired.
+function tokenExpired(token: string) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+    return !payload.exp || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
+// Ends the session (expired or refused by the server); the traveller stays
+// known on this phone so only the SMS code is asked again.
+export function expireSession() {
+  if (session) setSession(null);
+}
 
 export function useKnownTraveller() {
   return useSyncExternalStore(
