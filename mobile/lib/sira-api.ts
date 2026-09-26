@@ -19,7 +19,12 @@ export type ApiLeg = {
   dataStatus?: string;
   confidence?: number;
   line_id?: string;
+  line_code?: string;
+  // Other lines serving the same boarding and alighting stops.
+  alternatives?: LineAlternative[];
 };
+
+export type LineAlternative = { line_id: string; code?: string; name: string; mode: LegMode };
 
 export type ApiJourney = {
   id: string;

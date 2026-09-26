@@ -1483,3 +1483,24 @@ test("buildJourneys avec preference=fast transmet fast à SIRA-MORE", async () =
     process.env.DATABASE_URL = originalDatabaseUrl;
   }
 });
+
+test("liste les autres lignes qui font le même tronçon", () => {
+  const feature = (lineId, code, coordinates, mode = "SOTRA_BUS") => ({
+    properties: { line_id: lineId, code, name: `bus ${code}`, operator: "test", network: "test", sira_mode: mode, frequency: "10" },
+    geometry: { type: "LineString", coordinates },
+  });
+  const graph = new TransportGraph([
+    feature("L28", "28", [[-4, 5], [-3.99, 5], [-3.98, 5]]),
+    feature("L85", "85", [[-4.0005, 5], [-3.99, 5.001], [-3.9805, 5]]),
+    feature("G1", "", [[-4, 5.0005], [-3.98, 5.0005]], "GBAKA"),
+    feature("L99", "99", [[-4, 5], [-3.95, 5.05]]),
+  ]);
+  const route = graph.route({ lon: -4, lat: 5 }, { lon: -3.98, lat: 5 }, "balanced", { maxAccessDistanceM: 100, serviceDate: new Date("2026-09-01T12:00:00Z") });
+  assert.ok(route);
+  assert.equal(route.legs.length, 1);
+  const alternatives = route.legs[0].alternatives.map((line) => line.lineId);
+  assert.ok(!alternatives.includes(route.legs[0].lineId));
+  assert.ok(!alternatives.includes("L99"), "une ligne qui ne va pas au même arrêt n'est pas une alternative");
+  assert.equal(alternatives.length, 2);
+  assert.equal(route.legs[0].alternatives[alternatives.length - 1].mode, "gbaka", "le même mode passe en premier");
+});

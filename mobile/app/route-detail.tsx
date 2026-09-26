@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFavorites } from '@/hooks/use-favorites';
 import { OsmMapView } from '@/components/osm-map-view';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
-import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import { alternativesText, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
 import { fareSummaries, reportFare, type FareSummary, type LegMode } from '@/lib/sira-api';
 import { currentToken } from '@/lib/session';
 import { notify } from '@/lib/notify';
@@ -226,6 +226,9 @@ export default function RouteDetailScreen() {
                       <Text style={styles.stepCostText}>
                         Coût estimé : <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
                       </Text>
+                    )}
+                    {isVehicle(leg) && alternativesText(leg) && (
+                      <Text style={styles.alternativesText}>{alternativesText(leg)} — prenez le premier qui passe.</Text>
                     )}
                     {leg.line_id && fares[leg.line_id]?.reports ? (
                       <Text style={styles.communityFareText}>
@@ -559,6 +562,12 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 14,
     paddingRight: 10,
+  },
+  alternativesText: {
+    fontSize: 12,
+    color: '#2D6A4F',
+    fontWeight: '600',
+    marginTop: 2,
   },
   stepTitle: {
     fontSize: 15,

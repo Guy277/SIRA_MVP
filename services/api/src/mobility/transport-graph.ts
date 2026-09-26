@@ -16,7 +16,7 @@ export type TransportFeature = {
 };
 
 type LineMeta = {
-  lineId: string; name: string; operator: string; network: string; mode: SiraTransportMode;
+  lineId: string; code?: string; name: string; operator: string; network: string; mode: SiraTransportMode;
   frequency?: string; frequencyExceptions?: string; openingHours?: string; sourceConfidence: number;
 };
 type Edge = LineMeta & { to: string; distanceKm: number };
@@ -24,7 +24,11 @@ type RidePrevious = { kind: "ride"; state: string; fromNode: string; edge: Edge 
 type WalkPrevious = { kind: "walk"; state: string; fromNode: string; toNode: string; distanceKm: number; durationMinutes: number };
 type Previous = RidePrevious | WalkPrevious;
 
+// Another line serving the same boarding and alighting stops, so the traveller
+// can take whichever comes first, as on the RATP "lines at this stop" list.
+export type LineAlternative = { lineId: string; code?: string; name: string; mode: SiraTransportMode };
 export type NetworkLeg = LineMeta & {
+  alternatives: LineAlternative[];
   distanceKm: number; durationMinutes: number; durationP90: number; durationMethod: string;
   waitMinutes: number; waitP90: number; waitMethod: string; waitConfidence: number;
   price: number; priceP90: number; priceMethod: string; priceConfidence: number;
@@ -99,6 +103,7 @@ export class TransportGraph {
   private readonly lineAdjacency = new Map<string, Map<string, Edge[]>>();
   private readonly coordinates = new Map<string, Coordinate>();
   private readonly nodeLines = new Map<string, Set<string>>();
+  private readonly lineMeta = new Map<string, LineMeta>();
   private readonly spatialGrid = new Map<string, string[]>();
   private readonly transferCache = new Map<string, Array<{ key: string; distanceKm: number }>>();
   private readonly nearbyNodeCache = new Map<string, Array<{ key: string; distanceKm: number }>>();
@@ -237,7 +242,7 @@ export class TransportGraph {
           transfers.push({ afterLegIndex: legs.length - 1, from: pendingWalk ? this.coordinates.get(pendingWalk.fromNode)! : from, to: pendingWalk ? this.coordinates.get(pendingWalk.toNode)! : from, distanceKm: pendingWalk?.distanceKm ?? 0, durationMinutes: pendingWalk?.durationMinutes ?? 0, interchangeBufferMinutes: 2 });
         }
         const wait = estimateWait(step.edge.mode, step.edge.frequency, step.edge.frequencyExceptions, serviceDate); const rawRide = rideMinutesRaw(step.edge.mode, step.edge.distanceKm);
-        legs.push({ ...step.edge, distanceKm: step.edge.distanceKm, durationMinutes: rawRide, durationP90: rawRide * 1.35, durationMethod: "mode_speed_prior", waitMinutes: wait.value, waitP90: wait.p90, waitMethod: wait.method, waitConfidence: wait.confidence, price: 0, priceP90: 0, priceMethod: "historical_mode_fare_prior", priceConfidence: 0, coordinates: [from, to] });
+        legs.push({ ...step.edge, distanceKm: step.edge.distanceKm, durationMinutes: rawRide, durationP90: rawRide * 1.35, durationMethod: "mode_speed_prior", waitMinutes: wait.value, waitP90: wait.p90, waitMethod: wait.method, waitConfidence: wait.confidence, price: 0, priceP90: 0, priceMethod: "historical_mode_fare_prior", priceConfidence: 0, coordinates: [from, to], alternatives: [] });
         pendingWalk = null;
       } else {
         const rawRide = rideMinutesRaw(step.edge.mode, step.edge.distanceKm);
@@ -249,6 +254,7 @@ export class TransportGraph {
       leg.durationMinutes = Math.max(1, Math.round(leg.durationMinutes));
       leg.durationP90 = Math.max(2, Math.round(leg.durationP90));
       leg.price = price.value; leg.priceP90 = price.p90; leg.priceMethod = price.method; leg.priceConfidence = price.confidence;
+      leg.alternatives = this.sameStretchLines(leg, serviceDate);
     }
 
     const accessWalk = estimateWalkingDuration(start.distanceKm);
@@ -275,7 +281,9 @@ export class TransportGraph {
   private addFeature(feature: TransportFeature) {
     if (!feature.geometry?.coordinates || !feature.properties) return;
     const properties = feature.properties;
-    const meta: LineMeta = { lineId: properties.line_id ?? String(feature.id ?? properties.name ?? "unknown"), name: properties.name ?? "Ligne de transport", operator: properties.operator ?? "Opérateur non renseigné", network: properties.network ?? "Réseau non renseigné", mode: lineMode(properties), frequency: properties.frequency ?? properties.frequency_raw, frequencyExceptions: properties.frequency_exceptions, openingHours: properties.opening_hours ?? properties.opening_hours_raw, sourceConfidence: properties.confidence_score ?? 0.5 };
+    // Line codes are numbers in part of the source data.
+    const meta: LineMeta = { lineId: properties.line_id ?? String(feature.id ?? properties.name ?? "unknown"), code: String(properties.code ?? "").trim() || undefined, name: properties.name ?? "Ligne de transport", operator: properties.operator ?? "Opérateur non renseigné", network: properties.network ?? "Réseau non renseigné", mode: lineMode(properties), frequency: properties.frequency ?? properties.frequency_raw, frequencyExceptions: properties.frequency_exceptions, openingHours: properties.opening_hours ?? properties.opening_hours_raw, sourceConfidence: properties.confidence_score ?? 0.5 };
+    this.lineMeta.set(meta.lineId, meta);
     const lines = feature.geometry.type === "MultiLineString" ? feature.geometry.coordinates : [feature.geometry.coordinates];
     for (const candidate of lines) {
       if (!Array.isArray(candidate)) continue;
@@ -296,6 +304,26 @@ export class TransportGraph {
     const fromLines = this.lineAdjacency.get(fromKey)!; const toLines = this.lineAdjacency.get(toKey)!;
     if (!fromLines.has(meta.lineId)) fromLines.set(meta.lineId, []); if (!toLines.has(meta.lineId)) toLines.set(meta.lineId, []);
     fromLines.get(meta.lineId)!.push(forward); toLines.get(meta.lineId)!.push(backward);
+  }
+  // Lines that stop within a short walk of both ends of a leg and are running
+  // at that time. Same mode first, then by line code.
+  private sameStretchLines(leg: NetworkLeg, serviceDate: Date): LineAlternative[] {
+    const linesNear = (coordinate: Coordinate) => {
+      const key = keyOf(coordinate); const lines = new Set(this.nodeLines.get(key) ?? []);
+      for (const nearby of this.nearbyNodes(key, 0.25)) for (const line of this.nodeLines.get(nearby.key) ?? []) lines.add(line);
+      return lines;
+    };
+    const boarding = linesNear(leg.coordinates[0]); const alighting = linesNear(leg.coordinates[leg.coordinates.length - 1]);
+    const alternatives: LineAlternative[] = [];
+    for (const lineId of boarding) {
+      if (lineId === leg.lineId || !alighting.has(lineId)) continue;
+      const meta = this.lineMeta.get(lineId);
+      if (!meta || !isServiceOpen(meta.openingHours, serviceDate)) continue;
+      alternatives.push({ lineId, code: meta.code, name: meta.name, mode: meta.mode });
+    }
+    return alternatives
+      .sort((a, b) => Number(b.mode === leg.mode) - Number(a.mode === leg.mode) || (a.code ?? "~").localeCompare(b.code ?? "~", "fr", { numeric: true }))
+      .slice(0, 6);
   }
   private nodesInside(areas: AvoidArea[]) {
     const inside = new Set<string>();

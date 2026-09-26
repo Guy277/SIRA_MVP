@@ -1236,7 +1236,7 @@ if (!deduplicatedCandidates.length) {
         id: `${id}-ride-${index}`, mode: leg.mode, label: leg.name,
         detail: `${leg.durationMinutes} min (P90 ${leg.durationP90}) · ${leg.price}–${leg.priceP90} FCFA estimés`,
         duration: leg.durationMinutes, duration_p90: leg.durationP90, price: leg.price, price_p90: leg.priceP90,
-        geometry: leg.coordinates, line_id: leg.lineId, source: `${leg.operator} · ${leg.network} · ${leg.lineId}`,
+        geometry: leg.coordinates, line_id: leg.lineId, line_code: leg.code, alternatives: leg.alternatives.map((line) => ({ line_id: line.lineId, code: line.code, name: line.name, mode: line.mode })), source: `${leg.operator} · ${leg.network} · ${leg.lineId}`,
         dataStatus: "historical_open_data", estimate_method: leg.durationMethod, confidence: leg.sourceConfidence,
       });
       const transfer = route.transfers.find((candidate) => candidate.afterLegIndex === index);
