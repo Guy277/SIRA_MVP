@@ -12,6 +12,8 @@ export function useOtpLogin() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
+  // Counts refused codes so the screen can react (shake).
+  const [failures, setFailures] = useState(0);
 
   const sendCode = async (phone: string) => {
     const result = await requestOtp(phone);
@@ -35,6 +37,8 @@ export function useOtpLogin() {
       setSession({ token: result.access_token, user: result.user });
       return result;
     } catch (error) {
+      // A refused code is cleared so the next one can be typed straight away.
+      if (step === 'code') { setFailures((count) => count + 1); setCode(''); }
       notify('Connexion impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
       return null;
     } finally {
@@ -52,5 +56,5 @@ export function useOtpLogin() {
 
   const changeNumber = () => { setStep('phone'); setCode(''); setInfo(null); };
 
-  return { step, code, setCode, busy, info, submit, resend, changeNumber };
+  return { step, code, setCode, busy, info, failures, submit, resend, changeNumber };
 }

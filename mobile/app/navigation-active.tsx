@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   voiceLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '900',
     color: '#F26522',
     letterSpacing: 0.5,
@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
     color: '#F26522',
   },
   etaLabelText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748B',
   },

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dimensions,
   KeyboardAvoidingView,
@@ -15,6 +15,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  BounceInDown, FadeIn, FadeInDown, FadeInLeft, FadeInRight,
+  useAnimatedStyle, useSharedValue, withSequence, withTiming,
+} from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -52,9 +56,16 @@ import { firstName, setSession, useKnownTraveller, useSession } from '@/lib/sess
 import { logoutUser } from '@/hooks/use-auth';
 import { updateName } from '@/lib/sira-api';
 import { notify } from '@/lib/notify';
+import { playIntroToday } from '@/lib/motion';
+import { RotatingText } from '@/components/rotating-text';
+import { checkOrangeNumber, formatLocal } from '@/lib/phone';
 
-// +2250701020304 -> "07 01 02 03 04", as typed by travellers.
-const localNumber = (phone: string) => phone.replace(/^\+225/, '').replace(/(\d{2})(?=\d)/g, '$1 ');
+const WELCOME_PHRASES = [
+  'Bus, gbaka, wôrô-wôrô, bateau, taxi : tout Abidjan dans une appli.',
+  'SIRA trouve le meilleur trajet pour votre budget.',
+  'Un bouchon signalé ? SIRA vous fait passer ailleurs.',
+];
+
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -66,17 +77,42 @@ export default function LoginScreen() {
   // Asked once, right after the first code, as a new account has no name.
   const [askName, setAskName] = useState(false);
   const otp = useOtpLogin();
+  // Road, slogan and pin play in full on the first visit of the day only.
+  const [intro] = useState(() => playIntroToday('login'));
+  const introBase = intro ? 900 : 0;
+  const enter = (order: number, base = introBase) => (intro
+    ? FadeInDown.delay(base + order * 140).duration(400)
+    : FadeIn.delay(order * 60).duration(250));
+
+  // A wrong code shakes the field instead of only showing a message.
+  const [refusedNumbers, setRefusedNumbers] = useState(0);
+  const shake = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
+  useEffect(() => {
+    if (!otp.failures && !refusedNumbers) return;
+    shake.set(withSequence(
+      withTiming(-10, { duration: 50 }), withTiming(10, { duration: 50 }),
+      withTiming(-6, { duration: 50 }), withTiming(6, { duration: 50 }), withTiming(0, { duration: 50 }),
+    ));
+  }, [otp.failures, refusedNumbers, shake]);
 
   // Signed in: greeted by name, no code. Known on this phone but signed out:
   // greeted by name, number prefilled, code required. Otherwise: welcome.
   const traveller = switching ? null : session?.user ?? known ?? null;
   const signedIn = Boolean(session) && !switching;
   const name = firstName(traveller);
-  const phone = typedPhone ?? (traveller ? localNumber(traveller.phone_number) : '');
+  const phone = typedPhone ?? (traveller ? formatLocal(traveller.phone_number) : '');
+  // Only Orange mobile numbers (07): the traveller is told while typing.
+  const numberCheck = checkOrangeNumber(phone);
 
   // Number -> 4-digit SMS code -> session; a new number creates the account.
   const handleLogin = async (typedCode?: string) => {
     if (signedIn && !askName) { router.replace('/(tabs)'); return; }
+    if (otp.step === 'phone' && !numberCheck.ok) {
+      setRefusedNumbers((count) => count + 1);
+      if (!numberCheck.message) notify('Numéro incomplet', 'Entrez les 10 chiffres de votre numéro Orange : 07 XX XX XX XX.');
+      return;
+    }
     const result = await otp.submit(phone, typedCode);
     if (!result) return;
     if (result.is_new_user && !result.user.full_name) setAskName(true);
@@ -142,26 +178,30 @@ export default function LoginScreen() {
         </View>
 
         {/* Diagonal Road Stripe Image (Top: 126px, Left: -20px, 450x138) */}
-        <View style={styles.roadStripeContainer} pointerEvents="none">
+        <Animated.View entering={intro ? FadeInLeft.duration(600) : FadeIn.duration(250)} style={styles.roadStripeContainer} pointerEvents="none">
           <Image
             source={require('@/assets/images/road-stripe-designer.png')}
             style={styles.roadStripeImage}
             contentFit="contain"
           />
-        </View>
+        </Animated.View>
 
-        {/* Tagline Slogan Row (Top: 107px, Left: 42px, 325x111 at -13.72deg) */}
+        {/* Tagline Slogan Row (Top: 107px, Left: 42px, 325x111 at -13.72deg):
+            the road comes in, then "ON TRACE," then "SANS STRESS." */}
         <View style={styles.sloganRow} pointerEvents="none">
-          <Text style={styles.sloganWhite}>ON TRACE, </Text>
-          <Text style={styles.sloganOrange}>SANS STRESS.</Text>
+          <Animated.Text entering={intro ? FadeIn.delay(450).duration(350) : FadeIn.duration(250)} style={styles.sloganWhite}>ON TRACE, </Animated.Text>
+          <Animated.Text entering={intro ? FadeIn.delay(750).duration(350) : FadeIn.duration(250)} style={styles.sloganOrange}>SANS STRESS.</Animated.Text>
         </View>
 
-        {/* Location Pin Icon (Top: 107px, Left: 313px, 42x55 at 13.89deg) */}
-        <Image
-          source={require('@/assets/images/orange-pin-icon.png')}
-          style={styles.pinImageStandalone}
-          contentFit="contain"
-        />
+        {/* Location Pin Icon (Top: 107px, Left: 313px, 42x55 at 13.89deg),
+            dropped on the road last. */}
+        <Animated.View entering={intro ? BounceInDown.delay(1000).duration(700) : FadeIn.duration(250)} style={styles.pinWrapper} pointerEvents="none">
+          <Image
+            source={require('@/assets/images/orange-pin-icon.png')}
+            style={styles.pinImageStandalone}
+            contentFit="contain"
+          />
+        </Animated.View>
 
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -182,45 +222,47 @@ export default function LoginScreen() {
             </View>
 
             {/* Welcome Headlines */}
-            <View style={styles.textContainer}>
+            {/* Headlines come up line by line; the name comes last. */}
+            <View style={styles.textContainer} key={askName ? 'name' : signedIn ? 'in' : traveller ? 'known' : 'new'}>
               {askName ? (
                 <>
-                  <Text style={styles.titleLine1}>ENCHANTÉ !</Text>
-                  <Text style={styles.titleLine2}>
+                  <Animated.Text entering={enter(0, 0)} style={styles.titleLine1}>ENCHANTÉ !</Animated.Text>
+                  <Animated.Text entering={enter(1, 0)} style={styles.titleLine2}>
                     VOTRE COMPTE <Text style={styles.titleOrange}>EST PRÊT</Text>
-                  </Text>
-                  <Text style={styles.subtitle}>
+                  </Animated.Text>
+                  <Animated.Text entering={enter(2, 0)} style={styles.subtitle}>
                     <Text style={styles.subtitleBold}>Comment doit-on vous appeler ?</Text>{'\n'}
                     SIRA vous saluera par votre prénom.
-                  </Text>
+                  </Animated.Text>
                 </>
               ) : known === undefined ? null : traveller ? (
                 <>
-                  <Text style={styles.titleLine1}>HEUREUX</Text>
-                  <Text style={styles.titleLine2}>
+                  <Animated.Text entering={enter(0)} style={styles.titleLine1}>HEUREUX</Animated.Text>
+                  <Animated.Text entering={enter(1)} style={styles.titleLine2}>
                     DE <Text style={styles.titleOrange}>VOUS REVOIR{name ? ',' : ''}</Text>
-                  </Text>
-                  {name && <Text style={[styles.titleLine2, styles.titleOrange]}>{name}</Text>}
-                  <Text style={styles.subtitle}>
+                  </Animated.Text>
+                  {name && <Animated.Text entering={enter(2)} style={[styles.titleLine2, styles.titleOrange]}>{name}</Animated.Text>}
+                  <Animated.Text entering={enter(3)} style={styles.subtitle}>
                     {signedIn ? (
                       <>Votre compte est déjà actif sur ce téléphone.{'\n'}<Text style={styles.subtitleBold}>Continuez directement, sans code.</Text></>
                     ) : (
-                      <>Votre mobilité à Abidjan vous attend.{'\n'}<Text style={styles.subtitleBold}>Confirmez votre numéro</Text>{'\n'}et recevez votre code à 4 chiffres par SMS.</>
+                      <>Votre mobilité à Abidjan vous attend.{'\n'}<Text style={styles.subtitleBold}>Confirmez votre numéro Orange : code à 4 chiffres par SMS.</Text></>
                     )}
-                  </Text>
+                  </Animated.Text>
                 </>
               ) : (
                 <>
-                  <Text style={styles.titleLine1}>BIENVENUE</Text>
-                  <Text style={styles.titleLine2}>
+                  <Animated.Text entering={enter(0)} style={styles.titleLine1}>BIENVENUE</Animated.Text>
+                  <Animated.Text entering={enter(1)} style={styles.titleLine2}>
                     SUR <Text style={styles.titleOrange}>SIRA</Text>
-                  </Text>
-                  <Text style={styles.subtitle}>
-                    Bus, gbaka, wôrô-wôrô, bateau, taxi :{'\n'}
-                    SIRA trouve le meilleur trajet pour votre budget.{'\n'}
-                    <Text style={styles.subtitleBold}>Entrez votre numéro de téléphone</Text>,{'\n'}
-                    vous recevrez un code à 4 chiffres par SMS.
-                  </Text>
+                  </Animated.Text>
+                  {/* One sentence at a time instead of a paragraph. */}
+                  <Animated.View entering={enter(2)} style={styles.rotatingWrap}>
+                    <RotatingText phrases={WELCOME_PHRASES} style={[styles.subtitle, styles.noMargin]} />
+                  </Animated.View>
+                  <Animated.Text entering={enter(3)} style={[styles.subtitle, styles.subtitleBold]}>
+                    Entrez votre numéro Orange (07) : code à 4 chiffres par SMS.
+                  </Animated.Text>
                 </>
               )}
             </View>
@@ -245,7 +287,8 @@ export default function LoginScreen() {
 
             {/* Input Field: Orange User Icon + Dark Pill */}
             {!signedIn && !askName && (
-            <View style={styles.inputWrapper}>
+            <Animated.View style={[styles.inputShake, shakeStyle]}>
+            <Animated.View key={otp.step} entering={otp.step === 'code' ? FadeInRight.duration(300) : enter(4)} style={[styles.inputWrapper, otp.step === 'phone' && numberCheck.message ? styles.inputWrong : null]}>
               <View style={styles.iconCircle}>
                 <Ionicons name="person" size={17} color="#FFFFFF" />
               </View>
@@ -254,13 +297,19 @@ export default function LoginScreen() {
                 placeholder={otp.step === 'phone' ? '07 XX XX XX XX' : `Code à ${OTP_LENGTH} chiffres`}
                 placeholderTextColor="#AAAAAA"
                 keyboardType={otp.step === 'phone' ? 'phone-pad' : 'number-pad'}
-                maxLength={otp.step === 'phone' ? 14 : OTP_LENGTH}
+                maxLength={otp.step === 'phone' ? undefined : OTP_LENGTH}
                 autoComplete={otp.step === 'phone' ? 'tel' : 'sms-otp'}
                 textContentType={otp.step === 'phone' ? 'telephoneNumber' : 'oneTimeCode'}
                 value={otp.step === 'phone' ? phone : otp.code}
-                onChangeText={otp.step === 'phone' ? setPhone : handleCodeChange}
+                onChangeText={otp.step === 'phone' ? (value) => setPhone(formatLocal(value)) : handleCodeChange}
               />
-            </View>
+            </Animated.View>
+            </Animated.View>
+            )}
+            {!signedIn && !askName && otp.step === 'phone' && numberCheck.message && (
+              <Animated.Text entering={FadeIn.duration(200)} style={styles.numberError} accessibilityRole="alert">
+                {numberCheck.message}
+              </Animated.Text>
             )}
             {otp.info && !askName && (
               <Text style={styles.otpInfo}>
@@ -301,6 +350,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F0F0F',
+    // The road stripe is wider than the screen by design: never scroll sideways.
+    overflow: 'hidden',
   },
   bgImage: {
     position: 'absolute',
@@ -347,6 +398,18 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     textAlign: 'center',
     marginTop: 18,
+  },
+  inputWrong: {
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+  },
+  numberError: {
+    color: '#FF8A80',
+    fontSize: 12.5,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: -10,
+    marginBottom: 14,
   },
   otpInfo: {
     color: '#F26522',
@@ -406,14 +469,30 @@ const styles = StyleSheet.create({
     fontVariant: ['small-caps'],
     textTransform: 'uppercase',
   },
-  pinImageStandalone: {
+  // Position on the wrapper, rotation on the image: the drop animation moves
+  // the wrapper without undoing the tilt.
+  pinWrapper: {
     position: 'absolute',
     top: PIN_TOP,
     left: PIN_LEFT,
     width: PIN_WIDTH,
     height: PIN_HEIGHT,
-    transform: [{ rotate: '-13.89deg' }],
     zIndex: 15,
+  },
+  pinImageStandalone: {
+    width: '100%',
+    height: '100%',
+    transform: [{ rotate: '-13.89deg' }],
+  },
+  rotatingWrap: {
+    width: '100%',
+    marginTop: 10,
+  },
+  noMargin: {
+    marginTop: 0,
+  },
+  inputShake: {
+    width: '100%',
   },
   logoContainer: {
     alignItems: 'center',

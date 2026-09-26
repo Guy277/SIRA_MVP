@@ -2,7 +2,7 @@
 // the three ways to travel (Coulé, Debout, Suspendu) with their best option,
 // then the itineraries of the chosen category, then the detail.
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -18,6 +18,8 @@ import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, resolvePlace, useC
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { alternativesText, arrivalTime, formatClock, formatDuration, formatPrice, isVehicle, journeySummary } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
+import { SkeletonCards } from '@/components/skeleton-cards';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const CATEGORIES: { name: CategoryName; label: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { name: 'coule', label: 'Coulé', subtitle: 'Le moins cher', icon: 'people' },
@@ -204,10 +206,7 @@ export default function RouteExploreScreen() {
             </TouchableOpacity>
           )}
           {loading && !ownPositionUnavailable && (
-            <View style={styles.stateCard}>
-              <ActivityIndicator color="#F26522" />
-              <Text style={styles.stateText}>{waitingForPosition ? 'Localisation en cours…' : 'SIRA compare les trajets…'}</Text>
-            </View>
+            <SkeletonCards label={waitingForPosition ? 'Localisation en cours…' : 'SIRA compare les trajets…'} />
           )}
           {!loading && searchError && (
             <View style={styles.stateCard}>
@@ -222,7 +221,7 @@ export default function RouteExploreScreen() {
               {journeys.length === 1 && (
                 <Text style={styles.metaText}>Un seul trajet possible à cette heure : il est à la fois le moins cher et le plus confortable.</Text>
               )}
-              {CATEGORIES.map((category) => {
+              {CATEGORIES.map((category, index) => {
                 // With few options one journey can lead several categories: it is
                 // shown once, the other cards point to it instead of repeating it.
                 const first = inCategory(category.name)[0];
@@ -230,8 +229,9 @@ export default function RouteExploreScreen() {
                 const leader = sameAs ? undefined : first;
                 if (leader) shownLeaders.set(leader.id, category.label);
                 return (
+                  // Coulé, Debout then Suspendu come in one after the other.
+                  <Animated.View key={category.name} entering={FadeInDown.delay(index * 70).duration(350)}>
                   <TouchableOpacity
-                    key={category.name}
                     style={[styles.categoryCard, !leader && styles.categoryCardEmpty]}
                     disabled={!first || (category.name === 'debout' && Boolean(sameAs))}
                     onPress={() => { setFilter('Tout'); setStep(category.name); }}
@@ -268,6 +268,7 @@ export default function RouteExploreScreen() {
                       </Text>
                     )}
                   </TouchableOpacity>
+                  </Animated.View>
                 );
               })}
               <TouchableOpacity style={styles.allLink} onPress={() => { setFilter('Tout'); setStep('all'); }} activeOpacity={0.7}>
@@ -296,7 +297,7 @@ export default function RouteExploreScreen() {
                 </TouchableOpacity>
               </View>
 
-              <JourneyList journeys={listed.filter(matchesFilter)} departureAt={departureAt} onOpen={openJourney} />
+              <JourneyList key={`${step}-${filter}`} journeys={listed.filter(matchesFilter)} departureAt={departureAt} onOpen={openJourney} />
               {listed.filter(matchesFilter).length === 0 && (
                 <View style={styles.stateCard}>
                   <Ionicons name="information-circle" size={18} color="#F26522" />
@@ -325,11 +326,13 @@ export default function RouteExploreScreen() {
 function JourneyList({ journeys, departureAt, onOpen }: { journeys: ApiJourney[]; departureAt: Date; onOpen: (journey: ApiJourney) => void }) {
   return (
     <View style={styles.list}>
-      {journeys.map((journey) => {
+      {journeys.map((journey, index) => {
         const firstRide = journey.legs.find(isVehicle);
         const also = firstRide ? alternativesText(firstRide, { otherModesOnly: true }) : null;
         return (
-          <TouchableOpacity key={journey.id} style={styles.row} onPress={() => onOpen(journey)} activeOpacity={0.8} accessibilityRole="button">
+          // Rows cascade in; only the first few are delayed so long lists stay quick.
+          <Animated.View key={journey.id} entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(300)}>
+          <TouchableOpacity style={styles.row} onPress={() => onOpen(journey)} activeOpacity={0.8} accessibilityRole="button">
             <View style={styles.rowMain}>
               <JourneyBadges journey={journey} />
               <Text style={styles.rowPrice}>{formatPrice(journey.price)}</Text>
@@ -342,6 +345,7 @@ function JourneyList({ journeys, departureAt, onOpen }: { journeys: ApiJourney[]
               <Ionicons name="chevron-forward" size={16} color="#B0B0B0" />
             </View>
           </TouchableOpacity>
+          </Animated.View>
         );
       })}
     </View>

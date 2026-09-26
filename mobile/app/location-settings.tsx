@@ -215,12 +215,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   calloutTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     color: '#DC2626',
   },
   calloutSub: {
-    fontSize: 8.5,
+    fontSize: 11,
     color: '#DC2626',
     fontWeight: '500',
   },

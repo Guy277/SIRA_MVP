@@ -41,16 +41,16 @@ class PhoneTests(unittest.TestCase):
 
 class AuthTests(unittest.TestCase):
     def test_login_creates_account_and_session(self):
-        phone = "05 11 22 33 44"
+        phone = "07 11 22 33 44"
         request = client.post("/auth/request-otp", json={"phone_number": phone}).json()
         self.assertEqual(len(request["demo_code"]), 4)
         verified = client.post("/auth/verify-otp", json={"phone_number": phone, "code": request["demo_code"], "full_name": "Koffi"}).json()
         self.assertTrue(verified["is_new_user"])
         me = client.get("/auth/me", headers={"Authorization": f"Bearer {verified['access_token']}"}).json()
-        self.assertEqual((me["phone_number"], me["full_name"]), ("+2250511223344", "Koffi"))
+        self.assertEqual((me["phone_number"], me["full_name"]), ("+2250711223344", "Koffi"))
 
     def test_wrong_code_is_rejected_and_attempts_are_limited(self):
-        phone = "01 02 03 04 05"
+        phone = "07 02 03 04 05"
         code = client.post("/auth/request-otp", json={"phone_number": phone}).json()["demo_code"]
         wrong = f"{(int(code) + 1) % 10_000:04d}"
         for _ in range(3):
@@ -73,9 +73,17 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(client.post("/auth/verify-otp", json={"phone_number": phone, "code": code}).status_code, 400)
 
     def test_code_requests_are_rate_limited(self):
-        phone = "05 55 55 55 55"
+        phone = "07 55 55 55 55"
         statuses = [client.post("/auth/request-otp", json={"phone_number": phone}).status_code for _ in range(4)]
         self.assertEqual(statuses, [200, 200, 200, 429])
+
+    def test_only_orange_mobile_numbers_get_a_code(self):
+        for raw, operator in (("05 11 22 33 44", "MTN"), ("01 11 22 33 44", "Moov"), ("27 22 33 44 55", "fixe Orange")):
+            response = client.post("/auth/request-otp", json={"phone_number": raw})
+            self.assertEqual(response.status_code, 400)
+            self.assertIn(operator, response.json()["detail"])
+            self.assertIn("07", response.json()["detail"])
+        self.assertEqual(client.post("/auth/verify-otp", json={"phone_number": "05 11 22 33 44", "code": "1234"}).status_code, 400)
 
     def test_protected_routes_need_a_valid_token(self):
         self.assertEqual(client.get("/auth/me").status_code, 401)

@@ -212,7 +212,7 @@ export default function TrafficScreen() {
             <View style={[styles.categoryIconCircle, panelFilter === 'accident' && styles.categoryIconCircleActive]}>
               <Ionicons name="car-sport" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={styles.categoryLabel} numberOfLines={2}>
               Accident
             </Text>
           </TouchableOpacity>
@@ -225,8 +225,8 @@ export default function TrafficScreen() {
             <View style={[styles.categoryIconCircle, panelFilter === 'embouteillage' && styles.categoryIconCircleActive]}>
               <Ionicons name="car" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
-              Embouteillage
+            <Text style={styles.categoryLabel} numberOfLines={2}>
+              Bouchon
             </Text>
           </TouchableOpacity>
 
@@ -238,7 +238,7 @@ export default function TrafficScreen() {
             <View style={[styles.categoryIconCircle, panelFilter === 'route_bloquee' && styles.categoryIconCircleActive]}>
               <Ionicons name="construct" size={18} color="#FFFFFF" />
             </View>
-            <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={styles.categoryLabel} numberOfLines={2}>
               Route bloquée
             </Text>
           </TouchableOpacity>
@@ -251,7 +251,7 @@ export default function TrafficScreen() {
             <View style={[styles.categoryIconCircle, panelFilter === 'inondation' && styles.categoryIconCircleActive]}>
               <Ionicons name="water" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={styles.categoryLabel} numberOfLines={2}>
               Inondation
             </Text>
           </TouchableOpacity>
@@ -264,7 +264,7 @@ export default function TrafficScreen() {
             <View style={[styles.categoryIconCircle, panelFilter === 'autre' && styles.categoryIconCircleActive]}>
               <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={styles.categoryLabel} numberOfLines={2}>
               Autre
             </Text>
           </TouchableOpacity>
@@ -587,8 +587,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  // Five labels share the width: slightly smaller on 320-px phones so no
+  // word is cut in the middle.
   categoryLabel: {
-    fontSize: 10,
+    fontSize: width < 360 ? 10 : 11,
+    lineHeight: width < 360 ? 12 : 13,
     fontWeight: '700',
     color: '#000000',
     textAlign: 'center',

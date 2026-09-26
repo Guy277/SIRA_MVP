@@ -39,9 +39,23 @@ def normalize_phone(raw: str) -> str:
         digits = digits[5:]
     elif digits.startswith("225") and len(digits) == 13:
         digits = digits[3:]
-    if not re.fullmatch(r"0\d{9}", digits):
+    # Mobiles start with 0, fixed lines with 2: both are read so a fixed line gets a clear refusal.
+    if not re.fullmatch(r"[02]\d{9}", digits):
         raise HTTPException(status_code=400, detail="Numéro ivoirien invalide : 10 chiffres attendus, par exemple 07 08 09 10 11.")
     return f"+225{digits}"
+
+
+# SIRA works with Orange mobile numbers (07 since the 10-digit plan of 2021).
+ORANGE_MOBILE_PREFIX = "+22507"
+OTHER_PREFIXES = {"05": "un numéro MTN", "01": "un numéro Moov", "27": "un numéro fixe Orange", "25": "un numéro fixe MTN", "21": "un numéro fixe Moov"}
+
+
+def require_orange_mobile(phone: str) -> None:
+    if phone.startswith(ORANGE_MOBILE_PREFIX):
+        return
+    kind = OTHER_PREFIXES.get(phone[4:6])
+    detail = f"C’est {kind}. " if kind else ""
+    raise HTTPException(status_code=400, detail=f"{detail}SIRA fonctionne avec un numéro Orange : il commence par 07.")
 
 
 def _hash_code(phone: str, code: str) -> str:
@@ -80,6 +94,7 @@ def send_sms(phone: str, message: str) -> bool:
 
 def request_otp(db: Session, raw_phone: str) -> dict:
     phone = normalize_phone(raw_phone)
+    require_orange_mobile(phone)
     now = datetime.now(timezone.utc)
     recent = db.query(OtpCode).filter(OtpCode.phone_number == phone, OtpCode.created_at >= now - REQUEST_WINDOW).count()
     if recent >= MAX_REQUESTS_PER_WINDOW:
@@ -102,6 +117,7 @@ def request_otp(db: Session, raw_phone: str) -> dict:
 
 def verify_otp(db: Session, raw_phone: str, code: str, full_name: str | None, role: str | None) -> dict:
     phone = normalize_phone(raw_phone)
+    require_orange_mobile(phone)
     otp = (
         db.query(OtpCode)
         .filter(OtpCode.phone_number == phone, OtpCode.used.is_(False))

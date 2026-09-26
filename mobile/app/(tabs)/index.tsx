@@ -22,6 +22,9 @@ import { OsmMapView } from '@/components/osm-map-view';
 import { firstName, useSession } from '@/lib/session';
 import { ensureCurrentPlace, isOwnPosition, useCurrentPlace } from '@/lib/places';
 import { notify } from '@/lib/notify';
+import { playIntroToday } from '@/lib/motion';
+import { TypewriterText } from '@/components/typewriter-text';
+import Animated, { FadeIn, FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -46,6 +49,8 @@ export default function HomeScreen() {
   useEffect(() => { void ensureCurrentPlace(); }, []);
   const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  // SIRA greets in full (bubble, typed words) on the first visit of the day.
+  const [intro] = useState(() => playIntroToday('home'));
 
   const handleLocationSelect = (selectedLoc: string) => {
     setIsYangoModalOpen(false);
@@ -97,29 +102,34 @@ export default function HomeScreen() {
         </View>
 
         {/* Speech / Greeting Bubble (Positioned above character's head with speech pointer tail) */}
-        <View style={styles.speechBubble}>
-          <Text style={styles.speechGreeting}>
-            <Text style={styles.speechGreetingBold}>Akwaba{greetingName ? ` ${greetingName}` : ''} !</Text>
-          </Text>
-          <Text style={styles.speechMain}>
+        {/* The bubble pops up, "Akwaba" writes itself, then SIRA introduces itself. */}
+        <Animated.View entering={intro ? ZoomIn.delay(350).springify().damping(14) : FadeIn.duration(250)} style={styles.speechBubble}>
+          <TypewriterText
+            key={greetingName ?? ''}
+            play={intro}
+            delayMs={650}
+            text={`Akwaba${greetingName ? ` ${greetingName}` : ''} !`}
+            style={[styles.speechGreeting, styles.speechGreetingBold]}
+          />
+          <Animated.Text entering={intro ? FadeIn.delay(1250).duration(350) : FadeIn.duration(250)} style={styles.speechMain}>
             Je suis <Text style={styles.siraBold}>SIRA</Text>, votre
-          </Text>
-          <Text style={styles.speechSub}>assistant de mobilité.</Text>
+          </Animated.Text>
+          <Animated.Text entering={intro ? FadeIn.delay(1450).duration(350) : FadeIn.duration(250)} style={styles.speechSub}>assistant de mobilité.</Animated.Text>
           {/* Speech bubble pointer arrow */}
           <View style={styles.speechBubbleArrow} />
-        </View>
+        </Animated.View>
 
         {/* 3D Animated Assistant Character - Designer Specs (324x486 at Top: 414px, Left: 39px, Angle: 0deg, Opacity: 1) */}
-        <View style={styles.characterContainer} pointerEvents="none">
+        <Animated.View entering={intro ? FadeInDown.duration(500) : FadeIn.duration(250)} style={styles.characterContainer} pointerEvents="none">
           <Image
             source={require('@/assets/images/sira-character-assistant.png')}
             style={styles.characterImage}
             contentFit="contain"
           />
-        </View>
+        </Animated.View>
 
         {/* Bottom Destination Section */}
-        <View style={styles.bottomBarContainer}>
+        <Animated.View entering={intro ? FadeInUp.delay(900).duration(400) : FadeIn.duration(250)} style={styles.bottomBarContainer}>
           {/* Destination Search Bar (Floating Pill - Orange inactive / Dark active) */}
           <TouchableOpacity
             style={styles.searchPill}
@@ -144,7 +154,7 @@ export default function HomeScreen() {
               <Ionicons name="mic" size={22} color="#FFFFFF" />
             </TouchableOpacity>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </SafeAreaView>
 
       {/* Yango Full Screen Location Modal */}

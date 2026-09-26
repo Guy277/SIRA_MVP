@@ -340,12 +340,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   calloutTitle: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '800',
     color: '#DC2626',
   },
   calloutSub: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#DC2626',
     fontWeight: '500',
   },
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   },
   destTitle: {
     color: '#FFFFFF',
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '800',
   },
   destTagPill: {
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
   },
   destTagText: {
     color: '#FFFFFF',
-    fontSize: 8.5,
+    fontSize: 11,
     fontWeight: '800',
   },
   dualBarContainer: {

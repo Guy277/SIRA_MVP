@@ -130,7 +130,7 @@ export default function RouteDetailScreen() {
             <Ionicons name="arrow-back" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Décomposition d'itinéraire</Text>
+          <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Décomposition d'itinéraire</Text>
 
           <View style={styles.headerRightActions}>
             <TouchableOpacity
@@ -207,6 +207,10 @@ export default function RouteDetailScreen() {
 
               {!journey && (
                 <View style={styles.stepItemRow}>
+                  {/* Same icon slot as a step, so the text clears the road stripe. */}
+                  <View style={styles.orangeStepIconCircle}>
+                    <Ionicons name="information" size={20} color="#FFFFFF" />
+                  </View>
                   <View style={styles.stepTextWrapper}>
                     <Text style={styles.stepTitle}>Aucun trajet sélectionné</Text>
                     <Text style={styles.stepSubDesc}>Revenez aux résultats et choisissez un itinéraire.</Text>
@@ -405,6 +409,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
+    flexShrink: 1,
     fontSize: 18,
     fontWeight: '900',
     color: '#000000',

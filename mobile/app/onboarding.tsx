@@ -1,34 +1,35 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Dimensions,
+  AccessibilityInfo,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import Animated, {
+  Easing, FadeIn, FadeInDown, ReduceMotion, cancelAnimation, runOnJS,
+  useAnimatedStyle, useSharedValue, withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width, height } = Dimensions.get('window');
+// Designer canvas reference metrics (406px x 874px): positions below are
+// ratios of it, applied to the real screen size so every phone gets the layout.
+const DESIGN_W = 406;
+const DESIGN_H = 874;
+const PHONE_RATIO = 225 / 523;
 
-// Designer canvas reference metrics (406px x 874px)
-const DESIGN_CANVAS_WIDTH = 406;
-const DESIGN_CANVAS_HEIGHT = 874;
-
-// Phone placement: Width 225px, Height 523px, Top 157px, Left 177px
-const PHONE_WIDTH = (225 / DESIGN_CANVAS_WIDTH) * width;
-const PHONE_HEIGHT = (523 / DESIGN_CANVAS_HEIGHT) * height;
-const PHONE_TOP = (157 / DESIGN_CANVAS_HEIGHT) * height;
-const PHONE_LEFT = (177 / DESIGN_CANVAS_WIDTH) * width;
-
-// Information Card placement: Width 402px, Height 242px, Top 632px, Opacity 90%, Color #010101
-const CARD_WIDTH = (402 / DESIGN_CANVAS_WIDTH) * width;
-const CARD_HEIGHT = (242 / DESIGN_CANVAS_HEIGHT) * height;
-const CARD_TOP = (632 / DESIGN_CANVAS_HEIGHT) * height;
+// Each slide stays 5 s, as a story, then the next one comes; after the last
+// one the login opens. Touching the screen pauses (WCAG 2.2.2).
+const SLIDE_MS = 5000;
 
 interface OnboardingSlide {
   id: string;
@@ -72,75 +73,99 @@ const SLIDES: OnboardingSlide[] = [
   },
 ];
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [held, setHeld] = useState(false);
+  const [screenReader, setScreenReader] = useState(false);
+  const progress = useSharedValue(0);
 
-  // Automatic carousel scroll timer with loop back to beginning
+  // Screen reader users move at their own pace: no automatic advance. The web
+  // cannot detect a screen reader (react-native-web always answers yes), so
+  // there the press-and-hold pause is the control.
   useEffect(() => {
-    const timer = setInterval(() => {
-      const nextIndex = (currentIndex + 1) % SLIDES.length;
-      flatListRef.current?.scrollToOffset({
-        offset: nextIndex * width,
-        animated: true,
-      });
-      setCurrentIndex(nextIndex);
-    }, 3500);
+    if (Platform.OS === 'web') return;
+    AccessibilityInfo.isScreenReaderEnabled().then(setScreenReader).catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener('screenReaderChanged', setScreenReader);
+    return () => subscription.remove();
+  }, []);
 
-    return () => clearInterval(timer);
-  }, [currentIndex]);
+  const finish = useCallback(() => router.replace('/login'), [router]);
 
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const contentOffsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(contentOffsetX / width);
-    if (index !== currentIndex && index >= 0 && index < SLIDES.length) {
-      setCurrentIndex(index);
-    }
+  const goTo = useCallback((index: number) => {
+    progress.set(0);
+    setCurrentIndex(index);
+    // On the web the smooth scroll is cut short by the CSS scroll snapping of
+    // pagingEnabled, so the slide is set directly there.
+    flatListRef.current?.scrollToOffset({ offset: index * width, animated: Platform.OS !== 'web' });
+  }, [progress, width]);
+
+  const next = useCallback(() => {
+    if (currentIndex >= SLIDES.length - 1) finish();
+    else goTo(currentIndex + 1);
+  }, [currentIndex, finish, goTo]);
+
+  // The active segment fills in SLIDE_MS; a pause keeps what is filled and
+  // resumes with the remaining time. This is a timer, not a decoration, so
+  // it runs even when the phone reduces animations.
+  const paused = held || screenReader;
+  useEffect(() => {
+    if (paused) { cancelAnimation(progress); return; }
+    const remaining = Math.max(0, (1 - progress.get()) * SLIDE_MS);
+    progress.set(withTiming(1, { duration: remaining, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (done) => {
+      if (done) runOnJS(next)();
+    }));
+    return () => cancelAnimation(progress);
+  }, [currentIndex, paused, next, progress]);
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+
+  // A swipe also changes slide; the timer waits while the finger is down.
+  const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const index = Math.round(event.nativeEvent.contentOffset.x / width);
+    if (index !== currentIndex && index >= 0 && index < SLIDES.length) goTo(index);
+    setHeld(false);
   };
 
-  // One entry, as in Orange Max it: the phone number tells whether the
-  // traveller signs in or creates an account.
-  const handleStart = () => {
-    router.push('/login');
-  };
+  // Layout from the real screen, keeping the designer's proportions.
+  const heroHeight = height * 0.72;
+  const phoneHeight = Math.min(height * (523 / DESIGN_H), width * (225 / DESIGN_W) / PHONE_RATIO);
+  const phoneWidth = phoneHeight * PHONE_RATIO;
+  const titleSize = clamp(width * 0.047, 16, 22);
+  const textSize = clamp(width * 0.032, 12, 15);
 
-  const renderSlide = ({ item }: { item: OnboardingSlide }) => {
-    return (
-      <View style={styles.slide}>
-        {/* Layer 1: Background Image */}
-        <Image
-          source={item.heroBgImage}
-          style={styles.heroBgImage}
-          contentFit="cover"
-          contentPosition={item.phoneMockupImage ? { top: '0%', left: '72%' } : 'center'}
-        />
-        <View style={styles.heroOverlayGradient} />
-
-        {/* Layer 2: Black bottom card backdrop */}
-        <View style={styles.slideBottomBackdrop} />
-
-        {/* Layer 3: Phone Mockup on Slide 1 - Positioned with exact designer specs (225x523 at Top: 157, Left: 177) */}
-        {item.phoneMockupImage && (
-          <View style={styles.phoneMockupContainer}>
-            <Image
-              source={item.phoneMockupImage}
-              style={styles.phoneMockupImage}
-              contentFit="cover"
-              contentPosition={{ top: '0%', left: '0%' }}
-            />
-          </View>
-        )}
-      </View>
-    );
-  };
+  const renderSlide = ({ item }: { item: OnboardingSlide }) => (
+    <View style={[styles.slide, { width, height }]}>
+      <Image
+        source={item.heroBgImage}
+        style={{ width: '100%', height: heroHeight }}
+        contentFit="cover"
+        contentPosition={item.phoneMockupImage ? { top: '0%', left: '72%' } : 'center'}
+      />
+      {item.phoneMockupImage && (
+        <View
+          style={[styles.phoneMockupContainer, {
+            top: height * (157 / DESIGN_H),
+            right: width * ((DESIGN_W - 177 - 225) / DESIGN_W),
+            width: phoneWidth,
+            height: phoneHeight,
+          }]}
+        >
+          <Image source={item.phoneMockupImage} style={styles.fill} contentFit="contain" />
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-
-      {/* Horizontal Slide Carousel */}
       <FlatList
         ref={flatListRef}
         data={SLIDES}
@@ -149,107 +174,78 @@ export default function OnboardingScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
+        onScrollBeginDrag={() => setHeld(true)}
+        onMomentumScrollEnd={handleMomentumEnd}
+        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
         bounces={false}
         style={styles.flatList}
       />
 
-      {/* Layer 5: Bottom Sheet UI Content */}
-      <View style={styles.bottomCardContent} pointerEvents="box-none">
-        {/* Progress Bar (Orange Bar + 4 White Dots) */}
+      {/* Skip straight to the login at any time. */}
+      <TouchableOpacity
+        style={[styles.skipButton, { top: insets.top + 10 }]}
+        onPress={finish}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Passer la présentation"
+      >
+        <Text style={styles.skipText}>Passer</Text>
+      </TouchableOpacity>
+
+      {/* Bottom card: press and hold to pause, as on a story. */}
+      <Pressable
+        style={[styles.bottomCardContent, { top: height * 0.7, paddingBottom: insets.bottom + 20 }]}
+        onPressIn={() => setHeld(true)}
+        onPressOut={() => setHeld(false)}
+        onPress={next}
+        // A long press only pauses; it must not also skip to the next slide.
+        onLongPress={() => {}}
+        delayLongPress={250}
+        accessibilityRole="button"
+        accessibilityLabel={`Diapositive ${currentIndex + 1} sur ${SLIDES.length}. Toucher pour la suivante.`}
+      >
+        {/* Story segments: done ones full, the current one filling. */}
         <View style={styles.progressRow}>
-          {SLIDES.map((_, index) => {
-            const isActive = index === currentIndex;
-            return (
-              <View
-                key={index}
-                style={[
-                  styles.progressPill,
-                  isActive ? styles.progressPillActive : styles.progressPillInactive,
-                ]}
-              />
-            );
-          })}
+          {SLIDES.map((slide, index) => (
+            <View key={slide.id} style={styles.segment}>
+              {index < currentIndex && <View style={[styles.segmentFill, styles.fill]} />}
+              {index === currentIndex && <Animated.View style={[styles.segmentFill, fillStyle]} />}
+            </View>
+          ))}
         </View>
 
-        {/* Headline Title */}
-        <Text style={styles.titleText}>
+        <Animated.Text
+          key={`title-${currentIndex}`}
+          entering={FadeInDown.duration(350)}
+          style={[styles.titleText, { fontSize: titleSize, lineHeight: titleSize * 1.22 }]}
+          adjustsFontSizeToFit
+          numberOfLines={3}
+        >
           {SLIDES[currentIndex].title}
-        </Text>
+        </Animated.Text>
 
-        {/* Subtitle Description */}
-        <Text style={styles.descriptionText}>
+        <Animated.Text
+          key={`text-${currentIndex}`}
+          entering={FadeIn.delay(120).duration(350)}
+          style={[styles.descriptionText, { fontSize: textSize, lineHeight: textSize * 1.35 }]}
+        >
           {SLIDES[currentIndex].description}
-        </Text>
+        </Animated.Text>
 
-        {/* Single entry: number, then SMS code (new or returning traveller). */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.registerButton}
-            onPress={handleStart}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-          >
-            <Text style={styles.registerButtonText}>COMMENCER</Text>
-          </TouchableOpacity>
-          <Text style={styles.loginPrefixText}>Avec votre numéro de téléphone{'\n'}et un code reçu par SMS.</Text>
-        </View>
-      </View>
+        {held && <Text style={styles.pausedText}>En pause</Text>}
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
+  container: { flex: 1, backgroundColor: '#000000' },
+  flatList: { flex: 1 },
+  slide: { overflow: 'hidden' },
+  fill: { width: '100%', height: '100%' },
 
-  flatList: {
-    flex: 1,
-    zIndex: 10,
-  },
-  slide: {
-    width: width,
-    height: height,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-
-  /* Layer 1: Background Image */
-  heroBgImage: {
-    width: '100%',
-    height: height * 0.70,
-  },
-  heroOverlayGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: height * 0.70,
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
-  },
-
-  /* Layer 2: Slide Bottom Information Card Backdrop - Designer Specs (Width 402px, Height 242px, Top 632px, Opacity 90%, #010101) */
-  slideBottomBackdrop: {
-    position: 'absolute',
-    top: CARD_TOP,
-    left: 0,
-    right: 0,
-    height: CARD_HEIGHT,
-    backgroundColor: '#010101',
-    opacity: 0.90,
-    zIndex: 5,
-  },
-
-  /* Layer 3: Phone Mockup in FRONT of black backdrop - Designer Specs (225x523 at Top: 157, Left: 177) */
   phoneMockupContainer: {
     position: 'absolute',
-    left: PHONE_LEFT,
-    top: PHONE_TOP,
-    width: PHONE_WIDTH,
-    height: PHONE_HEIGHT,
     zIndex: 15,
     shadowColor: '#000000',
     shadowOffset: { width: -8, height: 14 },
@@ -257,96 +253,41 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 14,
   },
-  phoneMockupImage: {
-    width: '100%',
-    height: '100%',
-  },
 
-  /* Layer 4: Bottom Sheet UI Content */
+  skipButton: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  skipText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+
+  /* Bottom card (designer: #010101 at 90 %, from 72 % of the height down). */
   bottomCardContent: {
     position: 'absolute',
-    top: CARD_TOP,
     left: 0,
     right: 0,
-    height: CARD_HEIGHT,
+    bottom: 0,
+    backgroundColor: 'rgba(1, 1, 1, 0.9)',
     paddingHorizontal: 22,
     paddingTop: 16,
-    paddingBottom: 24,
-    justifyContent: 'space-between',
     zIndex: 30,
   },
 
-  /* Indicators: Long Orange Pill + Round White Dots */
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 14,
-  },
-  progressPill: {
-    height: 6,
-    borderRadius: 3,
-  },
-  progressPillActive: {
-    width: 44,
-    backgroundColor: '#F26522',
-  },
-  progressPillInactive: {
-    width: 6,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.95,
-  },
+  progressRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+  segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255, 255, 255, 0.3)', overflow: 'hidden' },
+  segmentFill: { height: '100%', backgroundColor: '#F26522' },
 
-  /* Title: Designer specs - Font Montserrat 19px, LineHeight 23px, Weight 700 (Bold), Small Caps, White */
   titleText: {
     color: '#FFFFFF',
-    fontSize: 19,
     fontWeight: '700',
-    letterSpacing: 0,
-    lineHeight: 23,
     marginBottom: 6,
     textTransform: 'uppercase',
     fontVariant: ['small-caps'],
   },
-
-  /* Subtitle: Designer specs - Font 13px, LineHeight 17px, Weight 500 (Medium), White */
-  descriptionText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 0,
-    lineHeight: 17,
-    marginBottom: 16,
-  },
-
-  /* Actions Row */
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-
-  /* Button "S'INSCRIRE": Rayon 25px, Background #F26522 */
-  registerButton: {
-    backgroundColor: '#F26522',
-    minWidth: 120,
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  registerButtonText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-
-  loginPrefixText: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '500',
-  },
+  descriptionText: { color: '#FFFFFF', fontWeight: '500' },
+  pausedText: { color: '#F26522', fontSize: 11, fontWeight: '700', marginTop: 8 },
 });

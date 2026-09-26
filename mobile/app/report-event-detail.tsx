@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   positionHint: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     color: '#F26522',
   },
