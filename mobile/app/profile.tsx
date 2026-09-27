@@ -14,7 +14,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { LogoutModal } from '@/components/logout-modal';
+import { DeleteAccountModal } from '@/components/delete-account-modal';
 import { ProfilePhotoModal } from '@/components/profile-photo-modal';
 import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { useSession } from '@/lib/session';
@@ -34,11 +34,11 @@ export default function ProfileScreen() {
   const account = useSession()?.user;
   const router = useRouter();
 
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false);
 
   const handleDeleteAccount = () => {
-    setShowLogoutModal(true);
+    setShowDeleteModal(true);
   };
 
   const handleSelectCamera = () => {
@@ -70,13 +70,13 @@ export default function ProfileScreen() {
       id: 'chat',
       title: 'Discuter avec SIRA',
       iconName: 'hardware-chip-outline',
-      onPress: () => router.push('/(tabs)/explore'),
+      onPress: () => router.push('/chat'),
     },
     {
       id: 'privacy',
       title: 'Confidentialité',
       iconName: 'lock-closed',
-      onPress: () => {},
+      onPress: () => router.push('/privacy'),
     },
     {
       id: 'delete',
@@ -210,9 +210,9 @@ export default function ProfileScreen() {
       <CustomBottomTabBar activeTab="profile" />
 
       {/* Logout Confirmation Modal */}
-      <LogoutModal
-        visible={showLogoutModal}
-        onClose={() => setShowLogoutModal(false)}
+      <DeleteAccountModal
+        visible={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
       />
 
       {/* Profile Photo Edit Modal */}

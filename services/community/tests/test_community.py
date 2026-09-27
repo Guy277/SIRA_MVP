@@ -111,5 +111,48 @@ class FareTests(unittest.TestCase):
         self.assertEqual(client.get("/fares", params={"line_id": "inconnue"}).json()[0]["validated"], False)
 
 
+class PrivacyTests(unittest.TestCase):
+    """Écran Confidentialité : ce que SIRA garde, suppression réelle du compte, codes SMS effacés."""
+
+    def test_summary_of_kept_data(self):
+        token = login(phone="07 31 31 31 31", name="Adjoua")
+        auth = {"Authorization": f"Bearer {token}"}
+        client.post("/fares/reports", json={"line_id": "ligne-privacy", "mode": "woro", "amount": 300}, headers=auth)
+        data = client.get("/users/me/privacy", headers=auth).json()
+        self.assertEqual((data["phone_number"], data["full_name"], data["fare_reports"]), ("+2250731313131", "Adjoua", 1))
+        self.assertIn("created_at", data)
+        self.assertEqual(client.get("/users/me/privacy").status_code, 401)
+
+    def test_account_deletion_erases_everything(self):
+        token = login(phone="07 32 32 32 32", name="Yao")
+        auth = {"Authorization": f"Bearer {token}"}
+        client.post("/fares/reports", json={"line_id": "ligne-effacee", "mode": "gbaka", "amount": 500}, headers=auth)
+        self.assertEqual(client.delete("/users/me", headers=auth).status_code, 204)
+        # Le jeton ne sert plus, le prix partagé ne compte plus, le numéro n'a plus de code en base.
+        self.assertEqual(client.get("/auth/me", headers=auth).status_code, 401)
+        self.assertEqual(client.get("/fares", params={"line_id": "ligne-effacee"}).json()[0]["reports"], 0)
+        from services.community.app.models import OtpCode, SessionLocal
+        with SessionLocal() as db:
+            self.assertEqual(db.query(OtpCode).filter(OtpCode.phone_number == "+2250732323232").count(), 0)
+        # Le même numéro peut recréer un compte, comme un nouveau voyageur.
+        again = client.post("/auth/verify-otp", json={"phone_number": "07 32 32 32 32", "code": client.post(
+            "/auth/request-otp", json={"phone_number": "07 32 32 32 32"}).json()["demo_code"]}).json()
+        self.assertTrue(again["is_new_user"])
+
+    def test_deletion_needs_an_account(self):
+        self.assertEqual(client.delete("/users/me").status_code, 401)
+
+    def test_old_codes_are_erased_after_a_day(self):
+        from datetime import datetime, timedelta, timezone
+        from services.community.app.models import OtpCode, SessionLocal
+        with SessionLocal() as db:
+            db.add(OtpCode(phone_number="+2250733333333", code_hash="x", expires_at=datetime.now(timezone.utc),
+                           created_at=datetime.now(timezone.utc) - timedelta(hours=25)))
+            db.commit()
+        client.post("/auth/request-otp", json={"phone_number": "07 34 34 34 34"})
+        with SessionLocal() as db:
+            self.assertEqual(db.query(OtpCode).filter(OtpCode.phone_number == "+2250733333333").count(), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

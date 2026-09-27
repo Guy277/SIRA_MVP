@@ -84,6 +84,14 @@ export function expireSession() {
   if (session) setSession(null);
 }
 
+// Account deleted: nothing about the traveller stays on this phone either
+// (no greeting by name, no prefilled number on the login screen).
+export function forgetTraveller() {
+  known = null;
+  void persist(KNOWN_KEY, null);
+  setSession(null);
+}
+
 export function useKnownTraveller() {
   return useSyncExternalStore(
     (listener) => { listeners.add(listener); return () => listeners.delete(listener); },

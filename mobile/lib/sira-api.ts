@@ -115,6 +115,7 @@ export async function apiJson<T>(path: string, init: RequestInit & { timeoutMs?:
     } catch { /* réponse non JSON */ }
     throw new SiraApiError(message);
   }
+  if (response.status === 204) return undefined as T;  // réponse vide (suppression)
   return response.json() as Promise<T>;
 }
 
@@ -170,6 +171,11 @@ export const verifyOtp = (phone: string, code: string, fullName?: string) =>
   apiJson<LoginResult>('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ phone_number: phone, code, full_name: fullName }) });
 export const updateName = (fullName: string) =>
   apiJson<LoginResult['user']>('/users/me', { method: 'PATCH', body: JSON.stringify({ full_name: fullName }) });
+// Privacy screen: everything SIRA keeps about the traveller, and real account deletion
+// (account, shared fares and SMS codes of the number are erased on the server).
+export type PrivacySummary = { phone_number: string; full_name: string | null; role: string; created_at: string; fare_reports: number };
+export const privacySummary = () => apiJson<PrivacySummary>('/users/me/privacy');
+export const deleteAccount = () => apiJson<void>('/users/me', { method: 'DELETE' });
 export const fareSummaries = (lineIds: string[]) =>
   apiJson<FareSummary[]>(`/fares?${lineIds.map((id) => `line_id=${encodeURIComponent(id)}`).join('&')}`);
 export const reportFare = (lineId: string, mode: LegMode, amount: number) =>
@@ -201,8 +207,35 @@ export type VoiceReply = {
   // for an answer; retry: it did not understand; info: nothing to do.
   kind?: 'journeys' | 'question' | 'retry' | 'info';
   chosen_id?: string | null;
+  // Where the answer comes from: a FAQ entry (« modes.gbaka »), « sira-more », « signalements »…
+  sources?: string[];
 };
 export type VoiceAudio = Blob | { uri: string; name: string; type: string };
+
+// The trip being followed, sent with a question so SIRA can answer « je descends
+// où ? » from the engine's own figures and the travellers' live reports.
+export type VoiceTrip = {
+  destination: { lat: number; lon: number; name: string };
+  journey: { id: string; duration: number; price: number | null; legs: Array<Pick<ApiLeg, 'mode' | 'label' | 'line_code' | 'duration' | 'price' | 'geometry'>> };
+};
+// Traced legs can hold thousands of points: a lighter outline is enough to place stops and reports.
+const MAX_TRIP_POINTS = 120;
+export function voiceTrip(journey: ApiJourney, destination: Coordinates & { name: string }): VoiceTrip {
+  const outline = (geometry: [number, number][]) => {
+    if (geometry.length <= MAX_TRIP_POINTS) return geometry;
+    const step = Math.ceil(geometry.length / MAX_TRIP_POINTS);
+    return [...geometry.filter((_, index) => index % step === 0), geometry[geometry.length - 1]];
+  };
+  return {
+    destination: { lat: destination.latitude, lon: destination.longitude, name: destination.name },
+    journey: {
+      id: journey.id, duration: journey.duration, price: journey.price,
+      legs: journey.legs.map((leg) => ({
+        mode: leg.mode, label: leg.label, line_code: leg.line_code, duration: leg.duration, price: leg.price, geometry: outline(leg.geometry ?? []),
+      })),
+    },
+  };
+}
 
 async function voiceRequest<T = VoiceReply>(path: string, init: RequestInit): Promise<T> {
   const controller = new AbortController();
@@ -230,7 +263,7 @@ async function voiceRequest<T = VoiceReply>(path: string, init: RequestInit): Pr
 }
 
 // Spoken request: audio recorded by the app (never stored by SIRA).
-export function askByVoice(audio: VoiceAudio, position: Coordinates | null, context: VoiceContext, speak = true) {
+export function askByVoice(audio: VoiceAudio, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null) {
   const form = new FormData();
   if (audio instanceof Blob) form.append('audio', audio, 'voix.webm');
   else form.append('audio', audio as unknown as Blob);
@@ -239,16 +272,17 @@ export function askByVoice(audio: VoiceAudio, position: Coordinates | null, cont
     form.append('lon', String(position.longitude));
   }
   if (context) form.append('context', JSON.stringify(context));
+  if (trip) form.append('trip', JSON.stringify(trip));
   form.append('speak', String(speak));
   return voiceRequest('/voice/query', { method: 'POST', body: form });
 }
 
 // Same assistant from typed text (examples, no microphone).
-export function askByText(text: string, position: Coordinates | null, context: VoiceContext, speak = true) {
+export function askByText(text: string, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null) {
   return voiceRequest('/voice/ask', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, position: position ? { lat: position.latitude, lon: position.longitude } : null, context, speak }),
+    body: JSON.stringify({ text, position: position ? { lat: position.latitude, lon: position.longitude } : null, context, trip, speak }),
   });
 }
 

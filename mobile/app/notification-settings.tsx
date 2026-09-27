@@ -111,6 +111,13 @@ export default function NotificationSettingsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Push notifications are not built yet: the switches are shown, but honestly disabled. */}
+          <View style={styles.comingSoon}>
+            <Ionicons name="time-outline" size={18} color="#F26522" />
+            <Text style={styles.comingSoonText}>
+              Les notifications arrivent dans une prochaine version. En attendant, SIRA te prévient à la voix pendant tes trajets.
+            </Text>
+          </View>
           {SETTINGS_ITEMS.map((item) => {
             const isEnabled = !!settingsState[item.id];
             return (
@@ -126,6 +133,7 @@ export default function NotificationSettingsScreen() {
                   ios_backgroundColor="#E2E8F0"
                   onValueChange={() => toggleSetting(item.id)}
                   value={isEnabled}
+                  disabled
                 />
               </View>
             );
@@ -178,6 +186,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 24,
+  },
+  comingSoon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF4EC',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+  comingSoonText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#7C2D12',
+    lineHeight: 18,
   },
   settingCard: {
     flexDirection: 'row',

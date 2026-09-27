@@ -30,6 +30,7 @@ OTP_TTL = timedelta(minutes=5)
 MAX_ATTEMPTS = 3
 MAX_REQUESTS_PER_WINDOW = 3
 REQUEST_WINDOW = timedelta(minutes=10)
+OTP_RETENTION = timedelta(hours=24)
 
 
 def normalize_phone(raw: str) -> str:
@@ -100,6 +101,8 @@ def request_otp(db: Session, raw_phone: str) -> dict:
     if recent >= MAX_REQUESTS_PER_WINDOW:
         raise HTTPException(status_code=429, detail="Trop de demandes de code. Réessayez dans quelques minutes.")
     db.query(OtpCode).filter(OtpCode.phone_number == phone, OtpCode.used.is_(False)).update({"used": True})
+    # Les codes (et le numéro qui va avec) ne sont gardés qu'un jour : assez pour limiter les demandes.
+    db.query(OtpCode).filter(OtpCode.created_at < now - OTP_RETENTION).delete()
     code = f"{secrets.randbelow(10 ** OTP_DIGITS):0{OTP_DIGITS}d}"
     db.add(OtpCode(phone_number=phone, code_hash=_hash_code(phone, code), expires_at=now + OTP_TTL))
     db.commit()

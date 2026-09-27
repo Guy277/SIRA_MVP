@@ -10,8 +10,11 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from . import normalize as nz
+from .knowledge import Retriever
 from .nlu import NLUModel
 from .resolver import Match, PlaceResolver, norm, same_name
+from .short_answer import yes_no
+from .trip import NO_TRIP, TripAnswers, clean_trip
 
 ROUTE_INTENTS = {"navigate_to", "ask_fastest", "ask_cheapest", "ask_eta", "ask_fare", "ask_mode", "avoid_traffic",
                  "find_stop", "ask_transfer"}
@@ -31,6 +34,14 @@ RETRY_REASONS = {"low_intent_confidence", "unresolvable_place"}
 # Un lieu dit seul (« Cocody ! ») classé dans ces intentions veut dire « je vais là ».
 PLACE_ALONE_INTENTS = {"confirm", "out_of_scope", "voice_help"}
 YES_NO = {"oui", "ok", "d accord", "ya foye", "yafoye", "non", "voila", "c est ca", "merci"}
+# FAQ (services/voice/knowledge) : une vraie demande de trajet (« je vais à Treichville en bateau-bus ») ne cède
+# la place qu'à une fiche presque identique à la phrase (« le bateau-bus part d'où à Treichville ? »).
+FAQ_STRONG = 0.9
+# Question sur le trajet en cours reconnue par CamemBERT, sans lieu dit, quand aucune fiche ne correspond.
+TRIP_ACTION_BY_INTENT = {"ask_eta": "trip_eta", "ask_fare": "trip_price", "ask_transfer": "trip_stops",
+                         "find_stop": "trip_stops", "traffic_status": "trip_incidents"}
+# … seulement si CamemBERT est sûr de lui (« il va pleuvoir demain ? » sort en traffic_status à 0,60).
+TRIP_INTENT_MIN_CONFIDENCE = 0.8
 
 
 @dataclass
@@ -56,13 +67,17 @@ class Understanding:
 
 class VoiceDialog:
     def __init__(self, nlu: NLUModel, resolver: PlaceResolver, place_threshold: float, place_margin: float,
-                 intent_min_confidence: float, plan_journeys: Callable[[dict], dict] | None = None):
+                 intent_min_confidence: float, plan_journeys: Callable[[dict], dict] | None = None,
+                 knowledge: Retriever | None = None, trips: TripAnswers | None = None, faq_threshold: float = 0.65):
         self.nlu = nlu
         self.resolver = resolver
         self.place_threshold = place_threshold
         self.place_margin = place_margin
         self.intent_min_confidence = intent_min_confidence
         self.plan_journeys = plan_journeys
+        self.knowledge = knowledge
+        self.trips = trips
+        self.faq_threshold = faq_threshold
 
     # ------------------------------------------------------------------ comprendre
     def _place(self, entity: dict) -> tuple[dict, str | None]:
@@ -172,12 +187,15 @@ class VoiceDialog:
             return None if reason else self._point(info)
         return None
 
-    def ask(self, text: str, position: dict | None = None, context: dict | None = None) -> dict:
+    def ask(self, text: str, position: dict | None = None, context: dict | None = None, trip: dict | None = None) -> dict:
+        """trip : le trajet suivi dans l'application (calculé par SIRA-MORE), pour « je descends où ? »."""
         u = self.understand(text, position)
         pending = (context or {}).get("pending_request")
+        trip = clean_trip(trip)
 
         # Réponse à « D'où est-ce que tu pars ? » / « Tu veux aller où ? » : on complète la demande en attente.
-        if pending and u.intent not in ("confirm", "deny"):
+        # Le vrai modèle classe souvent un lieu dit seul (« Adjamé ») en « confirm » : on regarde quand même si c'est un lieu.
+        if pending and u.intent != "deny":
             if pending.get("destination") and not pending.get("origin"):
                 origin = self._answered_place(u, text, ("origin", "place", "destination"))
                 if origin:
@@ -189,19 +207,32 @@ class VoiceDialog:
                     fixed["origin"] = fixed.get("origin") or _position_point(position)
                     if fixed["origin"]:
                         return self._plan(u, fixed, prefix="D'accord. ")
+        # « Tu veux dire Gare Sud ou Gare Nord ? » → « Gare Nord » : c'est ce lieu-là, pas un « oui ».
+        if pending and pending.get("destination") and pending.get("origin") and u.intent not in ROUTE_INTENTS | {"deny"}:
+            chosen = self._answered_place(u, text, ("destination", "place"))
+            if chosen and not _same_point(chosen, pending["destination"]):
+                return self._plan(u, dict(pending, destination=chosen), prefix="D'accord. ")
         # « Cocody ! » sans question en attente : c'est une destination, pas un « oui ».
         if not pending and u.intent in PLACE_ALONE_INTENTS and (u.places.get("destination") or u.places.get("place") or self._place_in_text(text)):
             u = self.understand(text, position, as_trip=True)
 
-        # « Ya foye » / « oui » après une question : on reprend la demande en attente
+        # « Ya foye » / « oui » après une question : on reprend la demande en attente,
+        # sauf si un autre lieu a été dit sans qu'on soit sûr de lui (on ne part pas au mauvais endroit).
         if u.intent == "confirm" and pending and pending.get("destination") and pending.get("origin"):
-            return self._plan(u, pending, prefix="Ya foye. ")
+            if yes_no(text) == "yes" or not any(e["label"] in ("DESTINATION", "ORIGIN", "PLACE") for e in u.entities):
+                return self._plan(u, pending, prefix="Ya foye. ")
+            return self._reply(u, "Pardon, je n'ai pas bien compris le lieu. Tu peux le redire ?", context={"pending_request": pending})
         # « Non, c'est Riviera Palmeraie » : on corrige la destination de la demande en attente
         if u.intent == "deny":
             if pending and "destination" in u.places and not u.places["destination"]["reason"]:
                 fixed = dict(pending, destination=self._point(u.places["destination"]))
                 return self._plan(u, fixed, prefix="D'accord. ")
             return self._reply(u, "D'accord. Dis-moi où tu veux aller.", context={"pending_request": pending} if pending else None)
+
+        # FAQ et questions sur le trajet en cours (« c'est quoi un gbaka ? », « je descends où ? »)
+        answered = self._knowledge_reply(u, text, position, trip)
+        if answered:
+            return answered
 
         if u.intent in ROUTE_INTENTS:
             if u.needs_confirmation:
@@ -215,7 +246,37 @@ class VoiceDialog:
                 return self._reply(u, "Dis-moi ta destination, je te montre où prendre ton transport.")
             return self._plan(u, u.journey_request)
 
+        if u.intent == "out_of_scope":  # hors sujet : refus poli, sans faire répéter
+            return self._reply(u, self._other_intent_reply(u), kind="info")
+        if "low_intent_confidence" in u.reasons:  # « euh », phrase mal transcrite : on fait répéter poliment
+            return self._reply(u, u.question)
         return self._reply(u, self._other_intent_reply(u))
+
+    def _knowledge_reply(self, u: Understanding, text: str, position: dict | None, trip: dict | None) -> dict | None:
+        """Réponse de la FAQ, ou calculée sur le trajet en cours ; None si la phrase ne leur est pas destinée."""
+        route_request = u.intent in ROUTE_INTENTS and bool(u.places.get("destination"))
+        hits = self.knowledge.search(text, 1) if self.knowledge else []
+        hit = hits[0] if hits and hits[0].score >= (FAQ_STRONG if route_request else self.faq_threshold) else None
+        action = hit.passage.action if hit else None
+        if not hit and trip and not u.places and u.intent_confidence >= TRIP_INTENT_MIN_CONFIDENCE:
+            action = TRIP_ACTION_BY_INTENT.get(u.intent)
+        sources = [hit.passage.id] if hit else []
+        if action:
+            if trip is None:
+                # « Ça fait combien ? » sans trajet : la question habituelle « Tu veux aller où ? » s'en charge.
+                return None if u.intent in ROUTE_INTENTS else self._reply(u, NO_TRIP, sources=sources, kind="info")
+            if self.trips is None:
+                return None
+            reply, live = self.trips.answer(action, trip, position)
+            return self._reply(u, reply, sources=sources + live, kind="info")
+        if hit:
+            return self._reply(u, hit.passage.answer, sources=sources, kind="info")
+        # « Ça bouche à Adjamé ? » : les signalements des voyageurs autour de ce lieu.
+        place = self._point(u.places.get("place") or u.places.get("destination"))
+        if u.intent == "traffic_status" and place and self.trips:
+            reply, live = self.trips.place_status(place)
+            return self._reply(u, reply, sources=live, kind="info")
+        return None
 
     def _plan(self, u: Understanding, request: dict, prefix: str = "") -> dict:
         if self.plan_journeys is None:
@@ -226,18 +287,21 @@ class VoiceDialog:
         except JourneyServiceError as error:
             return self._reply(u, prefix + error.spoken, request=request, error=str(error))
         chosen = _choose(result, result.get("journeys") or [], request)[0] if result.get("journeys") else None
-        payload = self._reply(u, prefix + describe_journeys(result, request, u.intent), request=request, journeys=result)
+        payload = self._reply(u, prefix + describe_journeys(result, request, u.intent), request=request, journeys=result,
+                              sources=["sira-more"])
         payload["chosen_id"] = chosen.get("id") if chosen else None
         return payload
 
     @staticmethod
     def _reply(u: Understanding, text: str, context: dict | None = None, request: dict | None = None,
-               journeys: dict | None = None, error: str | None = None) -> dict:
+               journeys: dict | None = None, error: str | None = None, sources: list[str] | None = None,
+               kind: str | None = None) -> dict:
         # kind : ce que l'app doit faire — partir (journeys), attendre une réponse (question), faire répéter (retry), ou rien (info).
-        kind = ("journeys" if journeys and journeys.get("journeys") else
-                "retry" if RETRY_REASONS & set(u.reasons) else "question" if context else "info")
+        kind = kind or ("journeys" if journeys and journeys.get("journeys") else
+                        "retry" if RETRY_REASONS & set(u.reasons) else "question" if context else "info")
+        # sources : d'où vient la réponse (fiche de la FAQ, SIRA-MORE, signalements des voyageurs, lieux).
         return {"understanding": u.as_dict(), "reply_text": text, "context": context, "journey_request": request,
-                "journeys": journeys, "error": error, "kind": kind, "chosen_id": None}
+                "journeys": journeys, "error": error, "kind": kind, "chosen_id": None, "sources": sources or []}
 
     def _other_intent_reply(self, u: Understanding) -> str:
         place = (u.places.get("place") or {}).get("match") or {}
@@ -246,7 +310,7 @@ class VoiceDialog:
         return {
             "report_incident": f"Merci. Je prépare le signalement{f' « {incident} »' if incident else ''} vers {name}. Confirme-le sur l'écran pour prévenir les autres voyageurs.",
             "report_road_condition": f"Merci. Je prépare le signalement de l'état de la route vers {name}. Confirme-le sur l'écran.",
-            "traffic_status": f"Je regarde les signalements des voyageurs vers {name}. L'état du trafic en direct arrive bientôt dans SIRA.",
+            "traffic_status": "Dis-moi l'endroit, par exemple « ça bouche à Adjamé ? », et je regarde les signalements des voyageurs.",
             "reroute": "D'accord, je recalcule un autre passage depuis ta position.",
             "ask_nearby_landmark": "Je te montre les repères autour de toi sur la carte.",
             "voice_help": "Je peux te trouver un trajet, te dire le prix, la durée, ou où prendre ton gbaka, ton wôrô-wôrô ou ton bus. Dis par exemple : je vais au Plateau.",
@@ -342,6 +406,10 @@ def describe_journeys(result: dict, request: dict, intent: str) -> str:
     if len(journeys) > 1:
         parts.append(f"Il y a {len(journeys) - 1} autre{'s' if len(journeys) > 2 else ''} option{'s' if len(journeys) > 2 else ''} sur l'écran.")
     return " ".join(parts)
+
+
+def _same_point(a: dict, b: dict) -> bool:
+    return abs(a["lat"] - b["lat"]) < 1e-5 and abs(a["lon"] - b["lon"]) < 1e-5
 
 
 def _position_point(position: dict | None) -> dict | None:

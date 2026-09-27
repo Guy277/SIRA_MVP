@@ -7,6 +7,7 @@ bien plus court que ce qui a été dit, et règle de marge entre les deux meille
 from __future__ import annotations
 
 import json
+import math
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -125,6 +126,21 @@ class PlaceResolver:
         if len(matches) > 1 and top.score - matches[1].score < margin and not same_name(matches[1].canonical, top.canonical):
             return "ambiguous_place"
         return None
+
+    def nearest(self, lat: float, lon: float, max_m: float) -> Match | None:
+        """Lieu nommé le plus proche d'un point (repère pour « descends vers … »), s'il est à moins de max_m mètres."""
+        best, best_d = None, max_m
+        cos_lat = math.cos(math.radians(lat))
+        for p in self.places.values():
+            if p.get("lat") is None or p.get("lon") is None or p["kind"] == "landmark_generic":
+                continue
+            # Distance plane : suffisante à l'échelle d'une ville.
+            d = 111_320 * math.hypot(p["lat"] - lat, (p["lon"] - lon) * cos_lat)
+            if d < best_d:
+                best, best_d = p, d
+        if best is None:
+            return None
+        return Match(best["place_id"], best["canonical"], best["kind"], best.get("commune"), best["lat"], best["lon"], 100.0)
 
     def place_names(self, kinds=("commune", "quartier"), limit: int = 80) -> list[str]:
         names = [p["canonical"] for p in self.places.values() if p["kind"] in kinds]

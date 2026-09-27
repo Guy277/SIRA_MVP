@@ -10,11 +10,11 @@ from __future__ import annotations
 from statistics import median
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .models import FareReport, User, get_db, init_db
+from .models import FareReport, OtpCode, User, get_db, init_db
 from .security import current_user, request_otp, user_payload, verify_otp
 
 Role = Literal["STUDENT", "WORKER", "TRADER", "DRIVER", "TOURIST"]
@@ -76,6 +76,23 @@ def update_me(payload: ProfileUpdate, user: User = Depends(current_user), db: Se
     db.add(user)
     db.commit()
     return user_payload(user)
+
+
+@app.get("/users/me/privacy")
+def my_data(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Tout ce que SIRA garde sur le voyageur (écran Confidentialité de l'application)."""
+    return {**user_payload(user), "created_at": user.created_at.isoformat(),
+            "fare_reports": db.query(FareReport).filter(FareReport.user_id == user.id).count()}
+
+
+@app.delete("/users/me", status_code=204)
+def delete_me(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Suppression définitive (loi n° 2013-450) : compte, prix partagés et codes SMS de ce numéro."""
+    db.query(FareReport).filter(FareReport.user_id == user.id).delete()
+    db.query(OtpCode).filter(OtpCode.phone_number == user.phone_number).delete()
+    db.delete(user)
+    db.commit()
+    return Response(status_code=204)
 
 
 def fare_summary(line_id: str, reports: list[FareReport]) -> dict:

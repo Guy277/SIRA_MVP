@@ -48,5 +48,9 @@ PLACE_THRESHOLD = _float("VOICE_PLACE_THRESHOLD", 60.0)
 PLACE_MARGIN = _float("VOICE_PLACE_MARGIN", 3.0)
 INTENT_MIN_CONFIDENCE = _float("VOICE_INTENT_MIN_CONFIDENCE", 0.5)
 
+# FAQ : fiches Markdown ; une fiche répond au-dessus de ce score (0 à 1, réglé sur services/voice/tests).
+KNOWLEDGE_DIR = _path("VOICE_KNOWLEDGE_DIR", SERVICE_ROOT / "knowledge")
+FAQ_THRESHOLD = _float("VOICE_FAQ_THRESHOLD", 0.65)
+
 MAX_AUDIO_BYTES = int(_float("VOICE_MAX_AUDIO_BYTES", 5 * 1024 * 1024))
 MAX_AUDIO_SECONDS = _float("VOICE_MAX_AUDIO_SECONDS", 30.0)

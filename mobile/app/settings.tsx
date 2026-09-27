@@ -59,7 +59,7 @@ export default function SettingsScreen() {
       title: 'Confidentialité et sécurité',
       subtitle: 'Données personnelles et sécurité du compte',
       iconName: 'lock-closed',
-      onPress: () => {},
+      onPress: () => router.push('/privacy'),
     },
     {
       id: 'info',

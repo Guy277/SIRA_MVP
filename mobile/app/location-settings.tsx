@@ -1,29 +1,40 @@
-import React, { useState } from 'react';
+// Ma position : la position réelle du voyageur (nommée par le repère le plus
+// proche) et l'état réel de l'autorisation du téléphone. Aucune donnée
+// d'exemple : sans autorisation, l'écran le dit et propose de l'accorder.
+import React, { useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   ScrollView,
-  Switch,
   Dimensions,
   Platform,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
 import { goBack } from '@/lib/navigation';
+import { canOpenSettings, openPhoneSettings, PERMISSION_LABELS, usePermissions } from '@/lib/permissions';
+import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 export default function LocationSettingsScreen() {
   const router = useRouter();
-  const [locationAccessEnabled, setLocationAccessEnabled] = useState(false);
-  const [currentAddress, setCurrentAddress] = useState('Abobo samaké, abobo, rue 099');
+  const here = useCurrentPlace();
+  const { states, request } = usePermissions();
+  const permission = states.location;
+  useEffect(() => { if (permission === 'granted') void ensureCurrentPlace(); }, [permission]);
+
+  const placeTitle = here.status === 'ready' ? here.title
+    : here.status === 'locating' ? 'Localisation…'
+    : 'Position inconnue';
+  const placeDetail = here.status === 'ready' ? here.subtitle
+    : here.status === 'unavailable' ? here.reason
+    : null;
 
   return (
     <View style={styles.container}>
@@ -50,65 +61,58 @@ export default function LocationSettingsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Interactive Map View Section */}
+          {/* Map centred on the real position, when it is known */}
           <View style={styles.mapContainer}>
             <OsmMapView
-              departureName="Abobo Samaké"
-              arrivalName="Orange Digital Center"
+              departureName={here.status === 'ready' ? here.title : undefined}
+              origin={here.status === 'ready' ? here.coordinates : null}
               style={styles.mapImage}
             />
 
-            {/* Top Right "Votre position" Pill Badge */}
-            <TouchableOpacity
-              style={styles.votrePositionBadge}
-              activeOpacity={0.85}
-              onPress={() => setLocationAccessEnabled(true)}
-            >
-              <Text style={styles.votrePositionText}>Votre position</Text>
-            </TouchableOpacity>
-
-            {/* Accident / Traffic Callout Badge on Map */}
-            <View style={styles.accidentCalloutCard}>
-              <View style={styles.warningCircleSmall}>
-                <Ionicons name="warning" size={12} color="#FFFFFF" />
-              </View>
-              <View>
-                <Text style={styles.calloutTitle}>Accident</Text>
-                <Text style={styles.calloutSub}>Circulation ralentie</Text>
-              </View>
-            </View>
-
-            {/* Glowing Pin Pinpoint */}
-            <View style={styles.glowingPinWrapper}>
-              <View style={styles.glowPulseRing} />
-              <View style={styles.redCarPin}>
-                <Ionicons name="car" size={14} color="#FFFFFF" />
-              </View>
-            </View>
+            {/* Top Right "Me localiser" Pill Badge */}
+            {permission !== 'granted' && permission !== 'blocked' && (
+              <TouchableOpacity
+                style={styles.votrePositionBadge}
+                activeOpacity={0.85}
+                onPress={() => void request('location')}
+              >
+                <Text style={styles.votrePositionText}>Me localiser</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Position Address & Permission Card Details */}
           <View style={styles.detailsContainer}>
             <Text style={styles.positionLabel}>Position</Text>
-            <Text style={styles.addressValueText}>{currentAddress}</Text>
+            <Text style={styles.addressValueText}>{placeTitle}</Text>
+            {placeDetail ? <Text style={styles.addressDetailText}>{placeDetail}</Text> : null}
             <View style={styles.dividerLine} />
 
-            {/* Access to Location Switch Card */}
+            {/* Access to Location: real permission of the phone */}
             <View style={styles.permissionCard}>
               <View style={styles.cardTextCol}>
-                <Text style={styles.cardTitle}>Accès à la position</Text>
+                <Text style={styles.cardTitle}>Accès à la position · {PERMISSION_LABELS[permission]}</Text>
                 <Text style={styles.cardDesc}>
-                  Permet à SIRA d'utiliser automatiquement votre position pour vous proposer des itinéraires adaptés.
+                  Permet à SIRA de partir de là où vous êtes et de vous prévenir avant de descendre. Votre position n&apos;est pas enregistrée.
                 </Text>
+                {permission === 'blocked' && !canOpenSettings && (
+                  <Text style={styles.cardHint}>Pour changer ce choix, passez par les réglages du navigateur.</Text>
+                )}
               </View>
 
-              <Switch
-                trackColor={{ false: '#E2E8F0', true: '#F26522' }}
-                thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : locationAccessEnabled ? '#FFFFFF' : '#F4F3F4'}
-                ios_backgroundColor="#E2E8F0"
-                onValueChange={setLocationAccessEnabled}
-                value={locationAccessEnabled}
-              />
+              {(permission === 'unknown' || permission === 'denied') && (
+                <TouchableOpacity style={styles.cardButton} onPress={() => void request('location')} activeOpacity={0.85}>
+                  <Text style={styles.cardButtonText}>Autoriser</Text>
+                </TouchableOpacity>
+              )}
+              {(permission === 'granted' || permission === 'blocked') && canOpenSettings && (
+                <TouchableOpacity style={[styles.cardButton, styles.cardButtonOutline]} onPress={openPhoneSettings} activeOpacity={0.85}>
+                  <Text style={[styles.cardButtonText, styles.cardButtonOutlineText]}>Réglages</Text>
+                </TouchableOpacity>
+              )}
+              {permission === 'granted' && !canOpenSettings && (
+                <Ionicons name="checkmark-circle" size={26} color="#16A34A" />
+              )}
             </View>
           </View>
         </ScrollView>
@@ -187,65 +191,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#000000',
   },
-  accidentCalloutCard: {
-    position: 'absolute',
-    top: '32%',
-    left: '26%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    gap: 6,
-    borderWidth: 1.5,
-    borderColor: '#DC2626',
-    shadowColor: '#DC2626',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  warningCircleSmall: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#DC2626',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calloutTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-  calloutSub: {
-    fontSize: 11,
-    color: '#DC2626',
-    fontWeight: '500',
-  },
-  glowingPinWrapper: {
-    position: 'absolute',
-    top: '44%',
-    left: '20%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glowPulseRing: {
-    position: 'absolute',
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(220, 38, 38, 0.25)',
-  },
-  redCarPin: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#DC2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   detailsContainer: {
     paddingHorizontal: 18,
     paddingTop: 18,
@@ -261,6 +206,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#000000',
     letterSpacing: -0.2,
+  },
+  addressDetailText: {
+    fontSize: 13,
+    color: '#666666',
+    marginTop: 4,
   },
   dividerLine: {
     height: 1,
@@ -305,5 +255,30 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#555555',
     lineHeight: 17,
+  },
+  cardHint: {
+    fontSize: 12,
+    color: '#888888',
+    fontStyle: 'italic',
+    marginTop: 6,
+  },
+  cardButton: {
+    backgroundColor: '#F26522',
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  cardButtonOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  cardButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  cardButtonOutlineText: {
+    color: '#000000',
   },
 });

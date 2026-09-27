@@ -62,6 +62,8 @@ Ouvrir `http://localhost:8081`. Sur téléphone : `npx expo start` dans `mobile/
 | Le classement Coulé / Debout / Suspendu | `services/ai/app/engine.py` |
 | Les signalements | `services/api/src/reports/`, `mobile/lib/reports.ts` |
 | L'assistant vocal (compréhension, réponses) | `services/voice/app/` (`dialog.py` pour les phrases de réponse) |
+| Les réponses de la FAQ de SIRA | `services/voice/knowledge/*.md` (une fiche par question, voir `knowledge/README.md`) |
+| L'écran « Discuter avec SIRA » | `mobile/app/chat.tsx` |
 | Les lieux, « Ma position », la carte | `mobile/lib/places.ts`, `mobile/components/osm-map-view*.tsx` |
 
 ## Vérifier que tout marche

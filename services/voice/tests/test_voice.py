@@ -19,9 +19,11 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from services.voice.app import normalize as nz  # noqa: E402
 from services.voice.app.dialog import JourneyServiceError, VoiceDialog  # noqa: E402
+from services.voice.app.knowledge import KnowledgeBase  # noqa: E402
 from services.voice.app.main import create_app  # noqa: E402
 from services.voice.app.resolver import Match, PlaceResolver, same_name  # noqa: E402
 from services.voice.app.short_answer import parse_amount, yes_no  # noqa: E402
+from services.voice.app.trip import TripAnswers  # noqa: E402
 
 
 class FakeNLU:
@@ -272,6 +274,14 @@ class ConversationTest(unittest.TestCase):
         self.assertEqual(planner.calls[0]["destination"]["name"], "Plateau")
         self.assertTrue(second["reply_text"].startswith("D'accord."))
 
+    def test_lieu_seul_compris_comme_oui_repond_a_d_ou_tu_pars(self):
+        # Bug observé avec le vrai modèle : « Adjamé » → confirm (0,60) → « C'est noté. » au lieu de calculer
+        planner = Planner()
+        first = self.dialog(FakeNLU(), planner).ask("je vais au plato")
+        second = self.dialog(FixedNLU("confirm", 0.6), planner).ask("Adjamé", None, first["context"])
+        self.assertEqual(planner.calls[0]["origin"]["name"], "Adjamé")
+        self.assertEqual(second["kind"], "journeys")
+
     def test_pas_compris_on_fait_repeter_poliment(self):
         out = self.dialog(FixedNLU("navigate_to", 0.2)).ask("euh", POSITION)
         self.assertEqual(out["kind"], "retry")
@@ -283,10 +293,218 @@ class ConversationTest(unittest.TestCase):
         self.assertEqual(out["chosen_id"], "j1")
 
 
+KNOWLEDGE = KnowledgeBase.load(Path(__file__).resolve().parents[1] / "knowledge")
+NOW = datetime(2026, 9, 27, 10, 0, tzinfo=timezone.utc)
+
+# Trajet suivi dans l'app : gbaka Adjamé → Plateau, puis bus 52 Plateau → Koumassi (tracés [lon, lat]).
+TRIP = {
+    "destination": {"lat": 5.291807, "lon": -3.960256, "name": "Koumassi"},
+    "journey": {"id": "j1", "duration": 55, "price": 500, "legs": [
+        {"mode": "walk", "label": "Rejoindre le réseau", "duration": 4, "price": 0, "geometry": [[-4.0215, 5.3550], [-4.0209, 5.3543]]},
+        {"mode": "wait", "label": "Attente estimée — gbaka", "duration": 6, "price": 0, "geometry": []},
+        {"mode": "gbaka", "label": "gbaka : Adjamé ↔ Plateau", "duration": 15, "price": 300,
+         "geometry": [[-4.0209, 5.3543], [-4.0197, 5.3400], [-4.0185, 5.3265]]},
+        {"mode": "wait", "label": "Attente estimée — sotra", "duration": 8, "price": 0, "geometry": []},
+        {"mode": "sotra", "label": "bus 52 : Plateau ↔ Koumassi", "line_code": "52", "duration": 20, "price": 200,
+         "geometry": [[-4.0185, 5.3265], [-3.9602, 5.2918]]},
+    ]},
+}
+
+
+class FakeLive:
+    """Signalements des voyageurs (API /reports) sans serveur."""
+
+    def __init__(self, impact=None, reports=(), error=None):
+        self.impact_result = impact or {"affected": [], "unconfirmed": [], "delayMinutes": 0, "blocking": False, "requiresReroute": False}
+        self.reports_result, self.error, self.calls = list(reports), error, []
+
+    def impact(self, legs):
+        self.calls.append(legs)
+        if self.error:
+            raise self.error
+        return self.impact_result
+
+    def reports(self):
+        if self.error:
+            raise self.error
+        return self.reports_result
+
+
+class EntityNLU(FixedNLU):
+    """Intention et entités imposées (« ça bouche à Adjamé ? » → traffic_status + PLACE)."""
+
+    def __init__(self, intent, entities, confidence=0.9):
+        super().__init__(intent, confidence)
+        self.entities = entities
+
+    def predict(self, text):
+        found = []
+        for label, words in self.entities:
+            start = text.lower().index(words.lower())
+            found.append({"label": label, "start": start, "end": start + len(words), "text": text[start:start + len(words)], "score": 0.99})
+        return self.intent, self.confidence, found
+
+
+def numbers(text):
+    return set(re.findall(r"\d+", text))
+
+
+class KnowledgeTest(unittest.TestCase):
+    """La FAQ elle-même : fiches valides, courtes, sans prix écrit à la main, et bien retrouvées."""
+
+    def test_fiches_courtes_et_sans_prix_inventes(self):
+        self.assertGreater(len(KNOWLEDGE), 40)
+        for passage in KNOWLEDGE.passages:
+            if passage.answer is None:
+                self.assertTrue(passage.action.startswith("trip_"), passage.id)
+                continue
+            self.assertLessEqual(len(re.findall(r"[.!?](?:\s|$)", passage.answer)), 2, passage.id)  # 2 phrases maximum à l'oral
+            self.assertIsNone(re.search(r"\d+\s*(f|francs?|fcfa)\b", passage.answer, re.I), passage.id)  # prix : moteur seulement
+
+    def test_questions_retrouvees(self):
+        cases = {"c'est quoi la différence entre gbaka et wôrô": "modes.gbaka-woro", "le bateau-bus part d'où à Treichville": "reseau.bateau-treichville",
+                 "comment utiliser SIRA": "sira.utiliser", "c'est quoi Coulé Debout Suspendu": "categories.explication",
+                 "ça veut dire quoi une barre": "LEX-0008", "vous gardez ma voix": "sira.voix-conservee", "c'est quoi un woro woro": "modes.woro",
+                 "je descends où": "trajet.arrets", "je change où": "trajet.correspondance", "y a des bouchons sur mon trajet": "trajet.incidents",
+                 "pardon le gbaka c'est quoi même": "modes.gbaka", "qui a fait SIRA": "sira.equipe", "merci": "echanges.merci"}
+        for said, expected in cases.items():
+            hit = KNOWLEDGE.search(said, 1)[0]
+            self.assertEqual(hit.passage.id, expected, said)
+            self.assertGreaterEqual(hit.score, 0.65, said)
+
+    def test_hors_sujet_sans_fiche(self):
+        for said in ("il va pleuvoir demain", "raconte moi une blague", "c'est quoi le score du match", "euh", "Cocody", "Treichville"):
+            self.assertLess(KNOWLEDGE.search(said, 1)[0].score, 0.65, said)
+
+
+class FaqDialogTest(unittest.TestCase):
+    def dialog(self, nlu, planner=None, live=None):
+        resolver = PlaceResolver(FIXTURES / "gazetteer_test.json")
+        planner = planner or Planner()
+        live = live or FakeLive()
+        trips = TripAnswers(resolver, planner, live.impact, live.reports, now=lambda: NOW)
+        return VoiceDialog(nlu, resolver, 60, 3, 0.5, planner, KNOWLEDGE, trips)
+
+    def test_question_de_faq(self):
+        planner = Planner()
+        out = self.dialog(FixedNLU("ask_mode"), planner).ask("C'est quoi un gbaka ?", POSITION)
+        self.assertTrue(out["reply_text"].startswith("Le gbaka est un minibus"))
+        self.assertEqual((out["kind"], out["sources"]), ("info", ["modes.gbaka"]))
+        self.assertEqual(planner.calls, [])  # pas de trajet calculé, pas de « Tu veux aller où ? »
+
+    def test_confiance_faible_mais_fiche_claire(self):
+        # « comment utiliser SIRA » : voice_help à 0,46 → ne doit pas faire répéter
+        out = self.dialog(FixedNLU("voice_help", 0.46)).ask("comment utiliser SIRA", POSITION)
+        self.assertEqual((out["kind"], out["sources"]), ("info", ["sira.utiliser"]))
+
+    def test_vraie_demande_de_trajet_non_detournee(self):
+        planner = Planner()
+        out = self.dialog(FakeNLU(), planner).ask("le gbaka pour plato ça fait combien", POSITION)
+        self.assertEqual(out["kind"], "journeys")
+        self.assertEqual(planner.calls[0]["destination"]["name"], "Plateau")
+
+    def test_pas_compris_sans_fiche_on_fait_repeter(self):
+        # Bug observé : « euh » / « bonjour » mal classés → « C'est noté. » alors que l'app rouvrait le micro
+        out = self.dialog(FixedNLU("confirm", 0.3)).ask("euh", POSITION)
+        self.assertEqual(out["kind"], "retry")
+        self.assertIn("répéter", out["reply_text"])
+        self.assertEqual(self.dialog(FixedNLU("confirm", 0.3)).ask("bonjour", POSITION)["sources"], ["echanges.bonjour"])
+
+    def test_hors_sujet_refus_poli(self):
+        # Vrai modèle : « il va pleuvoir demain ? » → traffic_status à 0,60 ; « raconte-moi une blague » → out_of_scope à 0,35
+        rain = self.dialog(FixedNLU("traffic_status", 0.6)).ask("il va pleuvoir demain ?", POSITION, trip=TRIP)
+        self.assertNotIn("trajet", rain["reply_text"])
+        joke = self.dialog(FixedNLU("out_of_scope", 0.35)).ask("raconte moi une blague", POSITION)
+        self.assertEqual(joke["kind"], "info")
+        self.assertIn("déplacements", joke["reply_text"])
+
+    def test_sans_trajet_en_cours(self):
+        out = self.dialog(FixedNLU("ask_nearby_landmark", 0.37)).ask("où en est mon trajet ?", POSITION)
+        self.assertIn("pas de trajet en cours", out["reply_text"])
+        # « ça fait combien ? » sans trajet : SIRA demande la destination, comme avant
+        self.assertEqual(self.dialog(FixedNLU("ask_fare")).ask("ça fait combien ?", POSITION)["reply_text"], "Tu veux aller où ?")
+
+    def test_je_descends_ou(self):
+        out = self.dialog(FixedNLU("ask_transfer")).ask("je descends où ?", POSITION, trip=TRIP)
+        self.assertEqual(out["reply_text"], "Monte dans le gbaka vers Adjamé, et descends vers Plateau. "
+                                            "Ensuite, monte dans le bus SOTRA 52 vers Plateau, et descends vers Koumassi.")
+        self.assertEqual(out["kind"], "info")
+
+    def test_je_change_ou(self):
+        out = self.dialog(FixedNLU("ask_transfer")).ask("je change où ?", POSITION, trip=TRIP)
+        self.assertEqual(out["reply_text"], "Tu changes vers Plateau : tu quittes le gbaka pour prendre le bus SOTRA 52.")
+
+    def test_prix_du_trajet_en_cours(self):
+        out = self.dialog(FixedNLU("ask_fare")).ask("ça fait combien ?", POSITION, trip=TRIP)
+        self.assertTrue(out["reply_text"].startswith("Ton trajet coûte environ 500 francs : 300 pour le gbaka et 200 pour le bus SOTRA 52."))
+        self.assertEqual(out["journeys"], None)
+
+    def test_arrivee_recalculee_depuis_ma_position(self):
+        planner = Planner()
+        out = self.dialog(FixedNLU("ask_eta"), planner).ask("j'arrive à quelle heure ?", POSITION, trip=TRIP)
+        self.assertEqual(planner.calls[0]["destination"]["name"], "Koumassi")
+        self.assertEqual(planner.calls[0]["origin"]["lat"], POSITION["lat"])
+        self.assertTrue(out["reply_text"].startswith("D'ici, compte environ 42 minutes jusqu'à Koumassi, arrivée vers 10 h 42."))
+
+    def test_arrivee_sans_position(self):
+        out = self.dialog(FixedNLU("ask_eta")).ask("j'arrive à quelle heure ?", None, trip=TRIP)
+        self.assertEqual(out["reply_text"], "Ton trajet vers Koumassi dure environ 55 minutes au total, d'après SIRA.")
+
+    def test_incidents_sur_mon_trajet(self):
+        live = FakeLive({"affected": [{"report": {"title": "Accident", "location": "Pont HKB"}, "delayMinutes": 10, "legIndex": 2}],
+                         "unconfirmed": [], "delayMinutes": 10, "blocking": False, "requiresReroute": False})
+        out = self.dialog(FixedNLU("traffic_status"), live=live).ask("y a des bouchons sur mon trajet ?", POSITION, trip=TRIP)
+        self.assertEqual(out["reply_text"], "Attention : accident signalé vers Pont HKB sur ton trajet, environ 10 minutes de retard.")
+        self.assertIn("signalements", out["sources"])
+        self.assertEqual(len(live.calls[0]), len(TRIP["journey"]["legs"]))
+        calm = self.dialog(FixedNLU("traffic_status")).ask("y a des bouchons sur mon trajet ?", POSITION, trip=TRIP)
+        self.assertEqual(calm["reply_text"], "Aucun incident signalé sur ton trajet pour le moment.")
+
+    def test_signalements_indisponibles(self):
+        from services.voice.app.trip import LiveDataError
+        out = self.dialog(FixedNLU("traffic_status"), live=FakeLive(error=LiveDataError("503"))).ask(
+            "il y a un problème sur mon trajet ?", POSITION, trip=TRIP)
+        self.assertIn("n'arrive pas à vérifier", out["reply_text"])
+
+    def test_ca_bouche_vers_un_lieu(self):
+        live = FakeLive(reports=[{"title": "Embouteillage", "status": "reported", "lat": 5.3550, "lon": -4.0200},
+                                 {"title": "Accident", "status": "confirmed", "lat": 5.2918, "lon": -3.9602}])
+        out = self.dialog(EntityNLU("traffic_status", [("PLACE", "Adjamé")]), live=live).ask("ça bouche à Adjamé ?", POSITION, trip=TRIP)
+        self.assertEqual(out["reply_text"], "Vers Adjamé : embouteillage signalé, pas encore confirmé.")
+
+    def test_aucun_chiffre_invente(self):
+        # Tout nombre dit sur le trajet existe dans le trajet, le calcul, les signalements ou l'heure.
+        allowed = numbers(str(TRIP) + str(FAKE_RESULT)) | {"10", "42"}
+        for intent, said in [("ask_fare", "ça fait combien ?"), ("ask_eta", "j'arrive à quelle heure ?"),
+                             ("ask_transfer", "je descends où ?"), ("ask_nearby_landmark", "où en est mon trajet ?")]:
+            reply = self.dialog(FixedNLU(intent)).ask(said, POSITION, trip=TRIP)["reply_text"]
+            self.assertLessEqual(numbers(reply), allowed, reply)
+
+    def test_trajet_mal_forme_ignore(self):
+        out = self.dialog(FixedNLU("ask_transfer")).ask("je descends où ?", POSITION, trip={"journey": "n'importe quoi"})
+        self.assertNotIn("Monte dans", out["reply_text"])
+
+    def test_autre_lieu_choisi_apres_une_hesitation(self):
+        # Bug observé : « Gare Sud ou Gare Nord ? » → « Gare Nord » → SIRA partait vers Gare Sud
+        planner = Planner()
+        first = self.dialog(FakeNLU(), planner).ask("je vais au marché", POSITION)
+        self.assertEqual(first["kind"], "question")
+        self.dialog(FixedNLU("confirm"), planner).ask("Riviera Palmeraie", POSITION, first["context"])
+        self.assertEqual(planner.calls[0]["destination"]["name"], "Riviera Palmeraie")
+
+    def test_oui_douteux_ne_part_pas_au_mauvais_endroit(self):
+        planner = Planner()
+        first = self.dialog(FakeNLU(), planner).ask("je vais au marché", POSITION)
+        out = self.dialog(EntityNLU("confirm", [("DESTINATION", "chez ma tante")]), planner).ask(
+            "c'est chez ma tante", POSITION, first["context"])
+        self.assertEqual(planner.calls, [])
+        self.assertEqual(out["kind"], "question")
+
+
 class ApiTest(unittest.TestCase):
     def setUp(self):
         self.planner = Planner()
-        self.client = TestClient(create_app(nlu=FakeNLU(), planner=self.planner))
+        self.client = TestClient(create_app(nlu=FakeNLU(), planner=self.planner, live=FakeLive()))
         self.client.__enter__()
 
     def tearDown(self):
@@ -301,6 +519,13 @@ class ApiTest(unittest.TestCase):
         body = self.client.post("/voice/ask", json={"text": "je vais au plato", "position": POSITION}).json()
         self.assertIn("Plateau", body["reply_text"])
         self.assertIsNone(body["reply_audio"])
+
+    def test_question_sur_le_trajet_en_cours(self):
+        body = self.client.post("/voice/ask", json={"text": "je descends où ?", "position": POSITION, "trip": TRIP}).json()
+        self.assertEqual(body["kind"], "info")
+        self.assertIn("trajet.arrets", body["sources"])
+        self.assertIn("descends vers Plateau", body["reply_text"])
+        self.assertGreater(self.client.get("/health").json()["components"]["faq"], 40)
 
     def test_understand(self):
         body = self.client.post("/voice/understand", json={"text": "je vais au plato"}).json()

@@ -68,11 +68,16 @@ npm run dev:voice
 | Méthode | Chemin | Entrée | Sortie |
 |---|---|---|---|
 | POST | `/voice/query` | multipart : `audio` (webm/ogg/m4a/wav, ≤ 30 s), `lat`, `lon`, `context`, `speak` | transcription + compréhension + trajets + phrase + audio |
-| POST | `/voice/ask` | JSON `{text, position?, context?, speak?}` | pareil, à partir de texte |
+| POST | `/voice/ask` | JSON `{text, position?, context?, trip?, speak?}` | pareil, à partir de texte |
 | POST | `/voice/understand` | JSON `{text, position?}` | compréhension seule (intent, entités, lieux, `journey_request`) |
 | POST | `/voice/answer` | multipart : `audio` | réponse courte pendant le trajet : `{transcript, answer: "yes"/"no"/null, amount}` (prix en FCFA, `null` s'il n'est pas clairement dit) — sans NLU ni calcul de trajet |
 | POST | `/voice/tts` | JSON `{text}` | `audio/wav` |
 | GET | `/voice/health` | — | état des composants |
+
+**Trajet en cours** (`trip`, aussi en champ multipart de `/voice/query`) : le trajet suivi dans l'app
+(`voiceTrip()` dans `mobile/lib/sira-api.ts`). Il permet de répondre à « je descends où ? », « ça fait combien ? »,
+« j'arrive à quelle heure ? » ou « y a des bouchons sur mon trajet ? » avec les chiffres de SIRA-MORE et les signalements
+des voyageurs. La réponse contient `sources` : fiche de la FAQ (`modes.gbaka`), `sira-more`, `signalements`, `lieux`.
 
 **Dialogue de confirmation** : quand SIRA doute (lieu ambigu, destination manquante…), la réponse contient
 `reply_text` (la question) et `context`. L'app renvoie ce `context` tel quel avec la phrase suivante :
@@ -131,6 +136,22 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 | Lieux : exact → correcteur | 99,1 % | 46,2 % → 97,5 % |
 | Destination juste, de bout en bout | 92,8 % | 91,0 % |
 
+## FAQ et questions sur le trajet (`knowledge/`)
+
+Les questions qui ne sont pas des demandes de trajet (« c'est quoi un gbaka ? », « vous gardez ma voix ? »,
+« le bateau-bus part d'où à Treichville ? ») sont répondues par des **fiches Markdown** dans `services/voice/knowledge/`
+(format décrit dans `knowledge/README.md`). Pour ajouter une réponse : écrire une fiche, puis relancer le service.
+
+- Recherche en mémoire (`app/knowledge.py`) : mots en commun avec les façons de poser la question, mots rares pesant plus,
+  tolérance aux fautes de transcription. Pas de base vectorielle : l'interface `Retriever` permettra d'en brancher une.
+- Une fiche répond au-dessus de `VOICE_FAQ_THRESHOLD` (0,65). Une vraie demande de trajet (« je vais à Treichville en
+  bateau-bus ») n'est remplacée que par une fiche presque identique (0,9).
+- Fiches `action: trip_*` : réponse calculée (`app/trip.py`) sur le trajet en cours — SIRA-MORE, recalcul depuis la
+  position, `/reports/impact` et `/reports` de l'API, lieu connu le plus proche. Aucun chiffre écrit à la main.
+- Sans trajet en cours : « Tu n'as pas de trajet en cours… » ; API des signalements injoignable : SIRA le dit.
+- Hors sujet (« raconte-moi une blague ») : refus poli, sans rien inventer.
+- Côté app : écran **Discuter avec SIRA** (`mobile/app/chat.tsx`), depuis le profil.
+
 ## Limites à connaître
 
 - Données d'entraînement **100 % synthétiques** ; bruit ASR **simulé** : scores à re-mesurer sur de vraies voix.
@@ -142,6 +163,6 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 ## Tests
 
 ```bash
-npm run test:voice                         # 20 tests, sans les gros modèles
+npm run test:voice                         # 58 tests (dont FAQ et trajet en cours), sans les gros modèles
 npm --prefix services/api test             # dont le relais /api/v1/voice
 ```
