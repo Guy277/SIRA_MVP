@@ -36,16 +36,29 @@ type Step = CategoryName | 'all' | null;
 
 export default function RouteExploreScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ query?: string; destination?: string }>();
+  const params = useLocalSearchParams<{ query?: string; destination?: string; from?: string }>();
   const here = useCurrentPlace();
 
   // Departure is the traveller's own position unless they pick another one.
-  const [pickedDeparture, setPickedDeparture] = useState<string | null>(null);
+  // A departure given elsewhere (« je quitte Yop… » to the voice assistant)
+  // comes as `from`; one picked here replaces it until a new one arrives.
+  const paramDeparture = (params.from || '').trim() || null;
+  const [pickedDep, setPickedDep] = useState<{ param: string | null; value: string | null } | null>(null);
+  const pickedDeparture = pickedDep && pickedDep.param === paramDeparture ? pickedDep.value : paramDeparture;
+  const setPickedDeparture = (value: string | null) => setPickedDep({ param: paramDeparture, value });
   const departure = pickedDeparture ?? (here.status === 'ready' ? here.title : CURRENT_LOCATION);
   const departureName = departure === CURRENT_LOCATION
     ? (here.status === 'locating' ? 'Ma position · localisation…' : 'Ma position')
     : departure;
-  const ownPositionUnavailable = departure === CURRENT_LOCATION && here.status === 'unavailable';
+  // Leaving from one's own position needs a position, inside the Grand
+  // Abidjan: otherwise no search is sent and the traveller is asked to pick
+  // the departure (the engine would only answer with a technical error).
+  const fromOwnPosition = pickedDeparture === null;
+  const ownPositionProblem: 'unavailable' | 'outside' | null = !fromOwnPosition ? null
+    : here.status === 'unavailable' ? 'unavailable'
+    : here.status === 'ready' && here.outside ? 'outside'
+    : null;
+  const ownPositionUnavailable = ownPositionProblem !== null;
 
   // A new destination from the home screen replaces the one picked here.
   const paramArrival = (params.destination || params.query || '').trim();
@@ -184,6 +197,7 @@ export default function RouteExploreScreen() {
           initialQuery={picker === 'departure' ? (isOwnPosition(departure) ? '' : departure) : arrival}
           currentLocationName={here.status === 'ready' ? here.title : CURRENT_LOCATION}
           placeholder={picker === 'departure' ? 'D’où partez-vous ?' : 'Où allez-vous ?'}
+          purpose={picker === 'departure' ? 'departure' : 'arrival'}
           onSelectLocation={(selected) => {
             if (picker === 'departure') setPickedDeparture(isOwnPosition(selected) ? null : selected);
             else if (picker === 'arrival' && !isOwnPosition(selected)) setPickedArrival({ param: paramArrival, value: selected });
@@ -202,7 +216,11 @@ export default function RouteExploreScreen() {
           {ownPositionUnavailable && arrival !== '' && (
             <TouchableOpacity style={styles.stateCard} onPress={() => setPicker('departure')} activeOpacity={0.8}>
               <Ionicons name="locate" size={18} color="#F26522" />
-              <Text style={styles.stateText}>Position introuvable : activez la localisation ou touchez ici pour choisir votre départ.</Text>
+              <Text style={styles.stateText}>
+                {ownPositionProblem === 'outside'
+                  ? 'Vous êtes hors du Grand Abidjan : touchez ici pour choisir votre départ ou votre arrivée.'
+                  : 'Position introuvable : activez la localisation ou touchez ici pour choisir votre départ ou votre arrivée.'}
+              </Text>
             </TouchableOpacity>
           )}
           {loading && !ownPositionUnavailable && (

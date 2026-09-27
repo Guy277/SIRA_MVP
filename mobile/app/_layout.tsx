@@ -4,13 +4,14 @@ import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { restoreSession } from '@/lib/session';
 import { loadIntroMemory } from '@/lib/motion';
+import { loadVoiceMode } from '@/lib/voice';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
 export default function RootLayout() {
-  useEffect(() => { void restoreSession(); void loadIntroMemory(); }, []);
+  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); }, []);
   return (
     <>
       <Stack
@@ -178,14 +179,6 @@ export default function RootLayout() {
           options={{
             headerShown: false,
             animation: 'slide_from_right',
-          }}
-        />
-
-        <Stack.Screen
-          name="modal"
-          options={{
-            presentation: 'modal',
-            title: 'Modal',
           }}
         />
       </Stack>

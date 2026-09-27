@@ -47,7 +47,13 @@
       "expo-image",
       "expo-status-bar",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "SIRA utilise le micro pour comprendre votre destination quand vous parlez. Aucun enregistrement n'est conservé."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

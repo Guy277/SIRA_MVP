@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useState } from 'react';
+import * as Location from 'expo-location';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Platform,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -15,11 +17,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { OsmMapView } from '@/components/osm-map-view';
 import { notify } from '@/lib/notify';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
-import { fetchJourneys, journeyImpact, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
+import { fetchJourneys, journeyImpact, reportFare, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
 import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
 import { clientId, upsertReport, useLiveReports } from '@/lib/reports';
 import { locateUser } from '@/lib/places';
 import { goBack } from '@/lib/navigation';
+import { currentToken } from '@/lib/session';
+import { alightSoonSpeech, arrivalSpeech, fareQuestion, gpsEvent, minutes, spokenJourney, startSpeech, stepSpeech } from '@/lib/guidance';
+import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
+import { useSpokenQuestion } from '@/lib/use-spoken-question';
 
 const { height } = Dimensions.get('window');
 
@@ -29,6 +35,8 @@ const MODE_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
 const MODE_COLORS: Record<LegMode, string> = {
   walk: '#10B981', wait: '#64748B', transfer: '#7C3AED', sotra: '#F26522', gbaka: '#F26522', woro: '#1E6091', taxi: '#1E6091', boat: '#0284C7',
 };
+// Speaker button, as in Google Maps: all spoken → alerts only → muted.
+const VOICE_ICONS: Record<VoiceMode, keyof typeof Ionicons.glyphMap> = { on: 'volume-high', alerts: 'notifications', off: 'volume-mute' };
 
 export default function NavigationActiveScreen() {
   const router = useRouter();
@@ -36,7 +44,13 @@ export default function NavigationActiveScreen() {
   const { reports } = useLiveReports();
   const [startedAt] = useState(() => new Date());
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const voiceMode = useVoiceMode();
+  const [modeChip, setModeChip] = useState(false);
+  const chipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const question = useSpokenQuestion();
+  const [gpsOn, setGpsOn] = useState(false);
+  const [arrived, setArrived] = useState(false);
+  const [fare, setFare] = useState<{ state: 'ask' | 'sent'; typed: string }>({ state: 'ask', typed: '' });
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [impact, setImpact] = useState<{ journeyId: string; value: ReportImpact } | null>(null);
   const [alternative, setAlternative] = useState<ApiJourney | null>(null);
@@ -97,19 +111,165 @@ export default function NavigationActiveScreen() {
 
   const adoptAlternative = () => {
     if (!alternative) return;
+    question.cancel();
     journeyStore.replaceActive(alternative);
     setAlternative(null);
     setCurrentStepIndex(0);
   };
 
+  const keepCurrentJourney = () => {
+    question.cancel();
+    setDismissed((ids) => [...ids, ...affected.map((item) => item.report.id)]);
+    setAlternative(null);
+  };
+
   const answerStillThere = async (reportId: string, kind: 'confirm' | 'contest') => {
+    question.cancel();
     setAnswered((ids) => [...ids, reportId]);
     try { upsertReport(await voteReport(reportId, kind, clientId())); } catch { /* déjà voté ou hors ligne */ }
   };
 
+  const destinationName = search?.arrival.name ?? 'ta destination';
+  // Community price asked on arrival (lines with a known id, not taxis).
+  const fareLeg = journey?.legs.find((leg) => isVehicle(leg) && leg.mode !== 'taxi' && leg.line_id) ?? null;
+  const canShareFare = Boolean(fareLeg && currentToken());
+
+  const sendFare = async (amount: number) => {
+    if (!fareLeg?.line_id) return;
+    question.cancel();
+    try {
+      await reportFare(fareLeg.line_id, fareLeg.mode, amount);
+      setFare({ state: 'sent', typed: '' });
+      void say(`Merci ! ${amount} francs, c'est noté pour les prochains voyageurs.`, 'answer');
+    } catch (error) {
+      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+    }
+  };
+
+  const nextStep = () => {
+    question.cancel();
+    if (currentStepIndex >= steps.length - 1) setArrived(true);
+    else setCurrentStepIndex((index) => Math.min(index + 1, steps.length - 1));
+  };
+
+  const changeVoiceMode = () => {
+    cycleVoiceMode();
+    setModeChip(true);
+    if (chipTimer.current) clearTimeout(chipTimer.current);
+    chipTimer.current = setTimeout(() => setModeChip(false), 2500);
+  };
+
+  // ── SIRA speaks each step as it begins (« C'est parti… », « Descends ici… »),
+  // and « Nouveau trajet » after a detour, like a GPS.
+  const spokenStep = useRef<string | null>(null);
+  useEffect(() => {
+    if (!journey || !steps.length || arrived) return;
+    const key = `${journey.id}:${currentStepIndex}`;
+    if (spokenStep.current === key) return;
+    const newJourney = !spokenStep.current?.startsWith(`${journey.id}:`);
+    const rerouted = newJourney && spokenStep.current !== null;
+    spokenStep.current = key;
+    const expected = new Date(startedAt.getTime() + journey.duration * 60_000);
+    const sentence = rerouted ? `Nouveau trajet : ${spokenJourney(journey)}. ${stepSpeech(steps, currentStepIndex, destinationName, gpsOn)}`
+      : newJourney ? startSpeech(steps, destinationName, expected, gpsOn)
+      : stepSpeech(steps, currentStepIndex, destinationName, gpsOn);
+    void say(sentence, 'guidance');
+  }, [journey, steps, currentStepIndex, arrived, destinationName, startedAt, gpsOn]);
+
+  // Silence when leaving the guidance.
+  useEffect(() => () => stopSpeaking(), []);
+
+  // ── Waze-style alerts: said once, answered by voice (« oui » / « non ») or with the buttons.
+  const alerted = useRef(new Set<string>());
+  const incident = affected[0] ?? null;
+  useEffect(() => {
+    if (!incident || alternative || alerted.current.has(incident.report.id)) return;
+    alerted.current.add(incident.report.id);
+    const { report } = incident;
+    void question.ask(
+      `Attention : ${report.title.toLowerCase()} confirmé sur ton trajet, vers ${report.location}. Environ ${minutes(delay)} de retard. Je cherche un détour ? Dis oui ou non.`,
+      `reroute:${report.id}`,
+    ).then((answer) => {
+      if (answer?.answer === 'yes') void findAlternative();
+      else if (answer?.answer === 'no') keepCurrentJourney();
+    });
+  });
+
+  useEffect(() => {
+    if (!alternative || alerted.current.has(alternative.id)) return;
+    alerted.current.add(alternative.id);
+    void question.ask(
+      `J'ai trouvé un détour : ${spokenJourney(alternative)}, environ ${minutes(alternative.duration)}. Dis oui pour le prendre.`,
+      `adopt:${alternative.id}`,
+    ).then((answer) => {
+      if (answer?.answer === 'yes') adoptAlternative();
+      else if (answer?.answer === 'no') keepCurrentJourney();
+    });
+  });
+
+  useEffect(() => {
+    if (!toConfirm || incident || alerted.current.has(`still:${toConfirm.report.id}`)) return;
+    alerted.current.add(`still:${toConfirm.report.id}`);
+    const { report } = toConfirm;
+    void question.ask(`${report.title} signalé vers ${report.location}. C'est toujours là ?`, `still:${report.id}`).then((answer) => {
+      if (!answer?.answer) return;
+      void answerStillThere(report.id, answer.answer === 'yes' ? 'confirm' : 'contest');
+      void say('Merci, c’est noté.', 'answer');
+    });
+  });
+
+  // ── GPS: SIRA follows the traveller, moves to the next step and warns
+  // before getting off. Tapping the banner stays possible (no GPS, indoors…).
+  const latest = useRef({ steps, index: currentStepIndex, arrived, destination: search?.arrival ?? null });
+  useEffect(() => { latest.current = { steps, index: currentStepIndex, arrived, destination: search?.arrival ?? null }; });
+  const warned = useRef(new Set<string>());
+  const journeyId = journey?.id;
+  useEffect(() => {
+    if (!journeyId) return;
+    let subscription: Location.LocationSubscription | null = null;
+    let stopped = false;
+    (async () => {
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.status !== 'granted' || stopped) return;
+        subscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 3000 },
+          ({ coords }) => {
+            const { steps: all, index, arrived: done, destination } = latest.current;
+            if (done) return;
+            const key = `${journeyId}:${index}`;
+            const event = gpsEvent(all, index, coords, warned.current.has(key), destination);
+            if (event?.type === 'advance') setCurrentStepIndex(event.to);
+            else if (event?.type === 'arrived') setArrived(true);
+            else if (event?.type === 'alight-soon') {
+              warned.current.add(key);
+              void say(alightSoonSpeech(all[index].leg), 'alert');
+            }
+          },
+        );
+        if (stopped) subscription.remove();
+        else setGpsOn(true);
+      } catch { /* pas de GPS : on avance en touchant le bandeau */ }
+    })();
+    return () => { stopped = true; subscription?.remove(); };
+  }, [journeyId]);
+
+  // ── Arrival: « Te voilà à … » then, for the community, the price paid.
+  const arrivalSaid = useRef(false);
+  useEffect(() => {
+    if (!arrived || arrivalSaid.current) return;
+    arrivalSaid.current = true;
+    void (async () => {
+      await say(arrivalSpeech(destinationName), 'guidance');
+      if (!fareLeg || !canShareFare) return;
+      const answer = await question.ask(fareQuestion(fareLeg), 'fare');
+      if (answer?.amount) void sendFare(answer.amount);
+    })();
+  });
+
   const voiceText = affected.length
     ? `${affected[0].report.title} confirmé sur votre trajet : environ ${delay} min de retard.`
-    : current ? `${stepTitle(current.leg)}. ${stepDescription(current.leg)}.` : 'Choisissez un trajet pour démarrer le guidage.';
+    : current ? stepSpeech(steps, currentStepIndex, destinationName, gpsOn) : 'Choisissez un trajet pour démarrer le guidage.';
 
   if (!journey || !current) {
     return (
@@ -145,7 +305,7 @@ export default function NavigationActiveScreen() {
         <TouchableOpacity
           style={styles.topHudCard}
           activeOpacity={0.9}
-          onPress={() => setCurrentStepIndex((index) => Math.min(index + 1, steps.length - 1))}
+          onPress={nextStep}
         >
           <View style={styles.hudHeaderRow}>
             <View style={[styles.directionIconCircle, { backgroundColor: MODE_COLORS[currentLeg.mode] }]}>
@@ -176,25 +336,30 @@ export default function NavigationActiveScreen() {
               </View>
             )}
             <View style={styles.hudMetricBadge}>
-              <Ionicons name="play-forward-outline" size={14} color="#FFFFFF" />
-              <Text style={styles.hudMetricText}>Touchez : étape suivante</Text>
+              <Ionicons name={gpsOn ? 'locate' : 'play-forward-outline'} size={14} color="#FFFFFF" />
+              <Text style={styles.hudMetricText}>{gpsOn ? 'GPS : suivi auto' : 'Touchez : étape suivante'}</Text>
             </View>
           </View>
         </TouchableOpacity>
 
         {/* Map Side Quick Action Buttons (Right Side) */}
         <View style={styles.mapSideControls}>
-          <TouchableOpacity
-            style={styles.mapControlBtn}
-            onPress={() => setIsVoiceMuted(!isVoiceMuted)}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={isVoiceMuted ? 'volume-mute' : 'volume-high'}
-              size={22}
-              color={isVoiceMuted ? '#94A3B8' : '#F26522'}
-            />
-          </TouchableOpacity>
+          <View style={styles.voiceModeRow}>
+            {modeChip && (
+              <View style={styles.voiceModeChip}>
+                <Text style={styles.voiceModeChipText}>{VOICE_MODE_LABELS[voiceMode]}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.mapControlBtn}
+              onPress={changeVoiceMode}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Voix : ${VOICE_MODE_LABELS[voiceMode]}. Touchez pour changer.`}
+            >
+              <Ionicons name={VOICE_ICONS[voiceMode]} size={22} color={voiceMode === 'off' ? '#94A3B8' : '#F26522'} />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={() => router.push('/report-event')}>
             <Ionicons name="warning" size={22} color="#EF4444" />
@@ -209,8 +374,8 @@ export default function NavigationActiveScreen() {
           </Text>
         </View>
 
-        {/* SIRA voice assistant bubble (spoken text in a next version) */}
-        {!isVoiceMuted && (
+        {/* SIRA's voice: what it says, and when it waits for « oui » / « non » */}
+        {voiceMode !== 'off' && !arrived && (
           <View style={styles.siraVoiceFloatingBar}>
             <Image
               source={require('@/assets/images/sira-character-assistant.png')}
@@ -220,9 +385,9 @@ export default function NavigationActiveScreen() {
             <View style={styles.siraSpeechBubble}>
               <View style={styles.voiceWaveHeader}>
                 <Ionicons name="mic" size={12} color="#F26522" />
-                <Text style={styles.voiceLabel}>SIRA VOCAL</Text>
+                <Text style={styles.voiceLabel}>{question.listening ? 'SIRA T’ÉCOUTE…' : 'SIRA VOCAL'}</Text>
               </View>
-              <Text style={styles.siraSpeechText}>{voiceText}</Text>
+              <Text style={styles.siraSpeechText}>{question.listening ? 'Réponds « oui » ou « non », ou touche un bouton.' : voiceText}</Text>
             </View>
           </View>
         )}
@@ -237,7 +402,7 @@ export default function NavigationActiveScreen() {
                 Confirmé par {affected[0].report.confirmations} usager(s) · {affected[0].report.location} · retard estimé {delay} min
               </Text>
             </View>
-            <TouchableOpacity style={styles.incidentButton} onPress={findAlternative} disabled={rerouting} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.incidentButton} onPress={() => { question.cancel(); void findAlternative(); }} disabled={rerouting} activeOpacity={0.85}>
               <Text style={styles.incidentButtonText}>{rerouting ? 'Calcul…' : 'Alternative'}</Text>
             </TouchableOpacity>
           </View>
@@ -255,7 +420,7 @@ export default function NavigationActiveScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cancelExitBtn}
-                onPress={() => { setDismissed((ids) => [...ids, ...affected.map((item) => item.report.id)]); setAlternative(null); }}
+                onPress={keepCurrentJourney}
                 activeOpacity={0.85}
               >
                 <Text style={styles.cancelExitText}>Garder le mien</Text>
@@ -279,7 +444,52 @@ export default function NavigationActiveScreen() {
           </View>
         )}
 
+        {/* Arrival: welcome, then the price paid for the community (by voice or typed) */}
+        {arrived && (
+          <View style={styles.bottomDashboardCard}>
+            <View style={styles.arrivalHeader}>
+              <Ionicons name="flag" size={24} color="#10B981" />
+              <Text style={styles.arrivalTitle}>Te voilà à {destinationName} !</Text>
+            </View>
+            {canShareFare && fareLeg && fare.state === 'ask' && (
+              <>
+                <Text style={styles.arrivalSub}>
+                  {question.asking === 'fare' && question.listening ? 'Dis le prix payé… ' : ''}
+                  Combien as-tu payé pour {journeyTitle({ ...journey, legs: [fareLeg] })} ?
+                </Text>
+                <View style={styles.alternativeButtons}>
+                  <TextInput
+                    style={styles.fareInput}
+                    value={fare.typed}
+                    onChangeText={(typed) => setFare({ state: 'ask', typed: typed.replace(/[^0-9]/g, '') })}
+                    onFocus={question.cancel}
+                    placeholder="ex. 200"
+                    keyboardType="number-pad"
+                    accessibilityLabel="Prix payé en francs CFA"
+                  />
+                  <TouchableOpacity
+                    style={[styles.confirmExitBtn, styles.arrivalButton]}
+                    onPress={() => { const amount = Number(fare.typed); if (amount > 0) void sendFare(amount); }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.confirmExitText}>Envoyer</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+            {fare.state === 'sent' && <Text style={styles.arrivalSub}>Merci ! Ton prix aide les prochains voyageurs.</Text>}
+            <TouchableOpacity
+              style={[styles.cancelExitBtn, styles.arrivalDone]}
+              onPress={() => { question.cancel(); goBack(router); }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.cancelExitText}>Terminer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Bottom Navigation Dashboard Card */}
+        {!arrived && (
         <View style={styles.bottomDashboardCard}>
           {/* Progress Bar with Milestones */}
           <View style={styles.progressTrackContainer}>
@@ -332,6 +542,7 @@ export default function NavigationActiveScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        )}
 
         {/* Exit Confirmation Modal Overlay */}
         {showExitConfirm && (
@@ -371,6 +582,55 @@ export default function NavigationActiveScreen() {
 }
 
 const styles = StyleSheet.create({
+  voiceModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  voiceModeChip: {
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  voiceModeChipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  arrivalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  arrivalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    flex: 1,
+  },
+  arrivalSub: {
+    fontSize: 13,
+    color: '#475569',
+    marginTop: 8,
+  },
+  fareInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#0F172A',
+  },
+  arrivalButton: {
+    backgroundColor: '#F26522',
+  },
+  arrivalDone: {
+    flex: 0,
+    marginTop: 12,
+  },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -526,6 +786,7 @@ const styles = StyleSheet.create({
     right: 16,
     top: height * 0.22,
     gap: 10,
+    alignItems: 'flex-end',
   },
   mapControlBtn: {
     width: 44,

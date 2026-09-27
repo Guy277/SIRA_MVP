@@ -206,6 +206,20 @@ export function LocationSuggestionsList({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContentContainer}
       >
+        {/* Point at the place on the map instead of typing it (Uber, Yango). */}
+        {onOpenMap && query.trim().length === 0 && (
+          <TouchableOpacity style={styles.locationCardRow} onPress={onOpenMap} activeOpacity={0.7} accessibilityRole="button">
+            <View style={[styles.iconSquareBadge, styles.mapBadge]}>
+              <Ionicons name="map" size={22} color="#FFFFFF" />
+            </View>
+            <View style={styles.locationTextCol}>
+              <Text style={styles.locationTitle} numberOfLines={1}>Choisir sur la carte</Text>
+              <Text style={styles.locationSubtitle} numberOfLines={1}>Déplacez l’épingle jusqu’au bon endroit</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#F26522" />
+          </TouchableOpacity>
+        )}
+
         {/* Clickable Custom Typed Destination Option */}
         {query.trim().length > 0 && (
           <TouchableOpacity
@@ -347,6 +361,9 @@ const styles = StyleSheet.create({
     height: 22,
     backgroundColor: '#D1D1D6',
     marginHorizontal: 10,
+  },
+  mapBadge: {
+    backgroundColor: '#F26522',
   },
   carteButton: {
     paddingVertical: 4,

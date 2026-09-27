@@ -8,7 +8,6 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
-  Modal,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -20,7 +19,11 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { firstName, useSession } from '@/lib/session';
-import { ensureCurrentPlace, isOwnPosition, useCurrentPlace } from '@/lib/places';
+import { ensureCurrentPlace, isOwnPosition, rememberPlace, useCurrentPlace } from '@/lib/places';
+import { VoiceAssistantSheet } from '@/components/voice-assistant-sheet';
+import type { VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
+import { journeyStore } from '@/lib/journey-store';
+import { say } from '@/lib/voice';
 import { notify } from '@/lib/notify';
 import { playIntroToday } from '@/lib/motion';
 import { TypewriterText } from '@/components/typewriter-text';
@@ -51,6 +54,14 @@ export default function HomeScreen() {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   // SIRA greets in full (bubble, typed words) on the first visit of the day.
   const [intro] = useState(() => playIntroToday('home'));
+  // …and says hello out loud once a day, by first name when SIRA knows it.
+  useEffect(() => {
+    if (!greetingName) return;
+    const timer = setTimeout(() => {
+      if (playIntroToday('voice-greeting')) void say(`Akwaba ${greetingName} ! Où est-ce qu'on va aujourd'hui ?`, 'greeting');
+    }, 1400);
+    return () => clearTimeout(timer);
+  }, [greetingName]);
 
   const handleLocationSelect = (selectedLoc: string) => {
     setIsYangoModalOpen(false);
@@ -70,14 +81,59 @@ export default function HomeScreen() {
     setIsVoiceModalOpen(true);
   };
 
-  const handleVoiceSelect = (phrase: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  // Journeys found by voice open in the trips screen: the places SIRA
+  // understood are remembered with their coordinates, no second lookup.
+  const handleVoiceJourneys = (request: VoiceJourneyRequest) => {
     setIsVoiceModalOpen(false);
+    const { origin, destination } = request;
+    if (!destination) return;
+    rememberPlace(destination.name, { latitude: destination.lat, longitude: destination.lon });
+    const spokenOrigin = origin && origin.name !== 'Ma position' ? origin : null;
+    if (spokenOrigin) rememberPlace(spokenOrigin.name, { latitude: spokenOrigin.lat, longitude: spokenOrigin.lon });
     router.push({
       pathname: '/(tabs)/explore',
-      params: { destination: phrase, query: phrase },
+      params: { destination: destination.name, query: destination.name, ...(spokenOrigin ? { from: spokenOrigin.name } : {}) },
     });
   };
+
+  // « On y va ! » : the trip SIRA described starts right away, like a GPS.
+  const handleVoiceStart = (reply: VoiceReply) => {
+    const request = reply.journey_request;
+    const found = reply.journeys?.journeys?.filter((journey) => journey.legs?.length) ?? [];
+    const journey = found.find((item) => item.id === reply.chosen_id) ?? found[0];
+    if (!request?.origin || !request.destination || !journey) {
+      if (request) handleVoiceJourneys(request);
+      return;
+    }
+    setIsVoiceModalOpen(false);
+    const { origin, destination } = request;
+    rememberPlace(destination.name, { latitude: destination.lat, longitude: destination.lon });
+    journeyStore.setSearch({
+      departure: { name: origin.name, latitude: origin.lat, longitude: origin.lon },
+      arrival: { name: destination.name, latitude: destination.lat, longitude: destination.lon },
+      departureAt: new Date(),
+      journeys: found,
+      categories: reply.journeys?.categories ?? { coule: [], debout: [], suspendu: [] },
+    });
+    journeyStore.select(journey.id);
+    journeyStore.start(journey);
+    router.push({ pathname: '/navigation-active', params: { destination: destination.name } });
+  };
+
+  // After two misunderstandings: typing or the map instead of the voice.
+  const handleTypeInstead = () => {
+    setIsVoiceModalOpen(false);
+    setIsYangoModalOpen(true);
+  };
+
+  // « Il y a un accident à Adjamé » : the report form, already on the right category.
+  const handleVoiceReport = (category: { categoryId: string; title: string }) => {
+    setIsVoiceModalOpen(false);
+    router.push({ pathname: '/report-event-detail', params: category });
+  };
+
+  // The voice assistant leaves from the traveller's position when it is known in Abidjan.
+  const voicePosition = here.status === 'ready' && !here.outside ? here.coordinates : null;
 
   return (
     <View style={styles.container}>
@@ -150,6 +206,8 @@ export default function HomeScreen() {
               style={styles.micButton}
               onPress={handleOpenMic}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Parler à SIRA"
             >
               <Ionicons name="mic" size={22} color="#FFFFFF" />
             </TouchableOpacity>
@@ -167,66 +225,16 @@ export default function HomeScreen() {
         initialQuery=""
       />
 
-      {/* SIRA Interactive Voice Recognition Assistant Modal */}
-      <Modal
+      {/* Voice assistant: speak, SIRA answers out loud with a real journey */}
+      <VoiceAssistantSheet
         visible={isVoiceModalOpen}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setIsVoiceModalOpen(false)}
-      >
-        <View style={styles.voiceModalOverlay}>
-          <View style={styles.voiceModalContent}>
-            {/* Modal Close Button */}
-            <TouchableOpacity
-              style={styles.voiceCloseButton}
-              onPress={() => setIsVoiceModalOpen(false)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="close" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            <Text style={styles.voiceModalTitle}>Assistant Vocal SIRA</Text>
-            <Text style={styles.voiceModalSubtitle}>Dites votre destination à voix haute...</Text>
-
-            {/* Glowing Animated Microphone Circle */}
-            <View style={styles.voiceMicGlowOuter}>
-              <View style={styles.voiceMicGlowInner}>
-                <Ionicons name="mic" size={44} color="#FFFFFF" />
-              </View>
-            </View>
-
-            {/* Live Soundwave Bar Visualizer */}
-            <View style={styles.soundwaveContainer}>
-              <View style={[styles.soundwaveBar, { height: 28 }]} />
-              <View style={[styles.soundwaveBar, { height: 42 }]} />
-              <View style={[styles.soundwaveBar, { height: 56 }]} />
-              <View style={[styles.soundwaveBar, { height: 38 }]} />
-              <View style={[styles.soundwaveBar, { height: 24 }]} />
-            </View>
-
-            {/* Voice Command Quick Suggestions */}
-            <Text style={styles.voiceSuggestLabel}>Exemples de destination :</Text>
-            <View style={styles.voiceChipsContainer}>
-              {[
-                'Orange Digital Center',
-                "Gare d'Adjamé",
-                'Cocody Saint-Jean',
-                'Abobo Samaké',
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={styles.voiceChip}
-                  onPress={() => handleVoiceSelect(item)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="location-sharp" size={14} color="#F26522" style={{ marginRight: 6 }} />
-                  <Text style={styles.voiceChipText}>{item}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setIsVoiceModalOpen(false)}
+        position={voicePosition}
+        onShowJourneys={handleVoiceJourneys}
+        onStartJourney={handleVoiceStart}
+        onTypeInstead={handleTypeInstead}
+        onReport={handleVoiceReport}
+      />
     </View>
   );
 }
@@ -436,109 +444,4 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  /* Voice Assistant Modal Styles */
-  voiceModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.82)',
-    justifyContent: 'flex-end',
-  },
-  voiceModalContent: {
-    backgroundColor: '#1E1E1E',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: Platform.OS === 'ios' ? 44 : 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  voiceCloseButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  voiceModalTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  voiceModalSubtitle: {
-    color: '#AAAAAA',
-    fontSize: 14,
-    fontWeight: '400',
-    marginBottom: 28,
-    textAlign: 'center',
-  },
-  voiceMicGlowOuter: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(242, 101, 34, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  voiceMicGlowInner: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: '#F26522',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#F26522',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  soundwaveContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 28,
-    height: 60,
-  },
-  soundwaveBar: {
-    width: 6,
-    backgroundColor: '#F26522',
-    borderRadius: 3,
-  },
-  voiceSuggestLabel: {
-    color: '#888888',
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-    alignSelf: 'flex-start',
-  },
-  voiceChipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    width: '100%',
-  },
-  voiceChip: {
-    backgroundColor: '#2A2A2A',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  voiceChipText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '500',
-  },
 });

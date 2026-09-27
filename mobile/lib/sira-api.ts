@@ -179,3 +179,85 @@ export type ReversePlace = { title: string; subtitle: string; kind: 'landmark' |
 // Nearest landmark (junction, station, bus stop…) or street for a position.
 export const reversePlace = (coordinates: Coordinates) =>
   apiJson<ReversePlace>(`/mobility/reverse?lat=${coordinates.latitude}&lon=${coordinates.longitude}`, { timeoutMs: 8_000 });
+
+// Voice assistant (services/voice, relayed by the API under /voice). The
+// server understands French from Abidjan, plans with SIRA-MORE and speaks
+// back with Piper; every figure in the reply comes from the engine.
+export type VoiceContext = Record<string, unknown> | null;
+export type VoiceJourneyRequest = {
+  origin: { lat: number; lon: number; name: string } | null;
+  destination: { lat: number; lon: number; name: string } | null;
+};
+export type VoiceReply = {
+  transcript?: { text: string; duration_s: number; speech_detected: boolean };
+  reply_text: string;
+  context: VoiceContext;
+  journey_request: VoiceJourneyRequest | null;
+  journeys: (JourneysResponse & { categories?: Record<CategoryName, string[]> }) | null;
+  reply_audio: { mime: string; base64: string } | null;
+  understanding: { intent: string; needs_confirmation: boolean; reasons: string[]; entities?: Array<{ label: string; text: string }> } | null;
+  error?: string | null;
+  // journeys: SIRA found trips (chosen_id = the one it described); question: it waits
+  // for an answer; retry: it did not understand; info: nothing to do.
+  kind?: 'journeys' | 'question' | 'retry' | 'info';
+  chosen_id?: string | null;
+};
+export type VoiceAudio = Blob | { uri: string; name: string; type: string };
+
+async function voiceRequest<T = VoiceReply>(path: string, init: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  // Transcription and a long trip can take a while on the CPU server.
+  const timer = setTimeout(() => controller.abort(), 90_000);
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl()}${path}`, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw new SiraApiError('SIRA met trop de temps à répondre. Réessayez.');
+    throw new SiraApiError('Assistant vocal injoignable. Vérifiez votre connexion.');
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!response.ok) {
+    let message = 'Assistant vocal indisponible pour le moment.';
+    try {
+      const payload = await response.json() as { detail?: unknown; message?: unknown };
+      if (typeof payload.detail === 'string') message = payload.detail;
+      else if (typeof payload.message === 'string') message = payload.message;
+    } catch { /* réponse non JSON */ }
+    throw new SiraApiError(message);
+  }
+  return response.json() as Promise<T>;
+}
+
+// Spoken request: audio recorded by the app (never stored by SIRA).
+export function askByVoice(audio: VoiceAudio, position: Coordinates | null, context: VoiceContext, speak = true) {
+  const form = new FormData();
+  if (audio instanceof Blob) form.append('audio', audio, 'voix.webm');
+  else form.append('audio', audio as unknown as Blob);
+  if (position) {
+    form.append('lat', String(position.latitude));
+    form.append('lon', String(position.longitude));
+  }
+  if (context) form.append('context', JSON.stringify(context));
+  form.append('speak', String(speak));
+  return voiceRequest('/voice/query', { method: 'POST', body: form });
+}
+
+// Same assistant from typed text (examples, no microphone).
+export function askByText(text: string, position: Coordinates | null, context: VoiceContext, speak = true) {
+  return voiceRequest('/voice/ask', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text, position: position ? { lat: position.latitude, lon: position.longitude } : null, context, speak }),
+  });
+}
+
+// Short spoken answer during a trip (« oui », « deux cents francs »): transcription
+// only, no trip computed. amount is null when the price was not clearly said.
+export type ShortAnswer = { transcript: { text: string }; answer: 'yes' | 'no' | null; amount: number | null };
+export function answerByVoice(audio: VoiceAudio) {
+  const form = new FormData();
+  if (audio instanceof Blob) form.append('audio', audio, 'voix.webm');
+  else form.append('audio', audio as unknown as Blob);
+  return voiceRequest<ShortAnswer>('/voice/answer', { method: 'POST', body: form });
+}

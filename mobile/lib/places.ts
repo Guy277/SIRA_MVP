@@ -37,15 +37,16 @@ export function distanceM(a: Coordinates, b: Coordinates) {
 }
 
 // Names a position from the closest known place, computed on the device so
-// no coordinates are sent anywhere before the user submits a report.
-export function nearestPlaceLabel(coordinates: Coordinates) {
+// no coordinates are sent anywhere before the user submits a report. Null
+// when nothing known is near: raw coordinates are never shown to travellers.
+export function nearestPlaceLabel(coordinates: Coordinates): string | null {
   let best: { title: string; distance: number } | null = null;
   for (const [title, place] of registry) {
     if (title === CURRENT_LOCATION) continue;
     const distance = distanceM(coordinates, place);
     if (!best || distance < best.distance) best = { title, distance };
   }
-  return best && best.distance < 3000 ? `Près de ${best.title}` : `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`;
+  return best && best.distance < 3000 ? `Près de ${best.title}` : null;
 }
 
 // Where the traveller is, located once at start-up and named after the
@@ -53,8 +54,13 @@ export function nearestPlaceLabel(coordinates: Coordinates) {
 // departure. The traveller can still pick another departure.
 export type CurrentPlace =
   | { status: 'locating' }
-  | { status: 'ready'; title: string; subtitle: string; coordinates: Coordinates }
+  // outside: found, but too far from the Grand Abidjan to start a journey.
+  | { status: 'ready'; title: string; subtitle: string; coordinates: Coordinates; outside: boolean }
   | { status: 'unavailable'; reason: string };
+
+// SIRA covers the Grand Abidjan: a position far from it is named as such.
+export const ABIDJAN_CENTRE: Coordinates = { latitude: 5.345, longitude: -4.02 };
+export const GRAND_ABIDJAN_RADIUS_M = 60_000;
 
 let current: CurrentPlace = { status: 'locating' };
 let pending: Promise<CurrentPlace> | null = null;
@@ -67,9 +73,13 @@ export function ensureCurrentPlace(): Promise<CurrentPlace> {
       const coordinates = await locateUser();
       // Named on the device when the landmark service cannot be reached.
       const named = await reversePlace(coordinates).catch(() => null);
-      const title = named?.title && named.title !== 'Ma position' ? named.title : nearestPlaceLabel(coordinates);
+      // Landmark name when there is one, otherwise simply "Ma position"
+      // (as "Ma position" in Bonjour RATP or "Votre position" in Google Maps).
+      const landmark = named?.title && named.title !== 'Ma position' ? named.title : nearestPlaceLabel(coordinates);
+      const title = landmark ?? 'Ma position';
+      const outside = distanceM(coordinates, ABIDJAN_CENTRE) > GRAND_ABIDJAN_RADIUS_M;
       rememberPlace(title, coordinates);
-      current = { status: 'ready', title, subtitle: named?.subtitle ?? 'Position GPS', coordinates };
+      current = { status: 'ready', title, subtitle: outside ? 'Hors du Grand Abidjan' : named?.subtitle ?? 'Position GPS', coordinates, outside };
     } catch (error) {
       current = { status: 'unavailable', reason: error instanceof Error ? error.message : 'Localisation indisponible.' };
     }

@@ -4,7 +4,13 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 const KEY = 'sira-intro-days';
-let seen: Record<string, string> = {};
+// On web the memory is read at once: the home screen renders before the root
+// layout's effects run, and would otherwise replay (and overwrite) today's intro.
+function readWebMemory(): Record<string, string> {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return {};
+  try { return JSON.parse(window.localStorage.getItem(KEY) ?? '{}') as Record<string, string>; } catch { return {}; }
+}
+let seen: Record<string, string> = readWebMemory();
 
 export async function loadIntroMemory() {
   try {

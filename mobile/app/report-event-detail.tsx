@@ -47,14 +47,14 @@ export default function ReportEventDetailScreen() {
       .then((coordinates) => {
         if (cancelled) return;
         setPosition({ coordinates, approximate: false });
-        setLocationText((text) => text || nearestPlaceLabel(coordinates));
+        setLocationText((text) => text || (nearestPlaceLabel(coordinates) ?? 'Ma position actuelle'));
       })
       .catch(() => {
         if (cancelled) return;
         const fallback = journeyStore.get().search?.departure;
         const coordinates = fallback ? { latitude: fallback.latitude, longitude: fallback.longitude } : { latitude: 5.3260, longitude: -4.0198 };
         setPosition({ coordinates, approximate: true });
-        setLocationText((text) => text || (fallback?.name ?? nearestPlaceLabel(coordinates)));
+        setLocationText((text) => text || (fallback?.name ?? nearestPlaceLabel(coordinates) ?? 'Position approximative'));
       });
     return () => { cancelled = true; };
   }, []);
@@ -72,7 +72,7 @@ export default function ReportEventDetailScreen() {
         type: REPORT_TYPE_BY_CATEGORY[params.categoryId ?? ''] ?? 'other',
         lat: position.coordinates.latitude,
         lon: position.coordinates.longitude,
-        location: locationText.trim() || nearestPlaceLabel(position.coordinates),
+        location: locationText.trim() || nearestPlaceLabel(position.coordinates) || 'Position GPS du signalement',
         description: [descriptionText.trim(), timeText.trim() ? `Constaté : ${timeText.trim()}` : ''].filter(Boolean).join(' · ') || undefined,
         clientId: clientId(),
       });
