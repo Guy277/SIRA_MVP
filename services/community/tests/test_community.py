@@ -111,6 +111,17 @@ class FareTests(unittest.TestCase):
         self.assertEqual(client.get("/fares", params={"line_id": "inconnue"}).json()[0]["validated"], False)
 
 
+class DevSecretTests(unittest.TestCase):
+    def test_development_key_survives_restarts(self):
+        # Bug observé : une clé neuve à chaque redémarrage déconnectait tout le monde
+        # (et « Supprimer mon compte » échouait avec « Connexion requise »).
+        from services.community.app.config import dev_secret
+        path = Path(tempfile.mkdtemp(), "dev-jwt-secret")
+        first = dev_secret(path)
+        self.assertGreaterEqual(len(first), 32)
+        self.assertEqual(dev_secret(path), first)
+
+
 class PrivacyTests(unittest.TestCase):
     """Écran Confidentialité : ce que SIRA garde, suppression réelle du compte, codes SMS effacés."""
 

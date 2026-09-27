@@ -1,5 +1,7 @@
 // « Supprimer mon compte » : real deletion on the server (account, shared
 // fares, SMS codes), then nothing about the traveller stays on the phone.
+// Without a valid session (expired, or refused by the server) nothing can be
+// deleted: the traveller is asked to sign in again first.
 import React, { useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -7,7 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { deleteAccount } from '@/lib/sira-api';
-import { forgetTraveller } from '@/lib/session';
+import { currentToken, forgetTraveller, useSession } from '@/lib/session';
 
 type Props = { visible: boolean; onClose: () => void };
 
@@ -15,6 +17,7 @@ export function DeleteAccountModal({ visible, onClose }: Props) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const signedIn = Boolean(useSession());
 
   const close = () => {
     if (deleting) return;
@@ -28,7 +31,8 @@ export function DeleteAccountModal({ visible, onClose }: Props) {
     try {
       await deleteAccount();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Suppression impossible pour le moment. Réessaie dans un instant.');
+      // A refused session is cleared by the API client: the « reconnecte-toi » view then shows.
+      if (currentToken()) setError(reason instanceof Error ? reason.message : 'Suppression impossible pour le moment. Réessaie dans un instant.');
       setDeleting(false);
       return;
     }
@@ -36,6 +40,12 @@ export function DeleteAccountModal({ visible, onClose }: Props) {
     onClose();
     forgetTraveller();
     router.replace('/onboarding');
+  };
+
+  const signInAgain = () => {
+    setError(null);
+    onClose();
+    router.push('/login');
   };
 
   return (
@@ -53,18 +63,31 @@ export function DeleteAccountModal({ visible, onClose }: Props) {
           <View style={styles.body}>
             <View style={styles.card}>
               <View style={styles.icon}><Ionicons name="trash" size={26} color="#FFFFFF" /></View>
-              <Text style={styles.title}>Supprimer ton compte ?</Text>
-              <Text style={styles.text}>
-                Ton numéro, ton nom et les prix que tu as partagés seront effacés de SIRA pour de bon. Tu pourras recréer un compte plus tard avec ton numéro.
-              </Text>
-              {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
-              <TouchableOpacity style={styles.deleteButton} onPress={confirm} disabled={deleting} activeOpacity={0.85}
-                accessibilityLabel="Oui, supprimer mon compte">
-                {deleting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.deleteText}>Oui, supprimer</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={close} disabled={deleting} activeOpacity={0.85}>
-                <Text style={styles.cancelText}>Non, garder mon compte</Text>
-              </TouchableOpacity>
+              {signedIn ? (
+                <>
+                  <Text style={styles.title}>Supprimer ton compte ?</Text>
+                  <Text style={styles.text}>C&apos;est définitif.</Text>
+                  {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+                  <TouchableOpacity style={styles.deleteButton} onPress={confirm} disabled={deleting} activeOpacity={0.85}
+                    accessibilityLabel="Oui, supprimer mon compte">
+                    {deleting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.deleteText}>Oui, supprimer</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelButton} onPress={close} disabled={deleting} activeOpacity={0.85}>
+                    <Text style={styles.cancelText}>Non, garder mon compte</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.title}>Reconnecte-toi d&apos;abord</Text>
+                  <Text style={styles.text}>Ta session a expiré. Pour supprimer ton compte, reconnecte-toi avec ton numéro.</Text>
+                  <TouchableOpacity style={styles.signInButton} onPress={signInAgain} activeOpacity={0.85}>
+                    <Text style={styles.deleteText}>Me reconnecter</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelButton} onPress={close} activeOpacity={0.85}>
+                    <Text style={styles.cancelText}>Annuler</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </SafeAreaView>
@@ -89,6 +112,7 @@ const styles = StyleSheet.create({
   error: { color: '#FCA5A5', fontSize: 14, textAlign: 'center', marginBottom: 14 },
   deleteButton: { width: '100%', backgroundColor: '#E53935', borderRadius: 24, paddingVertical: 14, alignItems: 'center', marginBottom: 10 },
   deleteText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  signInButton: { width: '100%', backgroundColor: '#F26522', borderRadius: 24, paddingVertical: 14, alignItems: 'center', marginBottom: 10 },
   cancelButton: { width: '100%', borderRadius: 24, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   cancelText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 });
