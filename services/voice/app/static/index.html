@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIRA Voice — test</title>
+<style>
+  :root { --bg:#161616; --card:#222; --line:#333; --txt:#f2f2f2; --muted:#a3a3a3; --orange:#f26b1d; --ok:#3fb56b; --warn:#e8a93a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; } p.sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input[type=text] { flex:1; min-width:200px; background:#111; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:11px 12px; font-size:15px; }
+  button { background:var(--orange); color:#fff; border:0; border-radius:10px; padding:11px 16px; font-weight:600; cursor:pointer; font-size:15px; }
+  button.secondary { background:#333; }
+  button:disabled { opacity:.5; cursor:default; }
+  #mic { width:84px; height:84px; border-radius:50%; font-size:34px; display:grid; place-items:center; margin:6px auto 10px; box-shadow:0 0 0 10px rgba(242,107,29,.18); }
+  #mic.rec { background:#d7263d; box-shadow:0 0 0 14px rgba(215,38,61,.25); }
+  .center { text-align:center; } .muted { color:var(--muted); font-size:13px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .chip { background:#2c2c2c; border:1px solid var(--line); border-radius:999px; padding:5px 10px; font-size:13px; cursor:pointer; }
+  .reply { font-size:18px; font-weight:600; }
+  .tag { display:inline-block; border-radius:6px; padding:1px 7px; font-size:12px; margin:2px 4px 2px 0; background:#333; }
+  .tag.ok { background:rgba(63,181,107,.2); color:#7fdc9f; } .tag.warn { background:rgba(232,169,58,.2); color:#f3c775; }
+  pre { background:#111; border:1px solid var(--line); border-radius:10px; padding:10px; overflow:auto; font-size:12px; max-height:320px; }
+  label.small { font-size:13px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Assistant vocal SIRA — page de test</h1>
+  <p class="sub">Parle comme à Abidjan : « Je quitte Yop, je veux béou au Plateau, j'ai une barre ».</p>
+
+  <div class="card center">
+    <button id="mic" title="Appuie pour parler, appuie encore pour envoyer">🎤</button>
+    <div id="micState" class="muted">Appuie sur le micro pour parler</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <input id="text" type="text" placeholder="…ou tape ta demande" autocomplete="off">
+      <button id="send">Envoyer</button>
+    </div>
+    <div class="chips" id="examples"></div>
+    <div class="row" style="margin-top:10px">
+      <label class="small"><input type="checkbox" id="speak" checked> Réponse vocale</label>
+      <label class="small"><input type="checkbox" id="usePos" checked> Ma position :
+        <select id="pos"></select></label>
+    </div>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <div class="muted" id="heard"></div>
+    <div class="reply" id="reply"></div>
+    <div id="tags" style="margin-top:8px"></div>
+    <audio id="audio" controls hidden style="width:100%;margin-top:10px"></audio>
+    <details style="margin-top:10px"><summary class="muted">Détail technique (JSON)</summary><pre id="raw"></pre></details>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const BASE = location.pathname.startsWith("/api/v1") ? "/api/v1" : "";
+const POSITIONS = [
+  ["Cocody Danga", 5.3467, -3.9951], ["Yopougon Siporex", 5.356069, -4.074052], ["Adjamé Liberté", 5.353382, -4.016001],
+  ["Abobo Gare", 5.4217, -4.018195], ["Koumassi Grand Marché", 5.29338, -3.958058],
+];
+POSITIONS.forEach(([n, la, lo], i) => $("pos").add(new Option(n, i)));
+["je vais au Plateau", "je quitte Yop je veux béou sur adja mé vingt logement j'ai une barre",
+ "le gbaka pour anyama ça fait combien", "je suis pressé je vais à Angré", "je vais au marché", "ya foye"]
+  .forEach((t) => { const c = document.createElement("span"); c.className = "chip"; c.textContent = t; c.onclick = () => { $("text").value = t; send(); }; $("examples").append(c); });
+
+let context = null;
+const position = () => { if (!$("usePos").checked) return null; const [name, lat, lon] = POSITIONS[$("pos").value]; return { lat, lon, name }; };
+
+function show(data) {
+  $("result").hidden = false;
+  const u = data.understanding;
+  $("heard").textContent = data.transcript ? `Entendu : « ${data.transcript.text || "…"} »` : (u ? `Texte : « ${u.text} »` : "");
+  $("reply").textContent = data.reply_text || data.detail || "";
+  const tags = [];
+  if (u) {
+    tags.push(`<span class="tag">${u.intent} · ${Math.round(u.intent_confidence * 100)} %</span>`);
+    for (const e of u.entities) tags.push(`<span class="tag">${e.label} « ${e.text} »${e.value != null ? " → " + e.value : ""}</span>`);
+    for (const [k, p] of Object.entries(u.places || {})) if (p.match) tags.push(`<span class="tag ${p.reason ? "warn" : "ok"}">${k} → ${p.match.canonical} (${p.match.score})</span>`);
+    if (u.needs_confirmation) tags.push(`<span class="tag warn">confirmation : ${u.reasons.join(", ")}</span>`);
+  }
+  if (data.journeys?.journeys) tags.push(`<span class="tag ok">${data.journeys.journeys.length} trajet(s) SIRA-MORE</span>`);
+  if (data.error) tags.push(`<span class="tag warn">${data.error}</span>`);
+  $("tags").innerHTML = tags.join("");
+  $("raw").textContent = JSON.stringify(data, null, 2);
+  context = data.context || null;
+  if (data.reply_audio?.base64) { $("audio").hidden = false; $("audio").src = `data:${data.reply_audio.mime};base64,${data.reply_audio.base64}`; $("audio").play().catch(() => {}); }
+  else if ($("speak").checked && data.reply_text && "speechSynthesis" in window) {
+    const u = new SpeechSynthesisUtterance(data.reply_text); u.lang = "fr-FR"; speechSynthesis.speak(u);  // secours : voix du navigateur
+  }
+}
+
+async function send() {
+  const text = $("text").value.trim(); if (!text) return;
+  $("send").disabled = true;
+  try {
+    const r = await fetch(`${BASE}/voice/ask`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text, position: position(), context, speak: $("speak").checked }) });
+    show(await r.json());
+  } catch (e) { show({ reply_text: "Service vocal injoignable : " + e.message }); }
+  $("send").disabled = false;
+}
+$("send").onclick = send; $("text").onkeydown = (e) => { if (e.key === "Enter") send(); };
+
+let recorder = null, chunks = [];
+$("mic").onclick = async () => {
+  if (recorder?.state === "recording") { recorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: true, echoCancellation: true } });
+    recorder = new MediaRecorder(stream); chunks = [];
+    recorder.ondataavailable = (e) => chunks.push(e.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      $("mic").classList.remove("rec"); $("micState").textContent = "Transcription en cours…";
+      const form = new FormData();
+      form.append("audio", new Blob(chunks, { type: recorder.mimeType || "audio/webm" }), "voix.webm");
+      const p = position(); if (p) { form.append("lat", p.lat); form.append("lon", p.lon); }
+      if (context) form.append("context", JSON.stringify(context));
+      form.append("speak", $("speak").checked);
+      try { const r = await fetch(`${BASE}/voice/query`, { method: "POST", body: form }); show(await r.json()); }
+      catch (e) { show({ reply_text: "Service vocal injoignable : " + e.message }); }
+      $("micState").textContent = "Appuie sur le micro pour parler";
+    };
+    recorder.start(); $("mic").classList.add("rec"); $("micState").textContent = "Je t'écoute… appuie encore pour envoyer";
+  } catch (e) { $("micState").textContent = "Micro indisponible : " + e.message; }
+};
+</script>
+</body>
+</html>

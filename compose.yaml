@@ -32,6 +32,7 @@ services:
       PHOTON_URL: https://photon.komoot.io
       AI_URL: http://ai:8000
       COMMUNITY_URL: http://community:8100
+      VOICE_URL: http://voice:8200
       SIRA_DATA_ROOT: /data
       SIRA_GRAPH_WORKER: "true"
       CORS_ORIGIN: http://localhost:8080
@@ -67,6 +68,21 @@ services:
     expose: ["8100"]
     depends_on:
       postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  # Assistant vocal (Whisper + CamemBERT fr-CI + Piper). Les modèles (≈ 900 Mo) sont montés,
+  # pas copiés dans l'image : voir services/voice/README.md.
+  voice:
+    build:
+      context: ./services/voice
+      dockerfile: Containerfile
+    environment:
+      SIRA_API_URL: http://api:4000/api/v1
+      VOICE_WHISPER_MODEL: ${VOICE_WHISPER_MODEL:-small}
+    volumes:
+      - ./services/voice/models:/app/models:ro,Z
+      - voice_cache:/root/.cache:Z
+    expose: ["8200"]
     restart: unless-stopped
 
   postgres:
@@ -124,6 +140,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  voice_cache:
   postgres_data:
   valkey_data:
   valhalla_data:

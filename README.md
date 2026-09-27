@@ -14,7 +14,8 @@ SIRA/
 ├── services/
 │   ├── api/             API NestJS : trajets, signalements, comptes     → port 4000
 │   ├── ai/              Moteur SIRA-MORE (Python) : classe les trajets  → port 8000
-│   └── community/       Comptes (code SMS) et tarifs des voyageurs      → port 8100
+│   ├── community/       Comptes (code SMS) et tarifs des voyageurs      → port 8100
+│   └── voice/           Assistant vocal fr-CI (Whisper, CamemBERT, Piper) → port 8200
 ├── data/                Données de transport (325 lignes du Grand Abidjan)
 ├── scripts/             Lancement de la stack et outils de données
 ├── tests/               Tests du site web et des données
@@ -60,6 +61,7 @@ Ouvrir `http://localhost:8081`. Sur téléphone : `npx expo start` dans `mobile/
 | Le calcul des trajets | `services/api/src/mobility/` (graphe : `transport-graph.ts`) |
 | Le classement Coulé / Debout / Suspendu | `services/ai/app/engine.py` |
 | Les signalements | `services/api/src/reports/`, `mobile/lib/reports.ts` |
+| L'assistant vocal (compréhension, réponses) | `services/voice/app/` (`dialog.py` pour les phrases de réponse) |
 | Les lieux, « Ma position », la carte | `mobile/lib/places.ts`, `mobile/components/osm-map-view*.tsx` |
 
 ## Vérifier que tout marche
@@ -68,6 +70,7 @@ Ouvrir `http://localhost:8081`. Sur téléphone : `npx expo start` dans `mobile/
 npm test                                   # site web et données
 npm --prefix services/api test             # API (trajets, signalements, comptes)
 npm run test:ai                            # moteur SIRA-MORE
+npm run test:voice                         # assistant vocal (sans les gros modèles)
 npm run test:runtime                       # l'API appelle bien le moteur
 npx --prefix mobile tsc --noEmit -p mobile # typage de l'appli mobile
 ```
@@ -79,11 +82,12 @@ npx --prefix mobile tsc --noEmit -p mobile # typage de l'appli mobile
 | Application mobile (maquette validée) | Banatou | `mobile/` |
 | Moteur de trajets, signalements, site web | Achille | `services/api`, `services/ai`, `app/` |
 | Comptes SMS Orange, tarifs communautaires | Abraham (logique reprise sans ses secrets) | `services/community` |
-| Assistant vocal | *en cours* | — |
+| Assistant vocal (dataset fr-CI, modèles, service) | Achille | `services/voice` |
 
 ## Pour aller plus loin
 
 - [Architecture technique](docs/architecture.md) : ports, API, moteur, données, sécurité, limites
+- [Assistant vocal](services/voice/README.md) : installation, modèles, API, limites
 - [Documentation](docs/README.md) : cahier des charges, audits de données, PostGIS, voix
 - [Application mobile](mobile/README.md)
 - [Archive](archive/README.md) : ce qui a été mis de côté et pourquoi

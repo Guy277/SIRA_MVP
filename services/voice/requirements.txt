@@ -1,0 +1,13 @@
+# Service vocal SIRA — dépendances principales (torch CPU est installé à part par npm run voice:setup)
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+python-multipart>=0.0.9
+httpx>=0.27.0
+rapidfuzz>=3.9.0
+numpy>=1.26
+transformers>=4.46.0
+tokenizers>=0.20.0
+safetensors>=0.4.3
+huggingface_hub>=0.24.0
+faster-whisper>=1.1.0

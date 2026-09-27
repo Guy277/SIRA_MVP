@@ -52,5 +52,8 @@ data/
 *.zip
 *.apk
 
+# voice models (trained on Colab, Whisper/Piper downloads) — never in Git
+services/voice/models/
+
 # local databases (community service in development)
 *.db

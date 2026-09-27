@@ -92,10 +92,25 @@ start("service communautaire", venvPython, [
   "-m", "uvicorn", "services.community.app.main:app", "--host", "127.0.0.1", "--port", "8100",
 ], { SIRA_ENV: "development" });
 
+// Assistant vocal : optionnel (≈ 2 Go de dépendances), démarré seulement après `npm run voice:setup`.
+const voiceVenvPython = isWindows
+  ? join(root, "services", "voice", ".venv", "Scripts", "python.exe")
+  : join(root, "services", "voice", ".venv", "bin", "python");
+const voiceEnabled = !smokeTest && process.env.SIRA_VOICE !== "false" && existsSync(voiceVenvPython);
+if (voiceEnabled) {
+  const voiceChild = start("assistant vocal", voiceVenvPython, [
+    "-m", "uvicorn", "services.voice.app.main:app", "--host", "127.0.0.1", "--port", "8200",
+  ], { SIRA_API_URL: "http://127.0.0.1:4000/api/v1" });
+  voiceChild.siraExpectedExit = true; // un souci de modèles vocaux ne doit pas arrêter toute la stack
+} else if (!smokeTest) {
+  console.log("[SIRA] Assistant vocal non installé (optionnel) : npm run voice:setup pour l'activer.");
+}
+
 const apiEnv = {
   PORT: "4000",
   AI_URL: "http://127.0.0.1:8000",
   COMMUNITY_URL: "http://127.0.0.1:8100",
+  VOICE_URL: "http://127.0.0.1:8200",
   VALHALLA_URL: routingUrl,
   OSRM_URL: process.env.OSRM_URL || (smokeTest ? "http://127.0.0.1:9" : "https://router.project-osrm.org"),
   SIRA_DATA_ROOT: join(root, "data"),
@@ -124,7 +139,9 @@ const stop = (exitCode = 0) => {
 process.on("SIGINT", () => stop(0));
 process.on("SIGTERM", () => stop(0));
 
-const waitForJson = async (url, timeoutMs = 90_000) => {
+// Démarrage à froid : l'API construit le graphe des lignes pendant que la voix charge ses modèles (≈ 1 Go),
+// ce qui peut dépasser 90 s sur un PC portable. Au-delà de 4 min, c'est un vrai blocage.
+const waitForJson = async (url, timeoutMs = 240_000) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -149,6 +166,11 @@ try {
   console.log(`[SIRA] API prête : ${apiHealth.service}`);
 
   if (!smokeTest) {
+    if (voiceEnabled) {
+      waitForJson("http://127.0.0.1:8200/health", 180_000)
+        .then((voice) => console.log(`[SIRA] Assistant vocal prêt (${voice.status}) : page de test http://localhost:8200`))
+        .catch(() => console.warn("[SIRA] L'assistant vocal ne répond pas : voir services/voice/README.md"));
+    }
     console.log("[SIRA] Application prête sur http://localhost:3001");
   } else {
     const proxyHealth = await waitForJson("http://127.0.0.1:3010/api/v1/health", 45_000);

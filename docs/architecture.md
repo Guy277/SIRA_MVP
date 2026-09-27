@@ -16,6 +16,8 @@ flowchart LR
   A --> C[(Valkey)]
   A --> I[Moteur SIRA-MORE FastAPI]
   A --> CO[Comptes et tarifs FastAPI]
+  A --> VO[Assistant vocal FastAPI]
+  VO --> A
   CO --> P
   CO --> OR[API SMS Orange]
   A --> D[325 lignes data.gouv.ci]
@@ -33,6 +35,7 @@ flowchart LR
 | API | 4000 | trajets, signalements, relais vers les comptes | `services/api/` |
 | Moteur SIRA-MORE | 8000 | classement explicable des trajets | `services/ai/` |
 | Comptes et tarifs | 8100 | connexion par code SMS, prix confirmés par les voyageurs | `services/community/` |
+| Assistant vocal | 8200 | voix → texte → compréhension fr-CI → trajet → réponse vocale | `services/voice/` |
 | Nginx | 8080 | point d'entrée de la stack Podman | `infra/nginx/` |
 | Valhalla | 8002 | marche et route sur OpenStreetMap (profil `routing`) | `compose.yaml` |
 | PostgreSQL/PostGIS | 5432 interne | données géospatiales | `infra/database/` |
@@ -50,6 +53,7 @@ flowchart LR
 - `POST /auth/request-otp`, `POST /auth/verify-otp`, `GET /auth/me`, `PATCH /users/me` : comptes (relayés vers le port 8100)
 - `GET /fares?line_id=…`, `POST /fares/reports` : tarifs communautaires
 - Socket.IO : namespace `/traffic`, événements `traffic.report.created` et `traffic.report.updated`
+- Voix (relayées vers le port 8200) : `POST /voice/query` (audio multipart), `POST /voice/ask` et `POST /voice/understand` (texte), `POST /voice/tts`, `GET /voice/health`, page de test `GET /voice/page`
 - Moteur : `POST /v1/recommendations/rank` ; documentation locale `http://localhost:8000/docs`
 
 Exemple de calcul :

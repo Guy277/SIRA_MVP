@@ -1,0 +1,221 @@
+[
+ {
+  "place_id": "PL-00002",
+  "canonical": "Adjamé",
+  "kind": "commune",
+  "commune": "Adjamé",
+  "lat": 5.354344,
+  "lon": -4.020917,
+  "aliases": [
+   "adjam",
+   "adjame",
+   "adjamé"
+  ]
+ },
+ {
+  "place_id": "PL-00003",
+  "canonical": "Anyama",
+  "kind": "commune",
+  "commune": "Anyama",
+  "lat": 5.49509,
+  "lon": -4.053124,
+  "aliases": [
+   "anyama"
+  ]
+ },
+ {
+  "place_id": "PL-00007",
+  "canonical": "Koumassi",
+  "kind": "commune",
+  "commune": "Koumassi",
+  "lat": 5.291807,
+  "lon": -3.960256,
+  "aliases": [
+   "koumassi"
+  ]
+ },
+ {
+  "place_id": "PL-00009",
+  "canonical": "Plateau",
+  "kind": "commune",
+  "commune": "Plateau",
+  "lat": 5.326534,
+  "lon": -4.018503,
+  "aliases": [
+   "le plateau",
+   "plateau"
+  ]
+ },
+ {
+  "place_id": "PL-00013",
+  "canonical": "Yopougon",
+  "kind": "commune",
+  "commune": "Yopougon",
+  "lat": 5.34041,
+  "lon": -4.073499,
+  "aliases": [
+   "yop",
+   "yop city",
+   "yopougon"
+  ]
+ },
+ {
+  "place_id": "PL-00018",
+  "canonical": "Adjamé 220 Logements",
+  "kind": "quartier",
+  "commune": "Adjamé",
+  "lat": 5.35174,
+  "lon": -4.016983,
+  "aliases": [
+   "220 lgts",
+   "220 logements",
+   "adjame 220 logements",
+   "adjamé 220",
+   "adjamé 220 logements",
+   "deux cent vingt logements"
+  ]
+ },
+ {
+  "place_id": "PL-00020",
+  "canonical": "Gare Nord",
+  "kind": "quartier",
+  "commune": "Adjamé",
+  "lat": 5.358954,
+  "lon": -4.027689,
+  "aliases": [
+   "gare nord"
+  ]
+ },
+ {
+  "place_id": "PL-00024",
+  "canonical": "Angré",
+  "kind": "quartier",
+  "commune": "Cocody",
+  "lat": 5.403776,
+  "lon": -3.987793,
+  "aliases": [
+   "angre",
+   "angré"
+  ]
+ },
+ {
+  "place_id": "PL-00028",
+  "canonical": "Deux-Plateaux",
+  "kind": "quartier",
+  "commune": "Cocody",
+  "lat": 5.368251,
+  "lon": -3.99842,
+  "aliases": [
+   "2 plateaux",
+   "deux plateaux",
+   "deux-plateaux"
+  ]
+ },
+ {
+  "place_id": "PL-00034",
+  "canonical": "Riviera Palmeraie",
+  "kind": "quartier",
+  "commune": "Cocody",
+  "lat": 5.363597,
+  "lon": -3.960234,
+  "aliases": [
+   "palmeraie",
+   "riviera palmeraie"
+  ]
+ },
+ {
+  "place_id": "PL-00036",
+  "canonical": "Grand Carrefour de Koumassi",
+  "kind": "quartier",
+  "commune": "Koumassi",
+  "lat": 5.286937,
+  "lon": -3.970217,
+  "aliases": [
+   "grand carrefour de koumassi",
+   "grand carrefour koumassi"
+  ]
+ },
+ {
+  "place_id": "PL-00053",
+  "canonical": "Siporex",
+  "kind": "quartier",
+  "commune": "Yopougon",
+  "lat": 5.356069,
+  "lon": -4.074052,
+  "aliases": [
+   "siporex",
+   "yop siporex"
+  ]
+ },
+ {
+  "place_id": "PL-00056",
+  "canonical": "Orange Digital Center",
+  "kind": "poi",
+  "commune": null,
+  "lat": null,
+  "lon": null,
+  "aliases": [
+   "odc",
+   "orange digital",
+   "orange digital center"
+  ]
+ },
+ {
+  "place_id": "PL-00284",
+  "canonical": "Pharmacie la Mé",
+  "kind": "stop",
+  "commune": "Abobo",
+  "lat": 5.423262,
+  "lon": -4.018841,
+  "aliases": [
+   "pharmacie la me",
+   "pharmacie la mé"
+  ]
+ },
+ {
+  "place_id": "PL-00457",
+  "canonical": "Adja",
+  "kind": "stop",
+  "commune": "Anyama",
+  "lat": 5.460619,
+  "lon": -4.04243,
+  "aliases": [
+   "adja"
+  ]
+ },
+ {
+  "place_id": "PL-01331",
+  "canonical": "PTT Plateau",
+  "kind": "stop",
+  "commune": "Plateau",
+  "lat": 5.317765,
+  "lon": -4.019685,
+  "aliases": [
+   "ptt plateau"
+  ]
+ },
+ {
+  "place_id": "PL-02027",
+  "canonical": "Marché (Abobo)",
+  "kind": "landmark_generic",
+  "commune": "Abobo",
+  "lat": 5.439769,
+  "lon": -4.024449,
+  "aliases": [
+   "marche",
+   "marché"
+  ]
+ },
+ {
+  "place_id": "PL-02028",
+  "canonical": "Marché (Abobo)",
+  "kind": "landmark_generic",
+  "commune": "Abobo",
+  "lat": 5.437213,
+  "lon": -4.045964,
+  "aliases": [
+   "marche",
+   "marché"
+  ]
+ }
+]

@@ -1,0 +1,2 @@
+# Synthèse vocale (optionnelle : sans elle, l'app peut lire la réponse avec la voix du téléphone/navigateur)
+piper-tts>=1.2.0
