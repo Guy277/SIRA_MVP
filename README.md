@@ -1,245 +1,91 @@
-# SIRA — MVP Smart Mobility Abidjan
+# SIRA — On trace, sans stress
 
-SIRA est un MVP de mobilité multimodale pour Abidjan. Il compare plusieurs manières d’effectuer un trajet en combinant marche, SOTRA, gbaka et taxi selon le temps, le coût, le confort et la fiabilité.
+SIRA aide les voyageurs du Grand Abidjan à choisir leur trajet en combinant **bus SOTRA, gbaka, wôrô-wôrô, bateau-bus, taxi et marche**, selon le prix, le temps et le confort. Les trajets sont rangés en trois catégories : **Coulé** (le moins cher), **Debout** (le juste milieu) et **Suspendu** (le plus confortable). Les voyageurs signalent les incidents en direct, comme sur Waze.
 
-## Ce qui fonctionne déjà
+Références produit : **Bonjour RATP** (recherche, comparaison, détail) et **Orange Max it** (connexion par numéro Orange 07 et code SMS).
 
-- carte interactive MapLibre GL JS avec tuiles OpenFreeMap / OpenStreetMap ;
-- recherche de lieux via Photon, avec données locales de secours ;
-- géolocalisation via la Geolocation API du navigateur ;
-- recommandations Grand Abidjan calculées sur le réseau, sans zone prédéfinie ;
-- recherche à la manière de Bonjour RATP : départ, arrivée, « partir maintenant / à », et options repliées (profil, modes, marche maximale, budget optionnel) ;
-- détail étape par étape des modes et correspondances ;
-- signalements communautaires réels : création géolocalisée, confirmation ou contestation par les autres usagers, cycle SIGNALÉ → CONFIRMÉ → FIABLE → EXPIRÉ / RÉSOLU ;
-- trajet en cours réactif : un incident confirmé sur l’itinéraire affiche un retard estimé et propose une alternative qui le contourne ;
-- assistant mobilité texte avec réponses liées au trajet ;
-- interface responsive desktop/mobile ;
-- API NestJS, passerelle Socket.IO et moteur SIRA-MORE FastAPI ;
-- graphe transport Grand Abidjan construit sur 325 lignes historiques ;
-- schéma PostgreSQL/PostGIS et jeu GTFS pilote ;
-- orchestration Podman Compose, cache Valkey et proxy Nginx ;
-- Valhalla obligatoire pour afficher les accès et correspondances piétonnes comme chemins praticables ;
-- attentes calculées à partir des fréquences/tranches horaires historiques lorsqu’elles existent, avec P50, P90 et confiance ;
-- tarifs et temps en véhicule présentés comme estimations, jamais comme données temps réel.
-
-> Les géométries de transport proviennent du jeu ouvert data.gouv.ci / DigitalTransport4Africa, mis à jour en octobre 2021. Les durées, attentes, arrêts d’accès et tarifs restent des estimations MVP à valider avec les opérateurs.
-
-## Branche SIRA : le projet unifié
-
-La branche `SIRA` réunit le travail de l’équipe en une seule application :
-
-| Brique | Origine | Dossier |
-| --- | --- | --- |
-| Application mobile (maquette validée : logo, `#F26522`, écrans) | Banatou (branche `BANATOU`, historique conservé) | `mobile/` |
-| Moteur d’itinéraires, signalements, recalcul | Achille (branche `GLE`) | `services/api`, `services/ai` |
-| Comptes par SMS Orange, tarifs communautaires | Abraham (branche `AKA`, logique reprise sans ses secrets) | `services/community` |
-| Front web de secours (démos sur ordinateur) | branche `GLE` | `app/`, `components/` |
-
-Référence produit : **Bonjour RATP** (recherche, comparaison, détail), et **Waze** pour les signalements (deux touches, incidents sur la carte, « toujours là ? »). Les résultats sont rangés en trois catégories calculées par SIRA-MORE : **Coulé** (le moins cher, quelle que soit la combinaison), **Debout** (juste milieu, jamais un doublon des deux autres) et **Suspendu** (le confort).
-
-### Lancer l’application mobile
-
-1. Démarrer la stack : `npm run dev:stack` (API 4000, SIRA-MORE 8000, comptes et tarifs 8100).
-2. Dans `mobile/` : `npm install`, puis :
-   - sur ordinateur : `npm run web` → `http://localhost:8081` (carte MapLibre) ;
-   - sur téléphone : `npx expo start`, scanner le QR code avec **Expo Go**, téléphone et PC sur le même Wi-Fi. L’appli trouve seule l’adresse du PC ; sinon `EXPO_PUBLIC_API_URL=http://<IP du PC>:4000/api/v1`. Le pare-feu Windows doit autoriser le port 4000.
-3. Connexion : en développement (`SIRA_ENV=development`), le code SMS s’affiche à l’écran, sans passerelle SMS.
-
-### Golden Demo sur mobile
-
-Recherche → catégories Coulé / Debout / Suspendu → détail → « Démarrer l’itinéraire ». Pendant la navigation, un autre téléphone (ou un autre navigateur) signale un incident sur le trajet : il apparaît en direct avec « toujours là ? ». Une fois confirmé, la navigation affiche le retard estimé et propose une alternative qui évite **tous** les incidents confirmés.
-
-### Sécurité et données personnelles
-
-- Aucun secret dans le dépôt : `.env` n’est pas versionné, `.env.example` ne contient que des noms de variables. `COMMUNITY_JWT_SECRET` est obligatoire en production et le mode démo SMS y est refusé.
-- Les branches `AKA` (`.env`, `app/config.py`) et `BANATOU` (profil) contiennent dans leur historique des identifiants Orange et Supabase et des données personnelles. Le dépôt étant public, **les clés doivent être régénérées** : les retirer d’un commit ne suffit pas.
-
-## Architecture
-
-```mermaid
-flowchart LR
-  U[Voyageur] --> MOB[Appli mobile Expo]
-  U --> N[Nginx]
-  N --> W[Front web Next.js]
-  MOB --> A[NestJS API]
-  N --> A
-  A --> V[Valhalla]
-  A --> P[(PostgreSQL + PostGIS)]
-  A --> C[(Valkey)]
-  A --> I[FastAPI SIRA-MORE]
-  A --> CO[FastAPI comptes et tarifs]
-  CO --> P
-  CO --> OR[API SMS Orange]
-  A --> D[325 lignes data.gouv.ci]
-  A <--> S[Socket.IO]
-  MOB --> M[MapLibre / OpenStreetMap]
-  A --> H[Photon]
-```
-
-## Démarrage rapide de la stack fonctionnelle
-
-Prérequis : Node.js 22 ou version supérieure.
-
-```bash
-npm install
-npm run dev:stack
-```
-
-Cette commande démarre l’interface, l’API NestJS et le moteur SIRA-MORE FastAPI. L’application est ensuite disponible sur `http://localhost:3000`. `npm run dev` ne lance que l’interface et ne permet pas de calculer un trajet.
-
-SIRA-MORE est obligatoire par défaut : si FastAPI est arrêté, NestJS renvoie une erreur explicite au lieu d’afficher un classement de secours sous le nom SIRA-MORE. Le secours déterministe ne peut être activé volontairement qu’avec `SIRA_ALLOW_RANKING_FALLBACK=true`.
-
-### Sur Windows
-
-1. Installer **Node.js 22 LTS** depuis `https://nodejs.org/`.
-2. Décompresser le projet dans un dossier simple, par exemple `C:\Projets\sira-mobility-mvp`.
-3. Installer également **Python 3**, nécessaire au moteur SIRA-MORE.
-4. Double-cliquer sur `LANCER_SIRA_WINDOWS.bat`.
-5. Attendre le message `Moteur prêt`, puis aller sur `http://localhost:3000`.
-
-La première exécution installe automatiquement les dépendances. Pour arrêter le serveur, revenir dans la fenêtre noire et appuyer sur `Ctrl + C`.
-
-Si le fichier `.bat` ne démarre pas, ouvrir PowerShell dans le dossier du projet et exécuter :
-
-```powershell
-npm install
-npm run dev:stack
-```
-
-Le frontend n’utilise plus de trajets codés en dur. Le lanceur complet démarre donc obligatoirement l’API NestJS et le moteur FastAPI. En développement sans `VALHALLA_URL`, il utilise le serveur public Valhalla uniquement pour les essais ; la production doit héberger sa propre instance.
-
-Pour vérifier automatiquement que NestJS appelle réellement SIRA-MORE :
-
-```bash
-npm run test:runtime
-```
-
-## Démarrage de toute la stack avec Podman
-
-Prérequis : Podman et `podman compose`.
-
-```bash
-podman compose up --build
-```
-
-Cette commande lance l’interface, NestJS, FastAPI, PostgreSQL/PostGIS, Valkey et Nginx. Accès principal : `http://localhost:8080`. Elle ne lance pas Valhalla, placé dans le profil `routing`.
-
-Pour ajouter Valhalla et construire les tuiles routables de Côte d’Ivoire :
-
-```bash
-podman compose --profile routing up --build
-```
-
-Le premier lancement de Valhalla télécharge le fichier OSM de Côte d’Ivoire et peut être long. Sans Valhalla, SIRA peut analyser le graphe des 325 lignes, mais rejette les propositions dont l’accès, la sortie ou la correspondance piétonne ne peut pas être confirmée. Il ne dessine donc plus de ligne droite trompeuse. Pour des essais techniques seulement, `SIRA_ALLOW_ESTIMATED_WALK_CONNECTORS=true` autorise une liaison de 150 m maximum, sans géométrie et explicitement marquée « sans guidage ».
-
-Après le démarrage de Valhalla, lancer le contrôle réel des accès piétons :
-
-```bash
-npm run test:routing:live
-```
-
-Pour un contrôle ponctuel avec le serveur public FOSSGIS — jamais comme dépendance de production — utiliser `VALHALLA_URL=https://valhalla1.openstreetmap.de npm run test:routing:live`. Le script respecte la cadence publique et vérifie notamment qu’un point proche à vol d’oiseau peut être rejeté lorsque le chemin praticable dépasse la limite SIRA.
-
-## Couverture et provenance des données
-
-- Source : `https://data.gouv.ci/datasets/abidjantransport-lignes` (licence ouverte).
-- Contenu : 325 lignes SOTRA, gbaka, wôrô-wôrô et bateaux-bus.
-- Graphe généré : environ 18 900 nœuds ; 96,9 % des nœuds appartiennent à la composante principale.
-- Couverture : réseau de transport du Grand Abidjan, et non toutes les rues piétonnes.
-- Complément routier : OpenStreetMap via Valhalla pour la marche, la route et les accès aux lignes.
-- Statut : géométries historiques ; horaires, attentes, durées et tarifs estimés en attendant les flux opérateurs.
-
-### Logique de raccordement et d’estimation
-
-1. Le moteur utilise la distance géodésique uniquement pour repérer les nœuds de transport proches.
-2. Une correspondance entre deux lignes distinctes est admise dans le graphe jusqu’à 350 m, puis doit être confirmée sur le réseau piéton OpenStreetMap par Valhalla.
-3. La marche d’accès, la marche de sortie et les correspondances sont additionnées et comparées à la contrainte utilisateur.
-4. Une ligne dont les horaires historiques indiquent qu’elle est fermée est exclue du calcul.
-5. L’attente médiane vaut la moitié de l’intervalle déclaré ; le P90 vaut 90 % de cet intervalle. Si la fréquence manque, un a priori par mode est utilisé avec une confiance plus faible.
-6. Les durées en véhicule utilisent une vitesse moyenne par mode et les tarifs utilisent des règles MVP. Chaque valeur conserve sa méthode, son P90 et son niveau de confiance afin d’être remplacée plus tard par GTFS, GPS opérateur ou observations terrain.
-
-La sélection d’itinéraire suit le pipeline SIRA-MORE Phase 1 : contraintes strictes (budget, marche, correspondances et modes), frontière de Pareto, contrôle de diversité, score selon la préférence, puis explications. Les anciens axes de démonstration restent uniquement des fixtures internes de non-régression et ne sont ni affichés ni utilisés comme limite géographique.
-
-## Services et ports
-
-| Service | Port local | Rôle |
-| --- | ---: | --- |
-| Nginx | 8080 | point d’entrée de la stack |
-| Frontend | 3000 | interface Next.js / React |
-| NestJS | 4000 | orchestration mobilité et signalements |
-| FastAPI | 8000 | classement explicable des trajets |
-| Valhalla | 8002 | routage OSM, profil optionnel |
-| PostgreSQL/PostGIS | 5432 interne | données géospatiales |
-| Valkey | 6379 interne | cache et état temps réel |
-
-## Endpoints principaux
-
-- `GET /api/v1/health`
-- `GET /api/v1/mobility/search?q=plateau`
-- `POST /api/v1/mobility/journeys`
-- `GET /api/v1/reports`
-- `POST /api/v1/reports` (`type`, `lat`, `lon`, `location`, `description`, `clientId`)
-- `POST /api/v1/reports/:id/confirm` et `POST /api/v1/reports/:id/contest` (`clientId`)
-- `POST /api/v1/reports/impact` (`legs` du trajet) : incidents confirmés à moins de 150 m et retard estimé
-- `POST /api/v1/mobility/journeys` accepte `avoid: [{ lat, lon, radiusM }]` pour recalculer en contournant des zones
-- Socket.IO : namespace `/traffic`, événements `traffic.report.created` et `traffic.report.updated`
-- FastAPI : `POST /v1/recommendations/rank`
-- documentation FastAPI locale : `http://localhost:8000/docs`
-
-Exemple de calcul :
-
-```json
-{
-  "origin": { "lat": 5.3467, "lon": -3.9951, "name": "Cocody Danga" },
-  "destination": { "lat": 5.3196, "lon": -4.0201, "name": "Plateau Gare Sud" },
-  "budget": 1500,
-  "preference": "balanced",
-  "constraints": {
-    "maxWalkingDistanceM": 1500,
-    "maxTransfers": 3,
-    "excludedModes": []
-  }
-}
-```
-
-## Scénario de démonstration
-
-1. Ouvrir SIRA avec la stack active.
-2. Saisir librement deux lieux du Grand Abidjan.
-3. Cliquer sur « Rechercher un trajet ».
-4. Comparer les alternatives conformes et non dominées proposées par SIRA-MORE.
-5. Sélectionner une option pour afficher son tracé et ses étapes.
-6. Ouvrir « Assistant SIRA » et demander : « Quel est le trajet le moins cher ? ».
-7. Depuis un autre appareil ou navigateur, signaler un incident sur le trajet puis le faire confirmer par un second usager : le trajet en cours affiche le retard estimé et propose une alternative.
-8. Cliquer sur « Démarrer ce trajet » pour terminer le parcours de démonstration.
-
-## Structure du dépôt
+## Où se trouve quoi
 
 ```text
-app/                    interface Next.js
-components/             composants fonctionnels SIRA
-lib/                    modèles d’interface
-services/api/           backend NestJS + Socket.IO
-services/ai/            moteur de recommandation FastAPI
-infra/database/init/    schéma et données PostGIS
-infra/nginx/            reverse proxy
-data/raw/               source ouverte des 325 lignes
-data/pilot/             fixtures internes de non-régression
-data/gtfs-demo/         feed GTFS pilote Abidjan
-compose.yaml             orchestration Podman
+SIRA/
+├── mobile/              Application mobile (Expo / React Native)        → http://localhost:8081
+├── app/, components/,   Site web (version ordinateur, démos)            → http://localhost:3001
+│   lib/, public/
+├── services/
+│   ├── api/             API NestJS : trajets, signalements, comptes     → port 4000
+│   ├── ai/              Moteur SIRA-MORE (Python) : classe les trajets  → port 8000
+│   └── community/       Comptes (code SMS) et tarifs des voyageurs      → port 8100
+├── data/                Données de transport (325 lignes du Grand Abidjan)
+├── scripts/             Lancement de la stack et outils de données
+├── tests/               Tests du site web et des données
+├── infra/               Base PostGIS et Nginx (stack Podman)
+├── docs/                Documentation, cahier des charges, travail sur la voix
+└── archive/             Anciens fichiers gardés pour référence (non utilisés)
 ```
 
-## Limites connues du MVP
+Fichiers de configuration du site web à la racine : `package.json`, `vite.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `next.config.ts`, `postcss.config.mjs`, `build/`, `worker/`. Stack Podman : `compose.yaml`, `Containerfile`.
 
-- le calcul d’itinéraire exige les services API et IA ; aucun trajet statique n’est présenté en secours ;
-- la couverture correspond aux 325 lignes historiques disponibles et à leurs raccordements ; elle n’implique pas encore une couverture exhaustive de chaque rue piétonne ;
-- les signalements sont en mémoire dans NestJS (perdus au redémarrage) : l’écriture PostGIS sera reliée dans l’itération suivante ;
-- un usager est identifié par un identifiant anonyme stocké dans son navigateur, sans compte : les votes multiples restent possibles en changeant de navigateur ;
-- les retards liés aux incidents sont des valeurs-types par catégorie, affichées comme estimations ;
-- l’authentification, la modération avancée et la navigation GPS virage par virage ne sont pas encore destinées à la production ;
-- les données ouvertes datent de 2021 : le transport informel nécessite une collecte terrain et une validation communautaire avant diffusion réelle ;
-- le service public OpenFreeMap ne fournit pas de SLA : prévoir un hébergement de tuiles pour la production.
+## Lancer SIRA sur son ordinateur
 
-## Attributions techniques
+Prérequis : **Node.js 22** et **Python 3**.
 
-La carte utilise MapLibre GL JS et OpenFreeMap. Les données cartographiques proviennent d’OpenStreetMap. Le routage est conçu pour Valhalla et les transports sont modélisés selon GTFS Schedule.
+**1. Les services** (API, moteur, comptes, site web) — laisser ce terminal ouvert :
+
+```bash
+npm install
+npm run dev:stack
+```
+
+Sous Windows, on peut aussi double-cliquer sur `LANCER_SIRA_WINDOWS.bat`. Attendre « Application prête ».
+
+**2. L'application mobile**, dans un second terminal :
+
+```bash
+cd mobile
+npm install
+npm run web -- --port 8081
+```
+
+Ouvrir `http://localhost:8081`. Sur téléphone : `npx expo start` dans `mobile/`, puis scanner le QR code avec **Expo Go** (téléphone et ordinateur sur le même Wi-Fi).
+
+**Connexion** : numéro **Orange (07)** puis code à 4 chiffres. En développement, le code s'affiche à l'écran, sans SMS.
+
+## Où modifier quoi
+
+| Je veux changer… | Fichier(s) |
+| --- | --- |
+| Un écran de l'appli | `mobile/app/` (un fichier par écran) |
+| L'appel à l'API depuis l'appli | `mobile/lib/sira-api.ts` (seul point d'accès) |
+| La connexion, la session | `mobile/lib/session.ts`, `mobile/lib/use-otp-login.ts`, `services/community/` |
+| Le calcul des trajets | `services/api/src/mobility/` (graphe : `transport-graph.ts`) |
+| Le classement Coulé / Debout / Suspendu | `services/ai/app/engine.py` |
+| Les signalements | `services/api/src/reports/`, `mobile/lib/reports.ts` |
+| Les lieux, « Ma position », la carte | `mobile/lib/places.ts`, `mobile/components/osm-map-view*.tsx` |
+
+## Vérifier que tout marche
+
+```bash
+npm test                                   # site web et données
+npm --prefix services/api test             # API (trajets, signalements, comptes)
+npm run test:ai                            # moteur SIRA-MORE
+npm run test:runtime                       # l'API appelle bien le moteur
+npx --prefix mobile tsc --noEmit -p mobile # typage de l'appli mobile
+```
+
+## Équipe
+
+| Partie | Auteur | Dossier |
+| --- | --- | --- |
+| Application mobile (maquette validée) | Banatou | `mobile/` |
+| Moteur de trajets, signalements, site web | Achille | `services/api`, `services/ai`, `app/` |
+| Comptes SMS Orange, tarifs communautaires | Abraham (logique reprise sans ses secrets) | `services/community` |
+| Assistant vocal | *en cours* | — |
+
+## Pour aller plus loin
+
+- [Architecture technique](docs/architecture.md) : ports, API, moteur, données, sécurité, limites
+- [Documentation](docs/README.md) : cahier des charges, audits de données, PostGIS, voix
+- [Application mobile](mobile/README.md)
+- [Archive](archive/README.md) : ce qui a été mis de côté et pourquoi
+
+Les données de transport proviennent de data.gouv.ci (2021) : durées, attentes et tarifs restent des **estimations** à valider avec les opérateurs.

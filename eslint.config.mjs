@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // The Expo app has its own lint setup (expo lint).
     "mobile/**",
+    // Kept for reference only, not part of the build.
+    "archive/**",
   ]),
   {
     files: ["services/api/test/**/*.cjs"],

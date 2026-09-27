@@ -6,13 +6,10 @@ dist
 artifacts
 coverage
 docs
-drizzle
-examples
+archive
 tests
 data
 services
-SIRA_MVP_Source_Maquettes.zip
-SIRA_Voice_CI_TOUT_v0.2.xlsx
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

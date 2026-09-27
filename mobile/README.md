@@ -26,6 +26,8 @@ Adresse de l’API : déduite automatiquement de la machine qui fait tourner Exp
 | `lib/reports.ts` | signalements en direct (Socket.IO) |
 | `lib/session.ts`, `lib/use-otp-login.ts` | connexion par code SMS, session sécurisée |
 | `components/osm-map-view.tsx` / `.web.tsx` | carte native / carte web MapLibre |
+| `components/map-location-picker.tsx`, `pin-map.tsx` / `.web.tsx` | « Choisir sur la carte » : épingle fixe, carte qui bouge dessous |
+| `components/` (autres) | éléments d'écran partagés : sélecteur de lieu, badges de lignes, animations |
 
 ## Reste à brancher
 
