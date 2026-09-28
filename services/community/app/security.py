@@ -99,14 +99,14 @@ def request_otp(db: Session, raw_phone: str) -> dict:
     now = datetime.now(timezone.utc)
     recent = db.query(OtpCode).filter(OtpCode.phone_number == phone, OtpCode.created_at >= now - REQUEST_WINDOW).count()
     if recent >= MAX_REQUESTS_PER_WINDOW:
-        raise HTTPException(status_code=429, detail="Trop de demandes de code. Réessayez dans quelques minutes.")
+        raise HTTPException(status_code=429, detail="Trop de demandes de code. Réessaie dans quelques minutes.")
     db.query(OtpCode).filter(OtpCode.phone_number == phone, OtpCode.used.is_(False)).update({"used": True})
     # Les codes (et le numéro qui va avec) ne sont gardés qu'un jour : assez pour limiter les demandes.
     db.query(OtpCode).filter(OtpCode.created_at < now - OTP_RETENTION).delete()
     code = f"{secrets.randbelow(10 ** OTP_DIGITS):0{OTP_DIGITS}d}"
     db.add(OtpCode(phone_number=phone, code_hash=_hash_code(phone, code), expires_at=now + OTP_TTL))
     db.commit()
-    sent = send_sms(phone, f"Votre code SIRA : {code}. Valable 5 minutes. Ne le partagez avec personne.")
+    sent = send_sms(phone, f"Ton code SIRA : {code}. Valable 5 minutes. Ne le partage avec personne.")
     if not sent and not settings.otp_demo:
         raise HTTPException(status_code=503, detail="Envoi du SMS impossible pour le moment.")
     return {
@@ -128,9 +128,9 @@ def verify_otp(db: Session, raw_phone: str, code: str, full_name: str | None, ro
         .first()
     )
     if not otp or _aware(otp.expires_at) < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="Code expiré. Demandez un nouveau code.")
+        raise HTTPException(status_code=400, detail="Code expiré. Demande un nouveau code.")
     if otp.attempts >= MAX_ATTEMPTS:
-        raise HTTPException(status_code=429, detail="Trop d’essais. Demandez un nouveau code.")
+        raise HTTPException(status_code=429, detail="Trop d’essais. Demande un nouveau code.")
     otp.attempts += 1
     if not hmac.compare_digest(otp.code_hash, _hash_code(phone, code.strip())):
         db.commit()
@@ -160,7 +160,7 @@ def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bear
     try:
         user_id = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"]).get("sub")
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Session expirée. Reconnectez-vous.") from None
+        raise HTTPException(status_code=401, detail="Session expirée. Reconnecte-toi.") from None
     user = db.get(User, user_id) if user_id else None
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Compte introuvable ou désactivé.")

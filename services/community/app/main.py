@@ -123,5 +123,5 @@ def report_fare(payload: FareReportIn, user: User = Depends(current_user), db: S
 @app.get("/fares")
 def fares(line_id: list[str] = Query(default=[], max_length=20), db: Session = Depends(get_db)):
     if not line_id:
-        raise HTTPException(status_code=400, detail="Indiquez au moins une ligne (line_id).")
+        raise HTTPException(status_code=400, detail="Indique au moins une ligne (line_id).")
     return [fare_summary(line, db.query(FareReport).filter(FareReport.line_id == line).all()) for line in line_id]

@@ -166,7 +166,7 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
         if not transcript["text"]:
             payload = {"understanding": None, "context": ctx_raw_passthrough(context), "journey_request": None, "journeys": None,
                        "error": None, "kind": "retry", "chosen_id": None, "sources": [],
-                       "reply_text": "Pardon, je n'ai rien entendu. Pouvez-vous répéter un peu plus fort, s'il vous plaît ?"}
+                       "reply_text": "Pardon, je n'ai rien entendu. Tu peux répéter un peu plus fort, s'il te plaît ?"}
         else:
             position = {"lat": lat, "lon": lon} if lat is not None and lon is not None else None
             try:

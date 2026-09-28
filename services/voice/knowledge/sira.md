@@ -79,15 +79,19 @@ Ta position sert de point de départ et permet de te prévenir avant de descendr
 
 ## sira.voix-conservee
 ? Vous gardez ma voix ?
+? Tu gardes ma voix ?
 ? Vous enregistrez ce que je dis ?
+? Tu enregistres ce que je dis ?
 ? Mes enregistrements sont gardés ?
 ? Ma voix est enregistrée ?
 Non : ta voix sert seulement à comprendre ta demande, puis elle est effacée tout de suite. Aucun enregistrement n'est gardé, ni sur ton téléphone ni sur nos serveurs.
 
 ## sira.donnees
 ? Qu'est-ce que vous faites de mes données ?
+? Tu fais quoi de mes données ?
 ? Mes données sont protégées ?
 ? Vous vendez mes données ?
+? Tu vends mes données ?
 ? Vous gardez quoi sur moi ?
 ? Qu'est-ce que SIRA sait sur moi ?
 SIRA garde seulement ce qu'il faut pour ton compte : ton numéro de téléphone, ton nom si tu le donnes, et les prix que tu partages. Tu vois tout dans ton profil, rubrique « Confidentialité », et ta voix n'est jamais gardée.

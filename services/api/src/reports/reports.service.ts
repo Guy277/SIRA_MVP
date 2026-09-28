@@ -122,7 +122,7 @@ export class ReportsService {
     if (!report || !ACTIVE_STATUSES.includes(this.refresh(report).status)) throw new NotFoundException("Signalement introuvable ou expiré.");
     const clientId = this.clientId(rawClientId);
     const voters = this.voters.get(id) ?? new Set<string>();
-    if (voters.has(clientId)) throw new BadRequestException("Vous avez déjà donné votre avis sur ce signalement.");
+    if (voters.has(clientId)) throw new BadRequestException("Tu as déjà donné ton avis sur ce signalement.");
     voters.add(clientId); this.voters.set(id, voters);
     const now = Date.now();
     if (kind === "confirm") {
