@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
 
 export interface ZoneReportItem {
@@ -46,6 +46,8 @@ const CATEGORIES = [
 ];
 
 export default function TrafficDetailScreen() {
+  // The list ends above the bottom bar (its last item stays reachable on small phones).
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
   const [activeCategory, setActiveCategory] = useState<string>(
@@ -179,7 +181,7 @@ export default function TrafficDetailScreen() {
         <FlatList
           data={filteredZoneReports}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.cardsListContent}
+          contentContainerStyle={[styles.cardsListContent, { paddingBottom: tabBarSpace }]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <TouchableOpacity

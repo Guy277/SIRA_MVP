@@ -24,6 +24,8 @@ export function PinMap({ initialCenter, focus, onCenterChange, onMoveStart, styl
         zoom: 15.5,
         attributionControl: { compact: true },
       });
+      // The map credits start folded (the « i » opens them): unfolded, they cover the bottom of a phone screen.
+      map.once('load', () => map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
       map.on('movestart', () => handlers.current.onMoveStart?.());
       map.on('moveend', () => {
         const { lng, lat } = map.getCenter();

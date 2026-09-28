@@ -16,7 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { DeleteAccountModal } from '@/components/delete-account-modal';
 import { ProfilePhotoModal } from '@/components/profile-photo-modal';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { useSession } from '@/lib/session';
 import { goBack } from '@/lib/navigation';
 
@@ -31,6 +31,8 @@ interface MenuItem {
 }
 
 export default function ProfileScreen() {
+  // The list ends above the bottom bar (its last item stays reachable on small phones).
+  const tabBarSpace = useTabBarSpace();
   const account = useSession()?.user;
   const router = useRouter();
 
@@ -106,7 +108,7 @@ export default function ProfileScreen() {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace }]}
           showsVerticalScrollIndicator={false}
         >
           {/* User Profile Avatar Section */}

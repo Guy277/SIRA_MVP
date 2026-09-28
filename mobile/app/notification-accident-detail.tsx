@@ -14,12 +14,14 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SideMenuModal } from '@/components/side-menu-modal';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
 
 const { width, height } = Dimensions.get('window');
 
 export default function NotificationAccidentDetailScreen() {
+  // The action buttons stay above the bottom bar.
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const [showSideMenu, setShowSideMenu] = React.useState(false);
 
@@ -139,7 +141,7 @@ export default function NotificationAccidentDetailScreen() {
         </ScrollView>
 
         {/* Dual Action Bottom Bar (Split Pill Button) */}
-        <View style={styles.dualBarContainer}>
+        <View style={[styles.dualBarContainer, { paddingBottom: 12 + tabBarSpace }]}>
           <View style={styles.splitPillWrapper}>
             {/* Orange Button: Changer d'itinéraire */}
             <TouchableOpacity
@@ -150,7 +152,7 @@ export default function NotificationAccidentDetailScreen() {
               <View style={styles.whiteIconCircle}>
                 <Ionicons name="location" size={14} color="#F26522" />
               </View>
-              <Text style={styles.changeRouteText}>Changer d'itinéraire</Text>
+              <Text style={styles.changeRouteText} numberOfLines={2}>Changer d'itinéraire</Text>
             </TouchableOpacity>
 
             {/* Black Button: Garder mon itinéraire */}
@@ -159,7 +161,7 @@ export default function NotificationAccidentDetailScreen() {
               onPress={() => router.push({ pathname: '/navigation-active', params: { destination: 'Orange Digital Center' } })}
               activeOpacity={0.85}
             >
-              <Text style={styles.keepRouteText}>Garder mon itinéraire</Text>
+              <Text style={styles.keepRouteText} numberOfLines={2}>Garder mon itinéraire</Text>
               <View style={styles.whiteIconCircle}>
                 <Ionicons name="location" size={14} color="#000000" />
               </View>

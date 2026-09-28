@@ -10,6 +10,15 @@ interface CustomBottomTabBarProps {
   activeTab?: TabPath;
 }
 
+// Room the bar takes at the bottom of a screen: the bar itself, its raised active
+// button and the phone's bottom inset. Scrolling content keeps this much free
+// space at its end, so its last item can scroll above the bar.
+export const TAB_BAR_HEIGHT = 64;
+export function useTabBarSpace() {
+  const insets = useSafeAreaInsets();
+  return TAB_BAR_HEIGHT + Math.max(insets.bottom, 6);
+}
+
 export function CustomBottomTabBar({ activeTab }: CustomBottomTabBarProps) {
   const router = useRouter();
   const pathname = usePathname();

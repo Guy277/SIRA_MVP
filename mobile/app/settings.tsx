@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
 
 interface SettingItem {
@@ -23,6 +23,8 @@ interface SettingItem {
 }
 
 export default function SettingsScreen() {
+  // The list ends above the bottom bar (its last item stays reachable on small phones).
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
 
   const settingsList: SettingItem[] = [
@@ -101,7 +103,7 @@ export default function SettingsScreen() {
         {/* Settings Cards List */}
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace }]}
           showsVerticalScrollIndicator={false}
         >
           {settingsList.map((item) => (

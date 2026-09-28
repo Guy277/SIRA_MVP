@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
 
 interface NotificationSettingItem {
@@ -68,6 +68,8 @@ const SETTINGS_ITEMS: NotificationSettingItem[] = [
 ];
 
 export default function NotificationSettingsScreen() {
+  // The list ends above the bottom bar (its last item stays reachable on small phones).
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
 
   const [settingsState, setSettingsState] = useState<Record<string, boolean>>(() => {
@@ -108,14 +110,14 @@ export default function NotificationSettingsScreen() {
         {/* Scrollable Cards List */}
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Push notifications are not built yet: the switches are shown, but honestly disabled. */}
           <View style={styles.comingSoon}>
             <Ionicons name="time-outline" size={18} color="#F26522" />
             <Text style={styles.comingSoonText}>
-              Les notifications arrivent dans une prochaine version. En attendant, SIRA te prévient à la voix pendant tes trajets.
+              Les notifications arrivent dans une prochaine version. En attendant, SIRA vous prévient à la voix pendant vos trajets.
             </Text>
           </View>
           {SETTINGS_ITEMS.map((item) => {

@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { useFavorites } from '@/hooks/use-favorites';
 import { goBack } from '@/lib/navigation';
 
@@ -131,6 +131,8 @@ const MOCK_HISTORY: HistoryItem[] = [
 ];
 
 export default function HistoryScreen() {
+  // The list ends above the bottom bar (its last item stays reachable on small phones).
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const { addFavorite } = useFavorites();
   const [historyList, setHistoryList] = useState<HistoryItem[]>(MOCK_HISTORY);
@@ -271,7 +273,7 @@ export default function HistoryScreen() {
         <FlatList
           data={filteredHistory}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarSpace }]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyStateContainer}>

@@ -42,6 +42,8 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
     import('maplibre-gl').then(({ default: maplibregl }) => {
       if (cancelled || !container.current) return;
       const map = new maplibregl.Map({ container: container.current, style: 'https://tiles.openfreemap.org/styles/liberty', center: ABIDJAN_CENTER, zoom: 11.5, attributionControl: { compact: true } });
+      // The map credits start folded (the « i » opens them): unfolded, they cover the bottom of a phone screen.
+      map.once('load', () => map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
       map.on('load', () => {
         map.addSource('journey', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'journey-line', type: 'line', source: 'journey', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#F26522', 'line-width': 5 } });
