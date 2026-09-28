@@ -8,7 +8,7 @@ Ce document regroupe les détails techniques. Pour démarrer, lire d'abord le [R
 flowchart LR
   U[Voyageur] --> MOB[Appli mobile Expo]
   U --> N[Nginx]
-  N --> W[Site web]
+  N --> W[Appli web exportée]
   MOB --> A[API NestJS]
   N --> A
   A --> V[Valhalla]
@@ -30,16 +30,16 @@ flowchart LR
 
 | Service | Port local | Rôle | Dossier |
 | --- | ---: | --- | --- |
-| Application mobile (web) | 8081 | écrans du voyageur (Expo) | `mobile/` |
-| Site web | 3001 | version ordinateur, démos | `app/`, `components/` |
-| API | 4000 | trajets, signalements, relais vers les comptes | `services/api/` |
-| Moteur SIRA-MORE | 8000 | classement explicable des trajets | `services/ai/` |
+| Application mobile | 8081 | écrans du voyageur (Expo : navigateur et Expo Go) | `mobile/` |
+| API | 4000 | seule porte d'entrée : trajets, signalements, relais vers les comptes et la voix | `services/api/` |
+| Moteur SIRA-MORE | 8000 | classement explicable des trajets (privé, appelé par l'API) | `services/engine/` |
 | Comptes et tarifs | 8100 | connexion par code SMS, prix confirmés par les voyageurs | `services/community/` |
-| Assistant vocal | 8200 | voix → texte → compréhension fr-CI → trajet → réponse vocale | `services/voice/` |
-| Nginx | 8080 | point d'entrée de la stack Podman | `infra/nginx/` |
-| Valhalla | 8002 | marche et route sur OpenStreetMap (profil `routing`) | `compose.yaml` |
-| PostgreSQL/PostGIS | 5432 interne | données géospatiales | `infra/database/` |
-| Valkey | 6379 interne | cache et état temps réel | `compose.yaml` |
+| Assistant vocal | 8200 | voix → texte → compréhension fr-CI → trajet → réponse vocale, FAQ | `services/voice/` |
+| Modèles d'IA | — | Whisper, CamemBERT fr-CI, Piper (hors Git) | `services/models/` |
+| Nginx | 8080 | seul point public de la stack Podman : appli web exportée, `/api/`, `/socket.io/` | `infra/nginx/` |
+| Valhalla | 8002 (machine seule) | marche et route sur OpenStreetMap | `infra/compose.yaml` |
+| PostgreSQL/PostGIS | 5432 (machine seule) | données géospatiales, comptes | `infra/database/` |
+| Valkey | 6379 interne | cache et état temps réel | `infra/compose.yaml` |
 
 ## Endpoints principaux (API, préfixe `/api/v1`)
 
@@ -88,10 +88,15 @@ Exemple de calcul :
 ## Stack complète avec Podman
 
 ```bash
-podman compose up --build                      # interface, API, moteur, PostGIS, Valkey, Nginx → http://localhost:8080
-podman compose --profile routing up --build    # + Valhalla (télécharge l'OSM de Côte d'Ivoire)
+# 1. Exporter l'appli web avec l'adresse COMPLÈTE de l'API (elle sert aussi aux signalements en direct)
+cd mobile && EXPO_PUBLIC_API_URL=https://<domaine>/api/v1 npx expo export -p web && cd ..
+# 2. Lancer la stack (API, SIRA-MORE, comptes, voix, PostGIS, Valkey, Valhalla, Nginx) → http://localhost:8080
+podman compose -f infra/compose.yaml up --build -d
 npm run test:routing:live                      # contrôle réel des accès piétons une fois Valhalla prêt
 ```
+
+Au premier lancement, Valhalla télécharge l'OpenStreetMap de Côte d'Ivoire (jusqu'à 20 min). Seul Nginx (8080) est
+ouvert au réseau ; PostgreSQL et Valhalla ne sont joignables que depuis la machine elle-même (outils d'import, tests).
 
 ## Sécurité
 

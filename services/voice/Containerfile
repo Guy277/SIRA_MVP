@@ -5,6 +5,8 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
  && pip install --no-cache-dir -r requirements.txt \
  && (pip install --no-cache-dir -r requirements-tts.txt || echo "piper-tts indisponible : réponse vocale côté client")
 COPY app ./app
-# Les modèles (≈ 900 Mo) ne sont pas dans l'image : ils sont montés dans /app/models (voir compose.yaml)
+# FAQ de SIRA (fiches Markdown) : sans elle, SIRA ne répond plus aux questions hors trajet.
+COPY knowledge ./knowledge
+# Les modèles (≈ 1,4 Go) ne sont pas dans l'image : ils sont montés dans /models/voice (voir infra/compose.yaml)
 EXPOSE 8200
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8200"]

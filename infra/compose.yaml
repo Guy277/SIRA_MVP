@@ -1,27 +1,25 @@
+# Stack serveur de SIRA (Podman ou Docker). Lancer depuis la racine du projet :
+#   podman compose -f infra/compose.yaml up -d
+# Les chemins ci-dessous sont relatifs à ce dossier (infra/).
 name: sira-mvp
 
 services:
+  # Seul point public. Sert l'appli web exportée (mobile/dist) et relaie /api/ et /socket.io/ vers l'API.
+  # Export web avant de lancer :  cd mobile && EXPO_PUBLIC_API_URL=https://<domaine>/api/v1 npx expo export -p web
+  # (adresse COMPLÈTE : l'appli en déduit aussi l'adresse des signalements en direct).
   nginx:
     image: docker.io/library/nginx:1.27-alpine
     ports:
-      - "8081:80"
+      - "8080:80"
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
-    depends_on: [web, api, ai]
-    restart: unless-stopped
-
-  web:
-    build:
-      context: .
-      dockerfile: Containerfile
-    environment:
-      NEXT_PUBLIC_API_URL: /api/v1
-    expose: ["3000"]
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+      - ../mobile/dist:/usr/share/nginx/html:ro,Z
+    depends_on: [api]
     restart: unless-stopped
 
   api:
     build:
-      context: ./services/api
+      context: ../services/api
       dockerfile: Containerfile
     environment:
       PORT: 4000
@@ -30,14 +28,14 @@ services:
       VALHALLA_URL: http://valhalla:8002
       SIRA_JOURNEY_PROFILING: "true"
       PHOTON_URL: https://photon.komoot.io
-      AI_URL: http://ai:8000
+      AI_URL: http://engine:8000  # SIRA-MORE (le nom de la variable est gardé tel quel)
       COMMUNITY_URL: http://community:8100
       VOICE_URL: http://voice:8200
       SIRA_DATA_ROOT: /data
       SIRA_GRAPH_WORKER: "true"
       CORS_ORIGIN: http://localhost:8080
     volumes:
-      - ./data:/data:ro,Z
+      - ../data:/data:ro,Z
     expose: ["4000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -45,9 +43,10 @@ services:
       valhalla: { condition: service_healthy }
     restart: unless-stopped
 
-  ai:
+  # SIRA-MORE : classe les trajets en Coulé / Debout / Suspendu. Privé : seule l'API l'appelle.
+  engine:
     build:
-      context: ./services/ai
+      context: ../services/engine
       dockerfile: Containerfile
     expose: ["8000"]
     restart: unless-stopped
@@ -56,7 +55,7 @@ services:
   # Secrets only come from the environment (see .env.example).
   community:
     build:
-      context: ./services/community
+      context: ../services/community
       dockerfile: Containerfile
     environment:
       SIRA_ENV: ${SIRA_ENV:-development}
@@ -70,17 +69,17 @@ services:
       postgres: { condition: service_healthy }
     restart: unless-stopped
 
-  # Assistant vocal (Whisper + CamemBERT fr-CI + Piper). Les modèles (≈ 900 Mo) sont montés,
-  # pas copiés dans l'image : voir services/voice/README.md.
+  # Assistant vocal (Whisper + CamemBERT fr-CI + Piper). Les modèles (≈ 1,4 Go) sont montés,
+  # pas copiés dans l'image : voir services/models/README.md.
   voice:
     build:
-      context: ./services/voice
+      context: ../services/voice
       dockerfile: Containerfile
     environment:
       SIRA_API_URL: http://api:4000/api/v1
       VOICE_WHISPER_MODEL: ${VOICE_WHISPER_MODEL:-small}
     volumes:
-      - ./services/voice/models:/app/models:ro,Z
+      - ../services/models/voice:/models/voice:ro,Z
       - voice_cache:/root/.cache:Z
     expose: ["8200"]
     restart: unless-stopped
@@ -91,11 +90,12 @@ services:
       POSTGRES_DB: sira
       POSTGRES_USER: sira
       POSTGRES_PASSWORD: sira_dev_password
+    # Joignable seulement depuis la machine elle-même (outils d'import), jamais depuis le réseau.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data:Z
-      - ./infra/database/init:/docker-entrypoint-initdb.d:ro,Z
+      - ./database/init:/docker-entrypoint-initdb.d:ro,Z
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sira -d sira"]
       interval: 5s
@@ -128,9 +128,10 @@ services:
       force_rebuild: "False"
     volumes:
       - valhalla_data:/custom_files:Z
-      - ./data/gtfs-demo:/gtfs_feeds/abidjan:ro,Z
+      - ../data/gtfs-demo:/gtfs_feeds/abidjan:ro,Z
+    # Joignable seulement depuis la machine elle-même (tests de routage), jamais depuis le réseau.
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8002/status >/dev/null"]
       interval: 10s

@@ -17,10 +17,10 @@ Les tables utilisent les identifiants source comme cles et les relations `route 
 
 ## Demarrage
 
-PostgreSQL/PostGIS est deja configure dans `compose.yaml` avec `postgis/postgis:17-3.5-alpine`.
+PostgreSQL/PostGIS est deja configure dans `infra/compose.yaml` avec `postgis/postgis:17-3.5-alpine`.
 
 ```bash
-podman compose up -d postgres
+podman compose -f infra/compose.yaml up -d postgres
 ```
 
 Les fichiers SQL dans `infra/database/init/` sont executes lors de l'initialisation d'un volume PostgreSQL neuf. Pour une base deja initialisee, executer la migration additive `003_transport_gtfs.sql` avec `psql` ou recreer le volume de developpement selon votre procedure habituelle.

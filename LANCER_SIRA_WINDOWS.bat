@@ -18,10 +18,21 @@ if errorlevel 1 (
 )
 
 if not exist node_modules (
-  echo Installation des dependances SIRA...
+  echo Installation des outils SIRA...
   call npm install
   if errorlevel 1 (
     echo [ERREUR] L'installation a echoue. Verifie ta connexion Internet.
+    pause
+    exit /b 1
+  )
+)
+
+if not exist mobile
+ode_modules (
+  echo Installation de l'application mobile, une seule fois, quelques minutes...
+  call npm --prefix mobile install
+  if errorlevel 1 (
+    echo [ERREUR] L'installation de l'application a echoue. Verifie ta connexion Internet.
     pause
     exit /b 1
   )
@@ -39,12 +50,11 @@ if errorlevel 1 (
 )
 
 echo.
-echo Demarrage de la stack SIRA complete : interface, API NestJS et moteur SIRA-MORE.
-echo SIRA sera disponible sur http://localhost:3001
-echo Le premier lancement installe aussi les dependances de l'API et du moteur IA.
+echo Demarrage de SIRA : SIRA-MORE, comptes, assistant vocal, API et application mobile.
+echo Application : http://localhost:8081  -  sur telephone : scanne le QR code avec Expo Go (meme Wi-Fi).
+echo Le premier lancement installe aussi les dependances de l'API et de SIRA-MORE.
 echo Pour arreter tous les services, appuie sur Ctrl+C.
 echo.
-set PORT=3001
 call npm run dev:stack
 
 if errorlevel 1 (

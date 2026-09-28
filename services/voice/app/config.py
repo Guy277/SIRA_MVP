@@ -18,10 +18,12 @@ def _float(name: str, default: float) -> float:
 
 
 REPO_ROOT = SERVICE_ROOT.parent.parent
-LOCAL_MODELS = SERVICE_ROOT / "models"  # modèles téléchargés une fois (Whisper, Piper) : aucun appel Internet ensuite
+# Réserve de modèles des services (hors Git) : services/models/voice/ en local, /models/voice dans le conteneur.
+# Tout y est téléchargé ou copié une fois (Whisper, Piper, CamemBERT) : aucun appel Internet ensuite.
+LOCAL_MODELS = _path("VOICE_MODELS_ROOT", SERVICE_ROOT.parent / "models" / "voice")
 
 # Dossier produit par le notebook Colab (sira_models_v0.4) : sira-intent-fr-ci/, sira-ner-fr-ci/, gazetteer_v0.4.json
-# Cherché dans cet ordre : VOICE_MODELS_DIR, services/voice/models/, puis data/ à la racine du projet.
+# Cherché dans cet ordre : VOICE_MODELS_DIR, services/models/voice/, puis data/ à la racine du projet.
 _TRAINED_CANDIDATES = [LOCAL_MODELS / "sira_models_v0.4", REPO_ROOT / "data" / "sira_models_v0.4"]
 MODELS_DIR = _path("VOICE_MODELS_DIR", next((d for d in _TRAINED_CANDIDATES if d.exists()), _TRAINED_CANDIDATES[0]))
 INTENT_MODEL_DIR = MODELS_DIR / "sira-intent-fr-ci"

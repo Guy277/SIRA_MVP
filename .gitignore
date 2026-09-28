@@ -52,9 +52,13 @@ data/
 *.zip
 *.apk
 
-# voice models (trained on Colab, Whisper/Piper downloads) — never in Git
-services/voice/models/
+# modèles d'IA des services (services/models/) — jamais dans Git, sauf le README
+services/models/*
+!services/models/README.md
 
 # local databases and development signing key (community service in development)
 *.db
 services/community/data/dev-jwt-secret
+
+# espaces de travail d'éditeur
+.kilo/

@@ -25,13 +25,13 @@ Micro → Silero VAD + Whisper (voix → texte)
 est cherché dans cet ordre :
 
 1. `VOICE_MODELS_DIR` (dans `.env`) ;
-2. `services\voice\models\sira_models_v0.4\` ;
+2. `services\models\voice\sira_models_v0.4\` ;
 3. `data\sira_models_v0.4\` (ancien emplacement, encore accepté).
 
-**Emplacement retenu** : `services\voice\models\`, avec tous les autres modèles de la voix :
+**Emplacement retenu** : la réserve de modèles des services, `services\models\voice\` (voir [services/models/README.md](../models/README.md)) :
 
 ```
-services/voice/models/
+services/models/voice/
 ├── sira_models_v0.4/   CamemBERTv2 fine-tunés (intent + entités) + 2 259 lieux  (≈ 890 Mo)
 ├── whisper/small/      Whisper (faster-whisper)                                 (≈ 480 Mo)
 └── piper/              voix française fr_FR-siwis-medium                        (≈ 63 Mo)
@@ -44,11 +44,11 @@ npm run voice:setup
 ```
 
 Installe PyTorch CPU, transformers, faster-whisper et Piper (≈ 2 Go), puis télécharge **une seule fois** dans
-`services/voice/models/` : Whisper `small` (≈ 480 Mo) et la voix Piper (≈ 63 Mo). Silero VAD est inclus dans
+`services/models/voice/` : Whisper `small` (≈ 480 Mo) et la voix Piper (≈ 63 Mo). Silero VAD est inclus dans
 faster-whisper. Ensuite, **tout fonctionne hors ligne** : aucun appel à Hugging Face ni à un service externe.
 Pour Whisper `turbo` (plus précis, ≈ 1,6 Go) : `VOICE_WHISPER_MODEL=turbo` dans `.env` puis relancer `npm run voice:setup`.
 
-**Hébergement chez un opérateur (serveurs internes)** : copier le seul dossier `services/voice/models/` sur le serveur
+**Hébergement chez un opérateur (serveurs internes)** : copier le seul dossier `services/models/voice/` sur le serveur
 (clé USB, dépôt interne) ; aucun accès Internet n'est nécessaire à l'exécution.
 
 ## Lancer
@@ -120,10 +120,11 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `VOICE_MODELS_DIR` | `services/voice/models/sira_models_v0.4` | modèles entraînés sur Colab |
+| `VOICE_MODELS_ROOT` | `services/models/voice` | réserve des modèles de la voix (`/models/voice` dans le conteneur) |
+| `VOICE_MODELS_DIR` | `services/models/voice/sira_models_v0.4` | modèles entraînés sur Colab |
 | `VOICE_WHISPER_MODEL` | `small` | `small` (rapide, CPU), `turbo` (plus précis), `large-v3` (GPU) |
 | `VOICE_WHISPER_DEVICE` / `VOICE_WHISPER_COMPUTE` | `cpu` / `int8` | `cuda` / `float16` avec un GPU |
-| `VOICE_PIPER_MODEL` | `services/voice/models/piper/fr_FR-siwis-medium.onnx` | voix de SIRA (future voix ivoirienne : remplacer ce fichier) |
+| `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-siwis-medium.onnx` | voix de SIRA (future voix ivoirienne : remplacer ce fichier) |
 | `SIRA_API_URL` | `http://127.0.0.1:4000/api/v1` | API de calcul des trajets |
 | `VOICE_PLACE_THRESHOLD` / `VOICE_PLACE_MARGIN` | `60` / `3` | seuils du correcteur de lieux |
 

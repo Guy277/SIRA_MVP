@@ -1,4 +1,7 @@
+// Lance toute la stack SIRA en développement : SIRA-MORE (8000), comptes (8100), voix (8200, si installée),
+// API (4000) et l'appli Expo (8081 : navigateur et Expo Go). --smoke-test : test de bout en bout, puis arrêt.
 import { existsSync } from "node:fs";
+import { createConnection } from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const isWindows = process.platform === "win32";
 const smokeTest = process.argv.includes("--smoke-test");
 const npm = isWindows ? "npm.cmd" : "npm";
+const npx = isWindows ? "npx.cmd" : "npx";
 const children = [];
 let stopping = false;
 
@@ -31,19 +35,20 @@ if (!python) {
 }
 
 const [pythonCommand, pythonPrefix] = python;
-const venvRoot = join(root, "services", "ai", ".venv");
+// Environnement Python partagé par SIRA-MORE (services/engine) et le service des comptes.
+const venvRoot = join(root, "services", "engine", ".venv");
 const venvPython = isWindows
   ? join(venvRoot, "Scripts", "python.exe")
   : join(venvRoot, "bin", "python");
 
 if (!existsSync(venvPython)) {
-  console.log("[SIRA] Création de l'environnement Python du moteur IA…");
+  console.log("[SIRA] Création de l'environnement Python de SIRA-MORE…");
   run(pythonCommand, [...pythonPrefix, "-m", "venv", venvRoot]);
 }
 
 if (!canRun(venvPython, ["-c", "import fastapi, uvicorn, pydantic"])) {
-  console.log("[SIRA] Installation des dépendances du moteur IA…");
-  run(venvPython, ["-m", "pip", "install", "-r", join(root, "services", "ai", "requirements.txt")]);
+  console.log("[SIRA] Installation des dépendances de SIRA-MORE…");
+  run(venvPython, ["-m", "pip", "install", "-r", join(root, "services", "engine", "requirements.txt")]);
 }
 
 // Accounts and community fares (built from the AKA branch) share the venv.
@@ -61,9 +66,9 @@ if (smokeTest) {
   run(npm, ["--prefix", "services/api", "run", "build"]);
 }
 
-const start = (name, command, args, env = {}) => {
+const start = (name, command, args, env = {}, cwd = root) => {
   const child = spawn(command, args, {
-    cwd: root,
+    cwd,
     env: { ...process.env, ...env },
     stdio: "inherit",
     shell: isWindows && command.endsWith(".cmd"),
@@ -79,13 +84,15 @@ const start = (name, command, args, env = {}) => {
   return child;
 };
 
-const routingUrl = process.env.VALHALLA_URL || (smokeTest ? "http://127.0.0.1:9" : "https://valhalla1.openstreetmap.de");
-if (!smokeTest && !process.env.VALHALLA_URL) {
+// La marche (accès, correspondances, sortie) est calculée par Valhalla : sans lui, aucun trajet n'est proposé
+// (pas de marche « à vol d'oiseau »). Le test de bout en bout utilise donc le même serveur que le développement.
+const routingUrl = process.env.VALHALLA_URL || "https://valhalla1.openstreetmap.de";
+if (!process.env.VALHALLA_URL) {
   console.warn("[SIRA] Mode développement : serveur Valhalla public utilisé pour les tests, jamais pour la production.");
 }
 
 start("moteur SIRA-MORE", venvPython, [
-  "-m", "uvicorn", "services.ai.app.main:app", "--host", "127.0.0.1", "--port", "8000",
+  "-m", "uvicorn", "services.engine.app.main:app", "--host", "127.0.0.1", "--port", "8000",
 ]);
 
 start("service communautaire", venvPython, [
@@ -112,19 +119,39 @@ const apiEnv = {
   COMMUNITY_URL: "http://127.0.0.1:8100",
   VOICE_URL: "http://127.0.0.1:8200",
   VALHALLA_URL: routingUrl,
-  OSRM_URL: process.env.OSRM_URL || (smokeTest ? "http://127.0.0.1:9" : "https://router.project-osrm.org"),
+  OSRM_URL: process.env.OSRM_URL || "https://router.project-osrm.org",
   SIRA_DATA_ROOT: join(root, "data"),
   SIRA_GRAPH_WORKER: "true",
-  // 8081: Expo web build of the mobile app.
-  CORS_ORIGIN: "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,http://localhost:8081",
+  // 8081 : appli Expo dans le navigateur ; 8080 : appli web exportée servie par Nginx (infra/compose.yaml).
+  // Expo Go (téléphone) n'est pas concerné par CORS.
+  CORS_ORIGIN: "http://localhost:8081,http://localhost:8080",
 };
+
+const portInUse = (port) => new Promise((resolvePort) => {
+  const socket = createConnection({ host: "127.0.0.1", port });
+  socket.once("connect", () => { socket.destroy(); resolvePort(true); });
+  socket.once("error", () => resolvePort(false));
+});
 
 if (smokeTest) {
   start("API NestJS", process.execPath, [join(root, "services", "api", "dist", "main.js")], apiEnv);
-  start("interface SIRA de test", npm, ["run", "dev"], { PORT: "3010", SIRA_WEB_HOST: "127.0.0.1" });
 } else {
   start("API NestJS", npm, ["--prefix", "services/api", "run", "start:dev"], apiEnv);
-  start("interface SIRA", npm, ["run", "dev"]);
+}
+
+// Appli mobile (Expo, 8081) : navigateur et Expo Go (QR code). SIRA_MOBILE=false pour la lancer à part.
+let mobileNote = "";
+if (!smokeTest && process.env.SIRA_MOBILE !== "false") {
+  const mobileDir = join(root, "mobile");
+  if (!existsSync(join(mobileDir, "node_modules"))) {
+    mobileNote = "Appli non lancée : installe-la d'abord avec  cd mobile && npm install";
+  } else if (await portInUse(8081)) {
+    mobileNote = "Appli déjà lancée sur http://localhost:8081 (Expo Go : son QR code est dans l'autre terminal)";
+  } else {
+    const mobile = start("appli Expo", npx, ["expo", "start", "--port", "8081"], {}, mobileDir);
+    mobile.siraExpectedExit = true; // fermer Expo ne doit pas arrêter les services
+    mobileNote = "Appli : http://localhost:8081 — sur téléphone, scanne le QR code avec Expo Go (même Wi-Fi)";
+  }
 }
 
 const stop = (exitCode = 0) => {
@@ -171,19 +198,17 @@ try {
         .then((voice) => console.log(`[SIRA] Assistant vocal prêt (${voice.status}) : page de test http://localhost:8200`))
         .catch(() => console.warn("[SIRA] L'assistant vocal ne répond pas : voir services/voice/README.md"));
     }
-    console.log("[SIRA] Application prête sur http://localhost:3001");
+    if (mobileNote) console.log(`[SIRA] ${mobileNote}`);
   } else {
-    const proxyHealth = await waitForJson("http://127.0.0.1:3010/api/v1/health", 45_000);
-    if (proxyHealth?.service !== "sira-api") throw new Error("Le proxy frontend /api n'atteint pas NestJS.");
-    console.log("[SIRA] Proxy frontend prêt : /api atteint bien NestJS.");
+    if (apiHealth?.service !== "sira-api") throw new Error("L'API ne répond pas comme l'API SIRA.");
     const journeyRequest = {
       origin: { lat: 5.294081, lon: -3.9553985, name: "Départ test réseau" },
       destination: { lat: 5.3534368, lon: -4.0151186, name: "Arrivée test réseau" },
-      budget: 1500,
+      // Pas de budget : le test prouve le passage par SIRA-MORE, pas le filtrage par prix (couvert par test:ai).
       preference: "balanced",
       constraints: { maxWalkingDistanceM: 1500, maxTransfers: 3, excludedModes: [] },
     };
-    const response = await fetch("http://127.0.0.1:3010/api/v1/mobility/journeys", {
+    const response = await fetch("http://127.0.0.1:4000/api/v1/mobility/journeys", {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal: AbortSignal.timeout(60_000),
@@ -201,7 +226,7 @@ try {
     aiProcess.siraExpectedExit = true;
     aiProcess.kill("SIGTERM");
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 750));
-    const unavailableResponse = await fetch("http://127.0.0.1:3010/api/v1/mobility/journeys", {
+    const unavailableResponse = await fetch("http://127.0.0.1:4000/api/v1/mobility/journeys", {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal: AbortSignal.timeout(60_000),

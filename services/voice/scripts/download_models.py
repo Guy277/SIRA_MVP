@@ -1,7 +1,7 @@
-"""Télécharge UNE FOIS tous les modèles prêts à l'emploi dans services/voice/models/, pour un fonctionnement hors ligne.
+"""Télécharge UNE FOIS tous les modèles prêts à l'emploi dans services/models/voice/, pour un fonctionnement hors ligne.
 
-- Whisper (faster-whisper, CTranslate2)  -> models/whisper/<small|turbo>/   (small ≈ 480 Mo, turbo ≈ 1,6 Go)
-- Voix Piper fr_FR-siwis-medium (CC BY 4.0) -> models/piper/               (≈ 63 Mo)
+- Whisper (faster-whisper, CTranslate2)  -> services/models/voice/whisper/<small|turbo>/   (small ≈ 480 Mo, turbo ≈ 1,6 Go)
+- Voix Piper fr_FR-siwis-medium (CC BY 4.0) -> services/models/voice/piper/ (≈ 63 Mo)
 - Silero VAD est inclus dans le paquet faster-whisper (≈ 1 Mo) : rien à télécharger.
 - Les modèles CamemBERT entraînés sur Colab sont copiés à la main (voir README) ; ce script vérifie leur présence.
 
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MODELS = ROOT / "models"
+MODELS = ROOT.parent / "models" / "voice"  # réserve de modèles des services (hors Git)
 WHISPER_REPOS = {"small": "Systran/faster-whisper-small", "turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
                  "large-v3": "Systran/faster-whisper-large-v3"}
 VOICE = "fr_FR-siwis-medium"
@@ -54,7 +54,7 @@ def check_trained_models() -> bool:
             print(f"[voix] Modèles CamemBERT entraînés trouvés : {base}")
             return True
     print("[voix] ⚠️  Modèles entraînés introuvables. Copie le dossier sira_models_v0.4 (sortie du notebook Colab)")
-    print("       dans  data\\  ou dans  services\\voice\\models\\  (ou définis VOICE_MODELS_DIR dans .env).")
+    print("       dans  services\\models\\voice\\  (ou définis VOICE_MODELS_DIR dans .env).")
     return False
 
 

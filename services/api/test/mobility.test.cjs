@@ -130,8 +130,9 @@ test("le graphe peut proposer une correspondance piétonne entre deux lignes pro
 test("classe les correspondances selon les distances SIRA-TRANSFER", () => {
   assert.equal(classifyTransferDistance(114), "FACILE");
   assert.equal(classifyTransferDistance(400), "NORMALE");
-  assert.equal(classifyTransferDistance(800), "DIFFICILE");
-  assert.equal(classifyTransferDistance(801), "IMPOSSIBLE");
+  // Seuil relevé à 1 000 m (SIRA_WALK.maxTransferDistanceM, commit c13b9b7).
+  assert.equal(classifyTransferDistance(1000), "DIFFICILE");
+  assert.equal(classifyTransferDistance(1001), "IMPOSSIBLE");
 });
 
 test("le graphe compte trois embarquements et deux correspondances", () => {

@@ -1,5 +1,6 @@
 // Assistant vocal SIRA : installation, lancement seul et tests.
-//   npm run voice:setup   crée services/voice/.venv, installe les dépendances, télécharge la voix Piper
+//   npm run voice:setup   crée services/voice/.venv, installe les dépendances, télécharge Whisper et Piper
+//                         dans services/models/voice/ (réserve de modèles, hors Git)
 //   npm run dev:voice     lance uniquement le service vocal (port 8200)
 //   npm run test:voice    lance les tests du service vocal (sans les gros modèles)
 import { existsSync } from "node:fs";
@@ -64,5 +65,5 @@ if (process.argv.includes("--run")) {
   const models = run(venvPython, [join(voiceDir, "scripts", "download_models.py"), "--whisper", process.env.VOICE_WHISPER_MODEL || "small"], { allowFailure: true });
   console.log(models === 0
     ? "\n[voix] ✅ Assistant vocal prêt. Lance  npm run dev:stack  (ou  npm run dev:voice  seul) puis ouvre http://localhost:8200"
-    : "\n[voix] ⚠️  Installation faite, mais copie les modèles entraînés avant de lancer (voir services/voice/README.md).");
+    : "\n[voix] ⚠️  Installation faite, mais copie les modèles entraînés dans services/models/voice/ avant de lancer (voir services/models/README.md).");
 }
