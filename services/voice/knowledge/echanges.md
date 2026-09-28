@@ -23,4 +23,4 @@ Avec plaisir ! Bonne route.
 ## echanges.ca-va
 ? Ça va ?
 ? Comment tu vas ?
-Ça va bien, merci ! Où est-ce qu'on va aujourd'hui ?
+Ça va bien, merci ! On va où aujourd'hui ?

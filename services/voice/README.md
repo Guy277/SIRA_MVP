@@ -124,6 +124,9 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 | `VOICE_MODELS_DIR` | `services/models/voice/sira_models_v0.4` | modèles entraînés sur Colab |
 | `VOICE_WHISPER_MODEL` | `small` | `small` (rapide, CPU), `turbo` (plus précis), `large-v3` (GPU) |
 | `VOICE_WHISPER_DEVICE` / `VOICE_WHISPER_COMPUTE` | `cpu` / `int8` | `cuda` / `float16` avec un GPU |
+| `VOICE_WHISPER_BEAM` | `5` | précision de la transcription ; `1` ≈ 20 % plus rapide mais déforme des lieux |
+| `VOICE_SPEECH_RATE` | `1.1` | vitesse de la voix de SIRA (`1.0` = voix d'origine) |
+| `VOICE_PRELOAD` | `1` | Whisper et Piper chargés dès le démarrage (sinon la 1re phrase attend 10 à 20 s) |
 | `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-siwis-medium.onnx` | voix de SIRA (future voix ivoirienne : remplacer ce fichier) |
 | `SIRA_API_URL` | `http://127.0.0.1:4000/api/v1` | API de calcul des trajets |
 | `VOICE_PLACE_THRESHOLD` / `VOICE_PLACE_MARGIN` | `60` / `3` | seuils du correcteur de lieux |
@@ -149,7 +152,7 @@ Les questions qui ne sont pas des demandes de trajet (« c'est quoi un gbaka ? �
   bateau-bus ») n'est remplacée que par une fiche presque identique (0,9).
 - Fiches `action: trip_*` : réponse calculée (`app/trip.py`) sur le trajet en cours — SIRA-MORE, recalcul depuis la
   position, `/reports/impact` et `/reports` de l'API, lieu connu le plus proche. Aucun chiffre écrit à la main.
-- Sans trajet en cours : « Tu n'as pas de trajet en cours… » ; API des signalements injoignable : SIRA le dit.
+- Sans trajet en cours : « Vous n'avez pas de trajet en cours… » ; API des signalements injoignable : SIRA le dit.
 - Hors sujet (« raconte-moi une blague ») : refus poli, sans rien inventer.
 - Côté app : écran **Discuter avec SIRA** (`mobile/app/chat.tsx`), depuis le profil.
 

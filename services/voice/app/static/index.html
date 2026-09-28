@@ -40,7 +40,7 @@
 
   <div class="card">
     <div class="row">
-      <input id="text" type="text" placeholder="…ou tape ta demande" autocomplete="off">
+      <input id="text" type="text" placeholder="…ou tapez votre demande" autocomplete="off">
       <button id="send">Envoyer</button>
     </div>
     <div class="chips" id="examples"></div>
@@ -128,7 +128,7 @@ $("mic").onclick = async () => {
       catch (e) { show({ reply_text: "Service vocal injoignable : " + e.message }); }
       $("micState").textContent = "Appuie sur le micro pour parler";
     };
-    recorder.start(); $("mic").classList.add("rec"); $("micState").textContent = "Je t'écoute… appuie encore pour envoyer";
+    recorder.start(); $("mic").classList.add("rec"); $("micState").textContent = "Je vous écoute… appuyez encore pour envoyer";
   } catch (e) { $("micState").textContent = "Micro indisponible : " + e.message; }
 };
 </script>

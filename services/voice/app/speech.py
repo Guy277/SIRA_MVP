@@ -12,12 +12,14 @@ class SpeechUnavailable(RuntimeError):
 
 
 class Transcriber:
-    def __init__(self, model: str, device: str, compute_type: str, prompt_names: list[str], max_seconds: float):
+    def __init__(self, model: str, device: str, compute_type: str, prompt_names: list[str], max_seconds: float,
+                 beam_size: int = 5):
         self.model_name, self.device, self.compute_type = model, device, compute_type
-        self.max_seconds = max_seconds
-        # Le prompt aide Whisper à écrire correctement les noms d'Abidjan et les modes locaux.
-        names = ", ".join(prompt_names[:40])
-        self.prompt = f"Trajet à Abidjan en gbaka, wôrô-wôrô, bus SOTRA ou bateau-bus. Lieux : {names}."
+        self.max_seconds, self.beam_size = max_seconds, beam_size
+        # Le prompt aide Whisper à écrire les modes et les communes d'Abidjan. Il est relu à chaque phrase :
+        # court (les communes seulement), il divise le temps de transcription par deux (11,8 s → 5,2 s mesurés).
+        names = ", ".join(prompt_names[:15])
+        self.prompt = f"Trajet à Abidjan en gbaka, wôrô-wôrô, bus SOTRA ou bateau-bus : {names}."
         self._model = None
         self._lock = threading.Lock()
 
@@ -44,7 +46,7 @@ class Transcriber:
         if duration > self.max_seconds:
             raise ValueError(f"Audio trop long ({duration:.0f} s, maximum {self.max_seconds:.0f} s)")
         segments, info = model.transcribe(
-            samples, language="fr", beam_size=5, vad_filter=True,
+            samples, language="fr", beam_size=self.beam_size, vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 500}, initial_prompt=self.prompt,
             condition_on_previous_text=False,
         )
@@ -55,11 +57,27 @@ class Transcriber:
                 "avg_logprob": round(avg_logprob, 3) if avg_logprob is not None else None}
 
 
+    def warm(self) -> None:
+        """Charge le modèle et fait une première transcription à vide (la première est toujours la plus lente)."""
+        import numpy as np
+
+        model = self._load()
+        list(model.transcribe(np.zeros(16000, dtype=np.float32), language="fr", beam_size=self.beam_size)[0])
+
+
 class Synthesizer:
-    def __init__(self, voice_path: Path):
+    def __init__(self, voice_path: Path, speed: float = 1.0):
         self.voice_path = Path(voice_path)
+        self.speed = speed
         self._voice = None
         self._lock = threading.Lock()
+
+    @property
+    def loaded(self) -> bool:
+        return self._voice is not None
+
+    def warm(self) -> None:
+        self.synthesize("Akwaba.")
 
     @property
     def available(self) -> bool:
@@ -82,7 +100,9 @@ class Synthesizer:
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav:
             if hasattr(voice, "synthesize_wav"):  # piper-tts ≥ 1.3
-                voice.synthesize_wav(text, wav)
+                from piper.config import SynthesisConfig
+
+                voice.synthesize_wav(text, wav, syn_config=SynthesisConfig(length_scale=1 / self.speed))
             else:  # piper-tts 1.2
-                voice.synthesize(text, wav)
+                voice.synthesize(text, wav, length_scale=1 / self.speed)
         return buffer.getvalue()

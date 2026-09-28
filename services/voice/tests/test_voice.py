@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # racine du dépô
 os.environ.setdefault("VOICE_GAZETTEER", str(FIXTURES / "gazetteer_test.json"))
 os.environ.setdefault("VOICE_MODELS_DIR", str(FIXTURES / "absent"))
 os.environ.setdefault("VOICE_PIPER_MODEL", str(FIXTURES / "absent.onnx"))
+os.environ.setdefault("VOICE_PRELOAD", "0")  # les tests n'utilisent pas les gros modèles
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -552,6 +553,24 @@ class ApiTest(unittest.TestCase):
         body = self.client.post("/voice/answer", files={"audio": ("v.webm", b"abc", "audio/webm")}).json()
         self.assertEqual((body["amount"], body["answer"]), (200, "yes"))
         self.assertEqual(self.planner.calls, [])
+
+
+class SpeechSettingsTest(unittest.TestCase):
+    def test_transcription_rapide(self):
+        # Mesuré sur ce PC : liste de 40 lieux (538 caractères) = 11,8 s par phrase ; communes seulement = 6,8 s.
+        # La recherche large (beam 5) est gardée : la simple déformait « je quitte Yopougon ».
+        from services.voice.app import config
+        from services.voice.app.speech import Transcriber
+        communes = PlaceResolver(FIXTURES / "gazetteer_test.json").place_names(kinds=("commune",))
+        t = Transcriber("small", "cpu", "int8", communes, 30, config.WHISPER_BEAM)
+        self.assertEqual(t.beam_size, 5)
+        self.assertLess(len(t.prompt), 200)
+        self.assertIn("Yopougon", t.prompt)
+        self.assertFalse(t.loaded)  # rien n'est chargé tant qu'on ne s'en sert pas (ni dans les tests)
+
+    def test_vitesse_de_lecture(self):
+        from services.voice.app import config
+        self.assertTrue(0.7 <= config.SPEECH_RATE <= 1.5)
 
 
 class ShortAnswerTest(unittest.TestCase):

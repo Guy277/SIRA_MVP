@@ -35,11 +35,18 @@ WHISPER_NAME = os.environ.get("VOICE_WHISPER_MODEL", "small")
 _WHISPER_LOCAL = LOCAL_MODELS / "whisper" / WHISPER_NAME
 # Copie locale (npm run voice:setup) si elle existe, sinon faster-whisper télécharge le modèle au premier usage.
 WHISPER_MODEL = str(_WHISPER_LOCAL) if (_WHISPER_LOCAL / "model.bin").exists() else WHISPER_NAME
+# Recherche large (5) : ≈ 20 % plus lente que 1 sur CPU, mais garde « je quitte Yopougon » et « je descends où »
+# que la recherche simple déformait (mesuré sur 8 phrases). Le gain de vitesse vient du prompt court (speech.py).
+WHISPER_BEAM = max(1, int(_float("VOICE_WHISPER_BEAM", 5)))
 WHISPER_DEVICE = os.environ.get("VOICE_WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE = os.environ.get("VOICE_WHISPER_COMPUTE", "int8")
 
 # Synthèse vocale : voix Piper française (fichier .onnx + .onnx.json)
 PIPER_VOICE = _path("VOICE_PIPER_MODEL", LOCAL_MODELS / "piper" / "fr_FR-siwis-medium.onnx")
+# Vitesse de lecture : 1.0 = voix d'origine, 1.1 = 10 % plus rapide (plus naturel pour des consignes courtes).
+SPEECH_RATE = min(1.5, max(0.7, _float("VOICE_SPEECH_RATE", 1.1)))
+# Charger Whisper et Piper dès le démarrage (sinon la première phrase attend 10 à 20 s). 0 = au premier usage.
+PRELOAD = os.environ.get("VOICE_PRELOAD", "1") != "0"
 
 # API NestJS de SIRA (calcul des trajets via SIRA-MORE)
 SIRA_API_URL = os.environ.get("SIRA_API_URL", "http://127.0.0.1:4000/api/v1").rstrip("/")

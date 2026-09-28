@@ -21,13 +21,13 @@ ROUTE_INTENTS = {"navigate_to", "ask_fastest", "ask_cheapest", "ask_eta", "ask_f
 NEEDS_DESTINATION = {"navigate_to", "ask_fastest", "ask_cheapest", "ask_eta", "ask_fare", "ask_mode", "avoid_traffic"}
 
 QUESTIONS = {
-    "missing_destination": "Tu veux aller où ?",
-    "missing_origin": "D'où est-ce que tu pars ?",
-    "unresolvable_place": "Pardon, je ne connais pas « {text} ». Tu peux répéter, ou me donner un quartier ou un repère proche ?",
-    "low_place_confidence": "Je n'ai pas bien compris le lieu. Tu veux dire {cand} ?",
-    "ambiguous_place": "Tu veux dire {cand} ?",
-    "place_without_coordinates": "Je connais {cand}, mais je n'ai pas encore sa position exacte. Tu peux me donner un repère proche ?",
-    "low_intent_confidence": "Pardon, je n'ai pas bien compris. Tu peux répéter un peu plus fort, s'il te plaît ?",
+    "missing_destination": "Vous voulez aller où ?",
+    "missing_origin": "D'où partez-vous ?",
+    "unresolvable_place": "Pardon, je ne connais pas « {text} ». Pouvez-vous répéter, ou me donner un quartier ou un repère proche ?",
+    "low_place_confidence": "Je n'ai pas bien compris le lieu. Vous voulez dire {cand} ?",
+    "ambiguous_place": "Vous voulez dire {cand} ?",
+    "place_without_coordinates": "Je connais {cand}, mais je n'ai pas encore sa position exacte. Pouvez-vous me donner un repère proche ?",
+    "low_intent_confidence": "Pardon, je n'ai pas bien compris. Pouvez-vous répéter un peu plus fort, s'il vous plaît ?",
 }
 # Réponses où l'app doit faire répéter (et proposer d'écrire ou la carte au 2e échec).
 RETRY_REASONS = {"low_intent_confidence", "unresolvable_place"}
@@ -221,13 +221,13 @@ class VoiceDialog:
         if u.intent == "confirm" and pending and pending.get("destination") and pending.get("origin"):
             if yes_no(text) == "yes" or not any(e["label"] in ("DESTINATION", "ORIGIN", "PLACE") for e in u.entities):
                 return self._plan(u, pending, prefix="Ya foye. ")
-            return self._reply(u, "Pardon, je n'ai pas bien compris le lieu. Tu peux le redire ?", context={"pending_request": pending})
+            return self._reply(u, "Pardon, je n'ai pas bien compris le lieu. Pouvez-vous le redire ?", context={"pending_request": pending})
         # « Non, c'est Riviera Palmeraie » : on corrige la destination de la demande en attente
         if u.intent == "deny":
             if pending and "destination" in u.places and not u.places["destination"]["reason"]:
                 fixed = dict(pending, destination=self._point(u.places["destination"]))
                 return self._plan(u, fixed, prefix="D'accord. ")
-            return self._reply(u, "D'accord. Dis-moi où tu veux aller.", context={"pending_request": pending} if pending else None)
+            return self._reply(u, "D'accord. Dites-moi où vous voulez aller.", context={"pending_request": pending} if pending else None)
 
         # FAQ et questions sur le trajet en cours (« c'est quoi un gbaka ? », « je descends où ? »)
         answered = self._knowledge_reply(u, text, position, trip)
@@ -243,7 +243,7 @@ class VoiceDialog:
                                                       "name": dest["match"]["canonical"]}
                 return self._reply(u, u.question, context={"pending_request": pending_request})
             if u.intent in ("find_stop", "ask_transfer") and not u.journey_request.get("destination"):
-                return self._reply(u, "Dis-moi ta destination, je te montre où prendre ton transport.")
+                return self._reply(u, "Dites-moi votre destination, je vous montre où prendre votre transport.")
             return self._plan(u, u.journey_request)
 
         if u.intent == "out_of_scope":  # hors sujet : refus poli, sans faire répéter
@@ -280,7 +280,7 @@ class VoiceDialog:
 
     def _plan(self, u: Understanding, request: dict, prefix: str = "") -> dict:
         if self.plan_journeys is None:
-            return self._reply(u, prefix + "J'ai compris ta demande, mais le calcul des trajets n'est pas branché.", request=request)
+            return self._reply(u, prefix + "J'ai compris votre demande, mais le calcul des trajets n'est pas branché.", request=request)
         api_request = {k: v for k, v in request.items() if k != "preferredModes"}
         try:
             result = self.plan_journeys(api_request)
@@ -308,15 +308,15 @@ class VoiceDialog:
         name = place.get("canonical", "cet endroit")
         incident = next((e["text"] for e in u.entities if e["label"] == "INCIDENT_TYPE"), None)
         return {
-            "report_incident": f"Merci. Je prépare le signalement{f' « {incident} »' if incident else ''} vers {name}. Confirme-le sur l'écran pour prévenir les autres voyageurs.",
-            "report_road_condition": f"Merci. Je prépare le signalement de l'état de la route vers {name}. Confirme-le sur l'écran.",
-            "traffic_status": "Dis-moi l'endroit, par exemple « ça bouche à Adjamé ? », et je regarde les signalements des voyageurs.",
-            "reroute": "D'accord, je recalcule un autre passage depuis ta position.",
-            "ask_nearby_landmark": "Je te montre les repères autour de toi sur la carte.",
-            "voice_help": "Je peux te trouver un trajet, te dire le prix, la durée, ou où prendre ton gbaka, ton wôrô-wôrô ou ton bus. Dis par exemple : je vais au Plateau.",
+            "report_incident": f"Merci. Je prépare le signalement{f' « {incident} »' if incident else ''} vers {name}. Confirmez-le sur l'écran pour prévenir les autres voyageurs.",
+            "report_road_condition": f"Merci. Je prépare le signalement de l'état de la route vers {name}. Confirmez-le sur l'écran.",
+            "traffic_status": "Dites-moi l'endroit, par exemple « ça bouche à Adjamé ? », et je regarde les signalements des voyageurs.",
+            "reroute": "D'accord, je recalcule un autre passage depuis votre position.",
+            "ask_nearby_landmark": "Je vous montre les repères autour de vous sur la carte.",
+            "voice_help": "Je peux vous trouver un trajet, vous dire le prix, la durée, ou où prendre votre gbaka, votre wôrô-wôrô ou votre bus. Dites par exemple : je vais au Plateau.",
             "confirm": "C'est noté.",
-            "out_of_scope": "Je suis SIRA, je t'aide pour tes déplacements à Abidjan. Dis-moi où tu veux aller.",
-        }.get(u.intent, "Je n'ai pas bien compris. Dis-moi où tu veux aller.")
+            "out_of_scope": "Je suis SIRA, je vous aide pour vos déplacements à Abidjan. Dites-moi où vous voulez aller.",
+        }.get(u.intent, "Je n'ai pas bien compris. Dites-moi où vous voulez aller.")
 
 
 class JourneyServiceError(RuntimeError):
@@ -351,7 +351,7 @@ def _first_ride(journey: dict) -> str | None:
             return None
         code = f" {leg['line_code']}" if leg.get("line_code") else ""
         where = _line_ends(leg.get("label") or "")
-        return f"Prends le {nz.MODE_LABELS[leg['mode']]}{code}{f', ligne {where}' if where else ''}."
+        return f"Prenez le {nz.MODE_LABELS[leg['mode']]}{code}{f', ligne {where}' if where else ''}."
     return None
 
 
@@ -387,9 +387,9 @@ def _choose(result: dict, journeys: list[dict], request: dict) -> tuple[dict, st
 def describe_journeys(result: dict, request: dict, intent: str) -> str:
     journeys = result.get("journeys") or []
     if not journeys:
-        return "Je n'ai pas trouvé de trajet qui respecte ta demande. Essaie avec un autre budget ou un autre point de départ."
+        return "Je n'ai pas trouvé de trajet qui respecte votre demande. Essayez avec un autre budget ou un autre point de départ."
     chosen, note = _choose(result, journeys, request)
-    dest = (request.get("destination") or {}).get("name", "ta destination")
+    dest = (request.get("destination") or {}).get("name", "votre destination")
     duration = chosen.get("duration")
     walking = chosen.get("walking_minutes") or 0
     route = _spoken_route(chosen)
@@ -397,7 +397,7 @@ def describe_journeys(result: dict, request: dict, intent: str) -> str:
         return f"{note}Pour aller à {dest} : {_price(chosen.get('price'))}, avec {route}."
     if intent == "ask_eta":
         return f"{note}Pour aller à {dest}, compte environ {duration} minutes{_walking(walking)}."
-    lead = {"fast": "Le plus rapide", "cheap": "Le moins cher"}.get(request.get("preference"), "Je te conseille")
+    lead = {"fast": "Le plus rapide", "cheap": "Le moins cher"}.get(request.get("preference"), "Je vous conseille")
     parts = [f"{note}{lead} pour aller à {dest} : {route}.",
              f"{_price(chosen.get('price')).capitalize()}, {duration} minutes{_walking(walking)}."]
     ride = _first_ride(chosen)

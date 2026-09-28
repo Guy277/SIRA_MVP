@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -68,8 +69,19 @@ def build_state(app: FastAPI, nlu=None, planner=None, live=None):
     state.dialog = VoiceDialog(nlu, state.resolver, config.PLACE_THRESHOLD, config.PLACE_MARGIN,
                                config.INTENT_MIN_CONFIDENCE, plan, state.knowledge, trips, config.FAQ_THRESHOLD) if nlu else None
     state.asr = Transcriber(config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE,
-                            state.resolver.place_names(), config.MAX_AUDIO_SECONDS)
-    state.tts = Synthesizer(config.PIPER_VOICE)
+                            state.resolver.place_names(kinds=("commune",)), config.MAX_AUDIO_SECONDS, config.WHISPER_BEAM)
+    state.tts = Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE)
+    if config.PRELOAD:
+        # En arrière-plan : le service répond tout de suite, et la première phrase n'attend plus 10 à 20 s.
+        threading.Thread(target=warm_speech, args=(state,), daemon=True, name="voice-warmup").start()
+
+
+def warm_speech(state) -> None:
+    for name, part in (("tts", state.tts), ("asr", state.asr)):
+        try:
+            part.warm()
+        except Exception as error:  # modèle absent : il sera signalé à la première demande, comme avant
+            log.warning("Préchargement %s impossible : %s", name, error)
 
 
 def ctx_raw_passthrough(context: str | None) -> dict | None:
@@ -111,7 +123,8 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
         return {"status": "ok" if s.dialog else "degraded", "service": "sira-voice", "version": "0.4.0",
                 "components": {"nlu": s.dialog is not None, "models_dir": str(config.MODELS_DIR), "places": len(s.resolver), "faq": len(s.knowledge),
                                "asr": {"model": config.WHISPER_NAME, "local": config.WHISPER_MODEL != config.WHISPER_NAME, "loaded": s.asr.loaded},
-                               "tts": {"voice": s.tts.voice_path.name, "available": s.tts.available},
+                               "tts": {"voice": s.tts.voice_path.name, "available": s.tts.available, "loaded": s.tts.loaded,
+                                       "speed": s.tts.speed},
                                "sira_api": config.SIRA_API_URL},
                 "errors": s.errors}
 
@@ -153,7 +166,7 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
         if not transcript["text"]:
             payload = {"understanding": None, "context": ctx_raw_passthrough(context), "journey_request": None, "journeys": None,
                        "error": None, "kind": "retry", "chosen_id": None, "sources": [],
-                       "reply_text": "Pardon, je n'ai rien entendu. Tu peux répéter un peu plus fort, s'il te plaît ?"}
+                       "reply_text": "Pardon, je n'ai rien entendu. Pouvez-vous répéter un peu plus fort, s'il vous plaît ?"}
         else:
             position = {"lat": lat, "lon": lon} if lat is not None and lon is not None else None
             try:
