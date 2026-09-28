@@ -38,13 +38,13 @@ const SETTINGS_ITEMS: NotificationSettingItem[] = [
   {
     id: 'route',
     title: 'Alertes sur mon itinéraire',
-    subtitle: 'Événements sur votre trajet',
+    subtitle: 'Événements sur ton trajet',
     defaultValue: false,
   },
   {
     id: 'zones',
     title: 'Zones suivies',
-    subtitle: 'Nouveaux événements dans vos zones',
+    subtitle: 'Nouveaux événements dans tes zones',
     defaultValue: false,
   },
   {
@@ -117,7 +117,7 @@ export default function NotificationSettingsScreen() {
           <View style={styles.comingSoon}>
             <Ionicons name="time-outline" size={18} color="#F26522" />
             <Text style={styles.comingSoonText}>
-              Les notifications arrivent dans une prochaine version. En attendant, SIRA vous prévient à la voix pendant vos trajets.
+              Les notifications arrivent dans une prochaine version. En attendant, SIRA te prévient à la voix pendant tes trajets.
             </Text>
           </View>
           {SETTINGS_ITEMS.map((item) => {

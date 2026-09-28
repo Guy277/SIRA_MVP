@@ -19,9 +19,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFavorites } from '@/hooks/use-favorites';
 import { OsmMapView } from '@/components/osm-map-view';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
-import { journeyReading } from '@/lib/spoken';
-import { say } from '@/lib/voice';
-import { alternativesText, arrivalTime, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legBadges, legCodes, legPath, MODE_NAMES, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import { journeyBrief, stepInFull, type SpokenPart } from '@/lib/spoken';
+import { say, stopSpeaking } from '@/lib/voice';
+import { alternativesText, arrivalTime, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legBadges, legCodes, legPath, MODE_NAMES, rideGuide, stepDescription, stepTitle, timeline, walkStepText } from '@/lib/journey-format';
 import { fareSummaries, type ApiLeg, type Coordinates, type FareSummary, type LegMode } from '@/lib/sira-api';
 import { notify } from '@/lib/notify';
 import { goBack } from '@/lib/navigation';
@@ -92,35 +92,61 @@ export default function RouteDetailScreen() {
 
   // Touching a step shows its stretch alone on the map; the compass shows all of it.
   const [focusedStep, setFocusedStep] = useState<number | null>(null);
+  // Walks unfolded turn by turn (« Voir le chemin »).
+  const [openWalks, setOpenWalks] = useState<Set<string>>(new Set());
+  const toggleWalk = (id: string) => setOpenWalks((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const focusPath: Coordinates[] | null = focusedStep !== null && steps[focusedStep] ? legPath(steps[focusedStep].leg) : null;
 
-  // SIRA reads the journey once, sentence by sentence, and the part being read
-  // lights up: -1 the summary, then each step, then the arrival (steps.length).
-  // « Stop » (or leaving for the guidance) ends the reading.
-  const [reading, setReading] = useState<number | null>(null);
+  // What SIRA is saying lights up on the screen, sentence by sentence (keys of
+  // lib/spoken.ts: 'summary', 'step:2', 'board:2', 'alight:2'). « Stop », another
+  // reading or leaving the screen ends it.
+  const [reading, setReading] = useState<string | null>(null);
   const mounted = useRef(true);
+  const readingRun = useRef(0);
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
+  const readAloud = async (parts: SpokenPart[], kind: 'guidance' | 'answer') => {
+    const run = ++readingRun.current;
+    for (const part of parts) {
+      await Promise.resolve();
+      if (!mounted.current || run !== readingRun.current) return;
+      setReading(part.key);
+      if (!(await say(part.text, kind))) break;
+    }
+    if (mounted.current && run === readingRun.current) setReading(null);
+  };
+  // Once per journey, the short version (line, get on, get off, how long).
   useEffect(() => {
     if (!journey || !search) return;
     const key = `${journey.id}:${search.departureAt.getTime()}`;
     if (readJourneys.has(key)) return;
     readJourneys.add(key);
     const legs = timeline(journey, search.departureAt).map((step) => step.leg);
-    const text = journeyReading(journey, legs, arrival, arrivalTime(journey, search.departureAt));
-    const parts: [number, string][] = [[-1, text.summary], ...text.steps.map((sentence, index): [number, string] => [index, sentence]), [legs.length, text.arrival]];
-    void (async () => {
-      for (const [index, sentence] of parts) {
-        await Promise.resolve();
-        if (!mounted.current) return;
-        setReading(index);
-        if (!(await say(sentence, 'guidance'))) break;
-      }
-      if (mounted.current) setReading(null);
-    })();
+    void readAloud(journeyBrief(journey, legs, arrival), 'guidance');
+    // readAloud only reads refs and state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journey, search, arrival]);
+  const litStep = (index: number) => reading === `step:${index}` || reading === `board:${index}` || reading === `alight:${index}`;
+
+  // Touching a step: shown alone on the map and read in full (touching it again stops).
+  const touchStep = (index: number) => {
+    if (focusedStep === index) {
+      setFocusedStep(null);
+      readingRun.current += 1;
+      setReading(null);
+      stopSpeaking();
+      return;
+    }
+    setFocusedStep(index);
+    const step = steps[index];
+    if (step) void readAloud(stepInFull(step.leg, arrival, index), 'answer');
+  };
 
   // Community fares (cahier des charges : prix confirmé ou corrigé par les
   // voyageurs). Taxi prices depend on distance and are not crowd-sourced.
@@ -170,8 +196,8 @@ export default function RouteDetailScreen() {
     Alert.alert(
       nowFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris',
       nowFavorite
-        ? `Le trajet "${tripTitle}" est enregistré dans vos favoris.`
-        : `Le trajet "${tripTitle}" a été retiré de vos favoris.`
+        ? `Le trajet "${tripTitle}" est enregistré dans tes favoris.`
+        : `Le trajet "${tripTitle}" a été retiré de tes favoris.`
     );
   };
 
@@ -266,7 +292,7 @@ export default function RouteDetailScreen() {
 
           {/* Summary first, as in Citymapper: how long, how much, when you arrive. */}
           {journey && arrivalAt && (
-            <Animated.View entering={FadeIn.duration(250)} style={[styles.summaryCard, reading === -1 && styles.lit]}>
+            <Animated.View entering={FadeIn.duration(250)} style={[styles.summaryCard, reading === 'summary' && styles.lit]}>
               <Text style={styles.summaryMain}>{formatDuration(journey.duration)} · {formatPrice(journey.price)}</Text>
               <Text style={styles.summaryMeta}>
                 Arrivée {formatClock(arrivalAt)}{journey.distance_km ? ` · ${formatDistance(journey.distance_km)}` : ''}
@@ -310,23 +336,24 @@ export default function RouteDetailScreen() {
                 </View>
                 <View style={styles.stepBody}>
                   <Text style={styles.stepTitle}>Aucun trajet sélectionné</Text>
-                  <Text style={styles.stepSubDesc}>Revenez aux résultats et choisissez un itinéraire.</Text>
+                  <Text style={styles.stepSubDesc}>Reviens aux résultats et choisis un itinéraire.</Text>
                 </View>
               </View>
             )}
 
             {steps.map(({ leg, start }, index) => {
               const kind = kindOf(leg);
-              const canFocus = legPath(leg).length > 1;
-              const lit = reading === index || focusedStep === index;
+              const lit = litStep(index) || focusedStep === index;
+              const guide = kind === 'ride' ? rideGuide(leg) : null;
+              const walkSteps = kind === 'walk' ? leg.walk_steps ?? [] : [];
+              const walkOpen = openWalks.has(leg.id);
               return (
                 <Animated.View key={leg.id} entering={FadeInDown.delay(120 + index * 120).duration(280)}>
                   <Pressable
                     style={styles.stepRow}
-                    onPress={() => setFocusedStep(focusedStep === index ? null : index)}
-                    disabled={!canFocus}
-                    accessibilityRole="button"
-                    accessibilityHint={canFocus ? 'Montre cette étape sur la carte' : undefined}
+                    onPress={() => touchStep(index)}
+                    // No « button » role: the row holds the « Voir le chemin » button.
+                    accessibilityHint="SIRA lit cette étape et la montre sur la carte"
                   >
                     <RoadPiece kind={kind} delay={220 + index * 120} />
                     <View style={styles.iconSlot}>
@@ -346,7 +373,7 @@ export default function RouteDetailScreen() {
                     </View>
                     <View style={[styles.stepBody, lit && styles.lit]}>
                       <View style={styles.stepHead}>
-                        <Text style={[styles.stepTitle, kind !== 'ride' && styles.stepTitleLight]}>{stepTitle(leg)}</Text>
+                        <Text style={[styles.stepTitle, kind !== 'ride' && styles.stepTitleLight]}>{stepTitle(leg, arrival)}</Text>
                         <Text style={styles.stepClock}>{formatClock(start)}</Text>
                       </View>
                       {/* The line to look for (a taxi is already said in the title). */}
@@ -356,13 +383,47 @@ export default function RouteDetailScreen() {
                         </View>
                       )}
                       <Text style={styles.stepSubDesc}>{stepDescription(leg)}</Text>
+                      {/* Where to get on, what you pass, where to get off. */}
+                      {guide?.board && (
+                        <View style={[styles.guideRow, reading === `board:${index}` && styles.guideLit]}>
+                          <Ionicons name="enter-outline" size={14} color="#15803D" />
+                          <Text style={styles.guideText}>{guide.board}</Text>
+                        </View>
+                      )}
+                      {guide?.via && <Text style={styles.guideVia}>{guide.via}</Text>}
+                      {guide?.alight && (
+                        <View style={[styles.guideRow, reading === `alight:${index}` && styles.guideLit]}>
+                          <Ionicons name="exit-outline" size={14} color="#F26522" />
+                          <Text style={[styles.guideText, styles.guideAlight]}>{guide.alight}</Text>
+                        </View>
+                      )}
+                      {guide?.ready && <Text style={styles.guideVia}>{guide.ready}</Text>}
+                      {/* The walk turn by turn, folded: most people only need where it ends. */}
+                      {walkSteps.length > 0 && (
+                        <TouchableOpacity
+                          style={styles.walkToggle}
+                          onPress={() => toggleWalk(leg.id)}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityState={{ expanded: walkOpen }}
+                        >
+                          <Text style={styles.walkToggleText}>{walkOpen ? 'Masquer le chemin' : `Voir le chemin (${walkSteps.length} étapes)`}</Text>
+                          <Ionicons name={walkOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#F26522" />
+                        </TouchableOpacity>
+                      )}
+                      {walkOpen && walkSteps.map((step, stepIndex) => (
+                        <View key={stepIndex} style={styles.walkStepRow}>
+                          <Text style={styles.walkStepDistance}>{step.distance_m > 0 ? `${step.distance_m} m` : ''}</Text>
+                          <Text style={styles.walkStepText}>{walkStepText(step, arrival)}</Text>
+                        </View>
+                      ))}
                       {kind === 'ride' && (
                         <Text style={styles.stepCostText}>
                           Coût estimé : <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
                         </Text>
                       )}
                       {kind === 'ride' && alternativesText(leg) && (
-                        <Text style={styles.alternativesText}>{alternativesText(leg)} — prenez le premier qui passe.</Text>
+                        <Text style={styles.alternativesText}>{alternativesText(leg)} — prends le premier qui passe.</Text>
                       )}
                       {leg.line_id && fares[leg.line_id]?.reports ? (
                         <Text style={styles.communityFareText}>
@@ -381,11 +442,11 @@ export default function RouteDetailScreen() {
             {journey && arrivalAt && (
               <Animated.View entering={FadeInDown.delay(120 + steps.length * 120).duration(280)} style={styles.stepRow}>
                 <View style={styles.iconSlot}>
-                  <View style={[styles.rideIcon, reading === steps.length && styles.iconLit]}>
+                  <View style={[styles.rideIcon, reading === 'arrival' && styles.iconLit]}>
                     <Ionicons name="location" size={22} color="#FFFFFF" />
                   </View>
                 </View>
-                <View style={[styles.stepBody, reading === steps.length && styles.lit]}>
+                <View style={[styles.stepBody, reading === 'arrival' && styles.lit]}>
                   <View style={styles.stepHead}>
                     <Text style={styles.stepTitle}>{arrival}</Text>
                     <Text style={styles.stepClock}>{formatClock(arrivalAt)}</Text>
@@ -776,6 +837,66 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: '#333333',
     marginTop: 2,
+    lineHeight: 16,
+  },
+  guideRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 4,
+  },
+  // The « Monte à » / « Descends à » line SIRA is saying.
+  guideLit: {
+    backgroundColor: '#FFE4D2',
+    borderRadius: 6,
+  },
+  guideText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#15803D',
+    lineHeight: 17,
+  },
+  guideAlight: {
+    color: '#C2410C',
+  },
+  guideVia: {
+    fontSize: 12,
+    color: '#4B5563',
+    marginTop: 2,
+    marginLeft: 20,
+    lineHeight: 16,
+  },
+  walkToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 4,
+    paddingVertical: 2,
+  },
+  walkToggleText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#F26522',
+  },
+  walkStepRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  walkStepDistance: {
+    width: 44,
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#6B7280',
+    textAlign: 'right',
+    marginTop: 1,
+  },
+  walkStepText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#1F2937',
     lineHeight: 16,
   },
   stepCostText: {

@@ -9,6 +9,7 @@ import {
 import { File } from 'expo-file-system';
 import type { VoiceAudio } from '@/lib/sira-api';
 import { stopSpeaking } from '@/lib/voice';
+import { needsSecureContext } from '@/lib/secure-context';
 
 const RECORDING: RecordingOptions = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
 const CHECK_MS = 150;
@@ -25,6 +26,8 @@ export function useMicrophone(onAudio: (audio: VoiceAudio | null) => Promise<voi
 
   const start = async () => {
     stopSpeaking();
+    // Web page in plain http (phone on the Wi-Fi): no microphone at all, nothing to ask.
+    if (needsSecureContext()) return false;
     const permission = await requestRecordingPermissionsAsync();
     if (!permission.granted) {
       setDenied(true);
@@ -56,9 +59,12 @@ export function useMicrophone(onAudio: (audio: VoiceAudio | null) => Promise<voi
       await onAudio(null);
       return;
     }
+    // On the phone, the recording file itself (Expo's fetch reads its bytes). iOS can give
+    // it as a bare path (« /var/mobile/… »): « file:// » is added.
+    const fileUri = uri.startsWith('/') ? `file://${uri}` : uri;
     const audio: VoiceAudio = Platform.OS === 'web'
       ? await (await fetch(uri)).blob()
-      : { uri, name: 'voix.m4a', type: 'audio/m4a' };
+      : new File(fileUri);
     if (Platform.OS === 'web') forget();
     try { await onAudio(audio); } finally { if (Platform.OS !== 'web') forget(); }
   };

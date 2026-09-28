@@ -38,15 +38,15 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!session) {
-      notify('Connexion requise', 'Connectez-vous pour enregistrer votre profil.', [{ text: 'OK', onPress: () => router.push('/login') }]);
+      notify('Connexion requise', 'Connecte-toi pour enregistrer ton profil.', [{ text: 'OK', onPress: () => router.push('/login') }]);
       return;
     }
     try {
       const user = await apiJson<SessionUser>('/users/me', { method: 'PATCH', body: JSON.stringify({ full_name: `${prenom} ${nom}`.trim() }) });
       setSession({ token: session.token, user });
-      notify('Profil enregistré', 'Vos modifications ont bien été enregistrées.', [{ text: 'OK', onPress: () => goBack(router) }]);
+      notify('Profil enregistré', 'Tes modifications ont bien été enregistrées.', [{ text: 'OK', onPress: () => goBack(router) }]);
     } catch (error) {
-      notify('Enregistrement impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+      notify('Enregistrement impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     }
   };
 

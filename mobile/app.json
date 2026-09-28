@@ -21,6 +21,7 @@
     },
     "web": {
       "output": "single",
+      "lang": "fr",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -40,7 +41,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SIRA utilise votre position pour calculer les trajets depuis l'endroit où vous êtes et pour localiser vos signalements."
+          "locationWhenInUsePermission": "SIRA utilise ta position pour calculer les trajets depuis l'endroit où tu es et pour localiser tes signalements."
         }
       ],
       "expo-font",
@@ -51,7 +52,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "SIRA utilise le micro pour comprendre votre destination quand vous parlez. Aucun enregistrement n'est conservé."
+          "microphonePermission": "SIRA utilise le micro pour comprendre ta destination quand tu parles. Aucun enregistrement n'est conservé."
         }
       ]
     ],

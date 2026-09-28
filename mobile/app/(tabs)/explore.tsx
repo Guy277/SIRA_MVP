@@ -14,7 +14,8 @@ import { YangoLocationModal } from '@/components/yango-location-modal';
 import { JourneyBadges } from '@/components/journey-badges';
 import { DepartureTimeSheet, departureLabel } from '@/components/departure-time-sheet';
 import { fetchJourneys, type ApiJourney, type CategoryName, type LegMode } from '@/lib/sira-api';
-import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, resolvePlace, useCurrentPlace } from '@/lib/places';
+import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, placeLabel, resolvePlace, useCurrentPlace } from '@/lib/places';
+import { needsSecureContext } from '@/lib/secure-context';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { alternativesText, arrivalTime, formatClock, formatDuration, formatPrice, isVehicle, journeySummary } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
@@ -49,9 +50,10 @@ export default function RouteExploreScreen() {
   const pickedDeparture = pickedDep && pickedDep.param === paramDeparture ? pickedDep.value : paramDeparture;
   const setPickedDeparture = (value: string | null) => setPickedDep({ param: paramDeparture, value });
   const departure = pickedDeparture ?? (here.status === 'ready' ? here.title : CURRENT_LOCATION);
-  const departureName = departure === CURRENT_LOCATION
-    ? (here.status === 'locating' ? 'Ma position · localisation…' : 'Ma position')
-    : departure;
+  // The own position reads « Ma position » (the landmark it is named after stays behind).
+  const departureName = departure === CURRENT_LOCATION && here.status === 'locating'
+    ? 'Ma position · localisation…'
+    : placeLabel(departure);
   // Leaving from one's own position needs a position, inside the Grand
   // Abidjan: otherwise no search is sent and the traveller is asked to pick
   // the departure (the engine would only answer with a technical error).
@@ -83,7 +85,7 @@ export default function RouteExploreScreen() {
   const waitingForPosition = departure === CURRENT_LOCATION && here.status === 'locating';
   const loading = !sameEndpoints && !ownPositionUnavailable && arrival !== '' && finished?.key !== searchKey;
   const searchError = sameEndpoints
-    ? 'Le départ et l’arrivée sont identiques : choisissez une autre destination.'
+    ? 'Le départ et l’arrivée sont identiques : choisis une autre destination.'
     : finished?.key === searchKey ? finished.error : null;
 
   // Every change of departure, arrival or time asks SIRA-MORE for journeys.
@@ -101,7 +103,7 @@ export default function RouteExploreScreen() {
           journeys: data.journeys.filter((journey) => journey.legs?.length),
           categories: data.categories ?? { coule: [], debout: [], suspendu: [] },
         });
-        setFinished({ key: searchKey, error: data.journeys.length ? null : data.rejected?.length ? 'Aucun trajet ne respecte vos contraintes.' : 'Aucun trajet trouvé entre ces deux lieux à cette heure.' });
+        setFinished({ key: searchKey, error: data.journeys.length ? null : data.rejected?.length ? 'Aucun trajet ne respecte tes contraintes.' : 'Aucun trajet trouvé entre ces deux lieux à cette heure.' });
       } catch (error) {
         if (!cancelled) setFinished({ key: searchKey, error: error instanceof Error ? error.message : 'Recherche impossible pour le moment.' });
       }
@@ -176,7 +178,7 @@ export default function RouteExploreScreen() {
             <View style={styles.fieldDivider} />
             <TouchableOpacity onPress={() => setPicker('arrival')} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Changer l’arrivée">
               <Text style={styles.fieldLabel}>Arrivée</Text>
-              <Text style={[styles.fieldValue, !arrival && styles.fieldPlaceholder]} numberOfLines={1}>{arrival || 'Où allez-vous ?'}</Text>
+              <Text style={[styles.fieldValue, !arrival && styles.fieldPlaceholder]} numberOfLines={1}>{arrival || 'On va où ?'}</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity style={styles.swapButton} onPress={swap} activeOpacity={0.7} accessibilityLabel="Inverser départ et arrivée">
@@ -206,8 +208,11 @@ export default function RouteExploreScreen() {
           onClose={() => setPicker(null)}
           initialQuery={picker === 'departure' ? (isOwnPosition(departure) ? '' : departure) : arrival}
           currentLocationName={here.status === 'ready' ? here.title : CURRENT_LOCATION}
-          placeholder={picker === 'departure' ? 'D’où partez-vous ?' : 'Où allez-vous ?'}
+          placeholder={picker === 'departure' ? 'D’où pars-tu ?' : 'On va où ?'}
           purpose={picker === 'departure' ? 'departure' : 'arrival'}
+          // Choosing the arrival, the departure in the header can be changed too.
+          departureName={picker === 'arrival' ? departure : undefined}
+          onSelectDeparture={picker === 'arrival' ? (selected) => setPickedDeparture(isOwnPosition(selected) ? null : selected) : undefined}
           onSelectLocation={(selected) => {
             if (picker === 'departure') setPickedDeparture(isOwnPosition(selected) ? null : selected);
             else if (picker === 'arrival' && !isOwnPosition(selected)) setPickedArrival({ param: paramArrival, value: selected });
@@ -220,7 +225,7 @@ export default function RouteExploreScreen() {
           {!arrival && (
             <TouchableOpacity style={styles.stateCard} onPress={() => setPicker('arrival')} activeOpacity={0.8}>
               <Ionicons name="search" size={18} color="#F26522" />
-              <Text style={styles.stateText}>Où allez-vous ? Choisissez une destination.</Text>
+              <Text style={styles.stateText}>On va où ? Choisis une destination.</Text>
             </TouchableOpacity>
           )}
           {ownPositionUnavailable && arrival !== '' && (
@@ -228,8 +233,10 @@ export default function RouteExploreScreen() {
               <Ionicons name="locate" size={18} color="#F26522" />
               <Text style={styles.stateText}>
                 {ownPositionProblem === 'outside'
-                  ? 'Vous êtes hors du Grand Abidjan : touchez ici pour choisir votre départ ou votre arrivée.'
-                  : 'Position introuvable : activez la localisation ou touchez ici pour choisir votre départ ou votre arrivée.'}
+                  ? 'Tu es hors du Grand Abidjan : touche ici pour choisir ton départ ou ton arrivée.'
+                  : needsSecureContext()
+                    ? 'Ta position n’est pas disponible sans HTTPS : touche ici pour choisir ton départ.'
+                    : 'Position introuvable : active la localisation ou touche ici pour choisir ton départ ou ton arrivée.'}
               </Text>
             </TouchableOpacity>
           )}
@@ -245,7 +252,7 @@ export default function RouteExploreScreen() {
 
           {ready && step === null && (
             <>
-              <Text style={styles.sectionTitle}>Comment voulez-vous voyager ?</Text>
+              <Text style={styles.sectionTitle}>Comment veux-tu voyager ?</Text>
               {journeys.length === 1 && (
                 <Text style={styles.metaText}>Un seul trajet possible à cette heure : il est à la fois le moins cher et le plus confortable.</Text>
               )}

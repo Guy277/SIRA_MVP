@@ -6,13 +6,14 @@ import { useEffect, useRef, useState } from 'react';
 import { askByText, askByVoice, type Coordinates, type VoiceAudio, type VoiceContext, type VoiceReply, type VoiceTrip } from '@/lib/sira-api';
 import { useMicrophone } from '@/lib/use-microphone';
 import { say, stopSpeaking } from '@/lib/voice';
+import { MIC_NEEDS_HTTPS, needsSecureContext } from '@/lib/secure-context';
 
 export type VoicePhase = 'idle' | 'recording' | 'thinking' | 'answered' | 'error';
 
 // After two misunderstandings in a row, SIRA offers to type or use the map.
 const MAX_RETRIES = 2;
-const OFFER_OTHER_WAY = "Pardon, je n'arrive pas à bien vous entendre. Vous pouvez aussi écrire votre destination ou la montrer sur la carte.";
-const NOTHING_HEARD = "Pardon, je n'ai rien entendu. Pouvez-vous répéter un peu plus fort, s'il vous plaît ?";
+const OFFER_OTHER_WAY = "Pardon, je n'arrive pas à bien t'entendre. Tu peux aussi écrire ta destination ou la montrer sur la carte.";
+const NOTHING_HEARD = "Pardon, je n'ai rien entendu. Tu peux répéter un peu plus fort, s'il te plaît ?";
 
 // trip: the journey being followed, so SIRA can answer « je descends où ? ».
 export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip | null = null) {
@@ -70,7 +71,7 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
   const listen = async () => {
     setError(null);
     if (!(await microphone.start())) {
-      setError('Autorisez le micro pour parler à SIRA.');
+      setError(needsSecureContext() ? MIC_NEEDS_HTTPS : 'Autorise le micro pour parler à SIRA.');
       setBusy('error');
     }
   };

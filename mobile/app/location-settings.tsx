@@ -70,7 +70,7 @@ export default function LocationSettingsScreen() {
             />
 
             {/* Top Right "Me localiser" Pill Badge */}
-            {permission !== 'granted' && permission !== 'blocked' && (
+            {permission !== 'granted' && permission !== 'blocked' && permission !== 'insecure' && (
               <TouchableOpacity
                 style={styles.votrePositionBadge}
                 activeOpacity={0.85}
@@ -93,10 +93,10 @@ export default function LocationSettingsScreen() {
               <View style={styles.cardTextCol}>
                 <Text style={styles.cardTitle}>Accès à la position · {PERMISSION_LABELS[permission]}</Text>
                 <Text style={styles.cardDesc}>
-                  Permet à SIRA de partir de là où vous êtes et de vous prévenir avant de descendre. Votre position n&apos;est pas enregistrée.
+                  Permet à SIRA de partir de là où tu es et de te prévenir avant de descendre. Ta position n&apos;est pas enregistrée.
                 </Text>
                 {permission === 'blocked' && !canOpenSettings && (
-                  <Text style={styles.cardHint}>Pour changer ce choix, passez par les réglages du navigateur.</Text>
+                  <Text style={styles.cardHint}>Pour changer ce choix, passe par les réglages du navigateur.</Text>
                 )}
               </View>
 

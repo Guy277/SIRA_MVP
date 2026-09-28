@@ -2,7 +2,7 @@
 // of Google Maps / Waze, with the words of Abidjan (gbaka, wôrô-wôrô), and only
 // facts given by SIRA-MORE: line, duration, distance, estimated price.
 import type { ApiJourney, ApiLeg, Coordinates } from '@/lib/sira-api';
-import { isVehicle, MODE_NAMES, toLatLng } from '@/lib/journey-format';
+import { isVehicle, MODE_NAMES, toLatLng, walkStepText } from '@/lib/journey-format';
 import { distanceM } from '@/lib/places';
 
 export type Step = { leg: ApiLeg; start: Date; end: Date };
@@ -51,11 +51,16 @@ export function stepSpeech(steps: Step[], index: number, destination: string, fo
   switch (leg.mode) {
     case 'walk':
     case 'transfer':
+      // The first instruction of the walk says which way to start (the next ones
+      // are said at each turn, see gpsHint).
+      const firstWay = leg.walk_steps?.length && leg.walk_steps[0].distance_m > 0 ? ` ${walkStepText(leg.walk_steps[0], destination)}` : '';
       if (nextRide) {
-        const stop = nextRide.mode === 'taxi' ? 'à la route, pour trouver un taxi' : `à l'arrêt, pour prendre ${spokenLine(nextRide)}`;
-        return `${getOff}${leg.mode === 'transfer' ? 'Correspondance. ' : ''}${walkTo(leg, stop)}`;
+        const target = leg.to_stop ?? nextRide.board_stop;
+        const place = target ? (target.on_line ? `à l'arrêt ${target.name}` : `vers ${target.name}`) : "à l'arrêt";
+        const stop = nextRide.mode === 'taxi' ? 'à la route, pour trouver un taxi' : `${place}, pour prendre ${spokenLine(nextRide)}`;
+        return `${getOff}${leg.mode === 'transfer' ? 'Correspondance. ' : ''}${walkTo(leg, stop)}${firstWay}`;
       }
-      return `${getOff}${walkTo(leg, `à ${destination}`)}`;
+      return `${getOff}${walkTo(leg, `à ${destination}`)}${firstWay}`;
     case 'wait': {
       const ride = steps[index + 1]?.leg;
       if (!ride || !isVehicle(ride)) return `Attends environ ${minutes(leg.duration)}.`;
@@ -65,12 +70,18 @@ export function stepSpeech(steps: Step[], index: number, destination: string, fo
         .filter((line) => line.mode === ride.mode && line.code && line.code !== ride.line_code)
         .map((line) => line.code))].slice(0, 3);
       const orOthers = others.length ? ` Le ${others.join(', le ')} ${others.length > 1 ? 'vont' : 'va'} aussi : prends le premier qui passe.` : '';
-      return `${getOff}Attends ${spokenLine(ride)}${ends && ride.mode !== 'taxi' ? `, ligne ${ends}` : ''}. Environ ${minutes(leg.duration)} d'attente.${orOthers}`;
+      // What is written on the vehicle in the direction travelled, else the two ends of the line.
+      const shows = ride.headsign && ride.mode !== 'taxi' ? `, direction ${ride.headsign}` : ends && ride.mode !== 'taxi' ? `, ligne ${ends}` : '';
+      const here = leg.at_stop?.on_line ? `Tu es à l'arrêt ${leg.at_stop.name}. ` : '';
+      return `${getOff}${here}Attends ${spokenLine(ride)}${shows}. Environ ${minutes(leg.duration)} d'attente.${orOthers}`;
     }
     default: {
       const last = index === steps.length - 1;
       const where = last ? ` jusqu'à ${destination}` : '';
-      return `${getOff}À bord ${leg.mode === 'taxi' ? "d'un taxi" : `${spokenLine(leg).replace(/^le /, 'du ')}`} : environ ${minutes(leg.duration)}${where}.${price(leg)}${followed ? ' Je te préviens avant de descendre.' : ''}`;
+      const off = leg.alight_stop && leg.mode !== 'taxi'
+        ? ` Tu descends ${leg.alight_stop.on_line ? `à l'arrêt ${leg.alight_stop.name}` : `vers ${leg.alight_stop.name}`}${leg.stop_count ? `, dans ${leg.stop_count} arrêt${leg.stop_count > 1 ? 's' : ''}` : ''}.`
+        : '';
+      return `${getOff}À bord ${leg.mode === 'taxi' ? "d'un taxi" : `${spokenLine(leg).replace(/^le /, 'du ')}`} : environ ${minutes(leg.duration)}${where}.${off}${price(leg)}${followed ? ' Je te préviens avant de descendre.' : ''}`;
     }
   }
 }
@@ -89,7 +100,9 @@ export function spokenJourney(journey: ApiJourney) {
 
 export const alightSoonSpeech = (leg: ApiLeg) => (leg.mode === 'taxi'
   ? 'On arrive bientôt, prépare-toi à descendre.'
-  : 'Prépare-toi, tu descends au prochain arrêt.');
+  : leg.alight_stop?.on_line
+    ? `Prépare-toi, tu descends au prochain arrêt : ${leg.alight_stop.name}.`
+    : 'Prépare-toi, tu descends au prochain arrêt.');
 export const arrivalSpeech = (destination: string) => `Te voilà à ${destination}. Merci d'avoir voyagé avec SIRA !`;
 export const fareQuestion = (leg: ApiLeg) =>
   `Combien as-tu payé ${spokenLine(leg).replace(/^un taxi$/, 'le taxi')} ? Ta réponse aide les autres voyageurs.`;
@@ -105,6 +118,37 @@ const ARRIVED_M = 40;
 
 const first = (leg: ApiLeg | undefined) => (leg?.geometry?.length ? toLatLng(leg.geometry[0]) : null);
 const last = (leg: ApiLeg | undefined) => (leg?.geometry?.length ? toLatLng(leg.geometry[leg.geometry.length - 1]) : null);
+
+// Said once, at the right place: the next turn of a walk (30 m before), and in the
+// middle of a ride, where you are (« Tu viens de passer Gare Nord. Encore 6 arrêts. »).
+const TURN_SOON_M = 30;
+const PASSED_STOP_M = 80;
+const MIDWAY_MIN_STOPS = 5;
+export type GpsHint = { id: string; text: string } | null;
+
+export function gpsHint(step: Step | undefined, here: Coordinates, said: Set<string>, key: string, destination: string): GpsHint {
+  if (!step) return null;
+  const { leg } = step;
+  if (leg.mode === 'walk' || leg.mode === 'transfer') {
+    const turns = leg.walk_steps ?? [];
+    // The first one is said when the walk begins, the last one is the arrival.
+    for (let index = 1; index < turns.length - 1; index += 1) {
+      const turn = turns[index];
+      const id = `${key}:turn:${index}`;
+      if (!turn.point || said.has(id)) continue;
+      if (distanceM(here, toLatLng(turn.point)) < TURN_SOON_M) return { id, text: walkStepText(turn, destination) };
+    }
+    return null;
+  }
+  const stops = leg.ride_stops ?? [];
+  if (!isVehicle(leg) || leg.mode === 'taxi' || stops.length < MIDWAY_MIN_STOPS) return null;
+  const middle = Math.floor((stops.length - 1) / 2);
+  const id = `${key}:midway`;
+  const stop = stops[middle];
+  if (said.has(id) || distanceM(here, { latitude: stop.lat, longitude: stop.lon }) > PASSED_STOP_M) return null;
+  const left = stops.length - 1 - middle;
+  return { id, text: `Tu viens de passer ${stop.name}. Encore ${left} arrêt${left > 1 ? 's' : ''}.` };
+}
 
 export type GpsEvent = { type: 'advance'; to: number } | { type: 'alight-soon' } | { type: 'arrived' } | null;
 

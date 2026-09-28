@@ -2,9 +2,9 @@
 // in « tu », for travellers who walk, are in the noise or have no time to read.
 // Figures (price, duration) always come from SIRA-MORE, never written here.
 // The guidance during a trip is in lib/guidance.ts.
-import type { ApiJourney, ApiLeg } from '@/lib/sira-api';
+import type { ApiJourney, ApiLeg, StopMention } from '@/lib/sira-api';
 import type { JourneySearch } from '@/lib/journey-store';
-import { isVehicle } from '@/lib/journey-format';
+import { isVehicle, walkStepText } from '@/lib/journey-format';
 import { minutes, spokenJourney, spokenLine } from '@/lib/guidance';
 import { isNight } from '@/lib/greeting';
 
@@ -39,31 +39,86 @@ export const SEARCH_ERRORS = {
   offline: "Je n'arrive pas à joindre SIRA. Vérifie ta connexion, puis réessaie.",
 };
 
-// Detail of a journey, before leaving: read step by step, each sentence lighting
-// up its step on the screen (the summary, every step, then the arrival).
-const spokenClock = (date: Date) => `${date.getHours()} h${date.getMinutes() ? ` ${String(date.getMinutes()).padStart(2, '0')}` : ''}`;
-function stepSpeech(leg: ApiLeg) {
+// A journey out loud. Rules, or it becomes noise: one breath per sentence (about
+// 12 words), one piece of advice each, never twice the same thing. Each sentence
+// has the key of the part of the screen it lights up: 'summary', `step:2`,
+// `board:2` / `alight:2` (the « Monte à » / « Descends à » lines of step 2).
+export type SpokenPart = { key: string; text: string };
+
+// « jusqu'à l'arrêt Carrefour Kouté » for a stop of the line, « vers Carrefour Kouté » for a landmark.
+const spokenTo = (stop: StopMention) => (stop.on_line ? `jusqu'à l'arrêt ${stop.name}` : `vers ${stop.name}`);
+export const spokenAt = (stop: StopMention) => (stop.on_line ? `à l'arrêt ${stop.name}` : `vers ${stop.name}`);
+const capital = (text: string) => text.replace(/^./, (letter) => letter.toUpperCase());
+const stopsLeft = (count: number | null | undefined) => (count ? `, après ${count} arrêt${count > 1 ? 's' : ''}` : '');
+const spokenDuration = (value: number) => {
+  if (value < 60) return minutes(value);
+  const hours = Math.floor(value / 60);
+  return `${hours} heure${hours > 1 ? 's' : ''}${value % 60 ? ` ${value % 60}` : ''}`;
+};
+// « 240 mètres » (rounded as people say it).
+const spokenMetres = (value: number) => `${value < 100 ? Math.round(value / 10) * 10 : Math.round(value / 50) * 50} mètres`;
+
+// Before leaving (about 10 s): only what must be remembered — the line, where to
+// get on, where to get off — then how long and how much. Walks and waits are written,
+// not said; touching a step reads it in full.
+export function journeyBrief(journey: ApiJourney, legs: ApiLeg[], arrival: string): SpokenPart[] {
+  const parts: SpokenPart[] = [];
+  legs.forEach((leg, index) => {
+    if (!isVehicle(leg)) return;
+    if (leg.mode === 'taxi') {
+      parts.push({ key: `step:${index}`, text: `Un taxi, environ ${minutes(leg.duration)}.` });
+      return;
+    }
+    parts.push({ key: `step:${index}`, text: `${capital(spokenLine(leg))}${leg.headsign ? `, direction ${leg.headsign}` : ''}.` });
+    if (leg.board_stop) parts.push({ key: `board:${index}`, text: `Monte ${spokenAt(leg.board_stop)}.` });
+    if (leg.alight_stop) parts.push({ key: `alight:${index}`, text: `Descends ${spokenAt(leg.alight_stop)}${stopsLeft(leg.stop_count)}.` });
+  });
+  if (!parts.length) parts.push({ key: 'step:0', text: `À pied, environ ${spokenDuration(journey.duration)} jusqu'à ${arrival}.` });
+  const cost = journey.price ? `, ${francs(journey.price)}` : '';
+  parts.push({ key: 'summary', text: `${capital(spokenDuration(journey.duration))}${cost}. Touche Démarrer quand tu veux.` });
+  return parts;
+}
+
+// One step in full, when the traveller touches it: the same words as on the screen.
+export function stepInFull(leg: ApiLeg, arrival: string, index: number): SpokenPart[] {
+  const key = `step:${index}`;
   switch (leg.mode) {
-    case 'walk': return `Marche environ ${minutes(leg.duration)}.`;
-    case 'transfer': return `Change à pied, environ ${minutes(leg.duration)}.`;
-    case 'wait': return `Attends environ ${minutes(leg.duration)}.`;
-    default: return `Prends ${spokenLine(leg)}, environ ${minutes(leg.duration)}.`;
+    case 'walk':
+    case 'transfer': {
+      const where = leg.to_stop ? ` ${spokenTo(leg.to_stop)}` : leg.from_stop ? ` jusqu'à ${arrival}` : '';
+      const first = `${leg.mode === 'transfer' ? 'Change à pied' : 'Marche'} ${minutes(leg.duration)}${where}.`;
+      const turns = (leg.walk_steps ?? []).slice(0, 8).map((step) => ({
+        key,
+        text: step.distance_m >= 20 ? `${capital(spokenMetres(step.distance_m))} : ${walkStepText(step, arrival)}` : walkStepText(step, arrival),
+      }));
+      return [{ key, text: first }, ...turns];
+    }
+    case 'wait': {
+      const parts = [{ key, text: `Attends environ ${minutes(leg.duration)}${leg.at_stop ? ` ${spokenAt(leg.at_stop)}` : ''}.` }];
+      const peak = (leg as ApiLeg & { duration_p90?: number }).duration_p90;
+      if (peak && peak > leg.duration) parts.push({ key, text: `Aux heures de pointe, jusqu'à ${minutes(peak)}.` });
+      return parts;
+    }
+    case 'taxi':
+      return [
+        { key, text: `Prends un taxi, environ ${minutes(leg.duration)}.` },
+        { key, text: `Environ ${francs(leg.price)}.` },
+      ];
+    default: {
+      const parts: SpokenPart[] = [{ key, text: `Prends ${spokenLine(leg)}${leg.headsign ? `, direction ${leg.headsign}` : ''}.` }];
+      if (leg.board_stop) parts.push({ key: `board:${index}`, text: `Monte ${spokenAt(leg.board_stop)}.` });
+      const via = leg.via_stops ?? [];
+      if (via.length) parts.push({ key, text: `Tu passes par ${via.length > 1 ? `${via.slice(0, -1).join(', ')} et ${via[via.length - 1]}` : via[0]}.` });
+      if (leg.before_alight_stop) parts.push({ key, text: `Prépare-toi après ${leg.before_alight_stop}.` });
+      if (leg.alight_stop) parts.push({ key: `alight:${index}`, text: `Descends ${spokenAt(leg.alight_stop)}${stopsLeft(leg.stop_count)}.` });
+      if (leg.price) parts.push({ key, text: `Environ ${francs(leg.price)}.` });
+      return parts;
+    }
   }
 }
-export const journeyReading = (journey: ApiJourney, legs: ApiLeg[], arrival: string, arrivalAt: Date) => ({
-  summary: `Ton trajet : ${spokenJourney(journey)}. Environ ${minutes(journey.duration)} et ${francs(journey.price)}.`,
-  steps: legs.map(stepSpeech),
-  arrival: `Tu arrives à ${arrival} vers ${spokenClock(arrivalAt)}. Touche Démarrer l'itinéraire pour partir.`,
-});
 
 // Reports.
 export const REPORT_CHOOSE = 'Quel incident veux-tu signaler ? Touche le bon type.';
 export const reportDetailSpeech = (title: string) => `${title}. Vérifie l'endroit, puis touche Signaler l'événement.`;
 export const REPORT_SENT = "Merci ! Ton signalement est envoyé. Il comptera dès qu'un autre voyageur le confirme.";
 export const REPORT_FAILED = "Je n'ai pas pu envoyer ton signalement. Réessaie dans un instant.";
-
-// Sign-in: read only when the traveller touches « Écouter » (the screen stays silent).
-export const LOGIN_SIGNED_IN = 'Ton compte est déjà actif sur ce téléphone. Touche Continuer.';
-export const LOGIN_PHONE = 'Entre ton numéro Orange qui commence par 07.';
-export const LOGIN_CODE = 'Je t\'ai envoyé un code par SMS. Entre les 4 chiffres.';
-export const LOGIN_NAME = 'Bienvenue ! Comment tu t\'appelles ?';

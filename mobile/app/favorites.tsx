@@ -65,7 +65,7 @@ export default function FavoritesScreen() {
   const handleRemove = (item: FavoriteRoute) => {
     Alert.alert(
       'Retirer des favoris',
-      `Voulez-vous retirer le trajet "${item.title}" de vos favoris ?`,
+      `Tu veux retirer le trajet "${item.title}" de tes favoris ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -176,8 +176,8 @@ export default function FavoritesScreen() {
               <Text style={styles.emptyStateTitle}>Aucun favori enregistré</Text>
               <Text style={styles.emptyStateSubtitle}>
                 {searchQuery
-                  ? 'Aucun résultat ne correspond à votre recherche.'
-                  : 'Ajoutez vos trajets réguliers en favoris depuis l’historique ou le détail des trajets pour les retrouver ici à tout moment.'}
+                  ? 'Aucun résultat ne correspond à ta recherche.'
+                  : 'Ajoute tes trajets réguliers en favoris depuis l’historique ou le détail des trajets pour les retrouver ici à tout moment.'}
               </Text>
             </View>
           }

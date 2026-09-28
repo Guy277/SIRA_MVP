@@ -20,7 +20,7 @@ export function useOtpLogin() {
     setStep('code');
     setCode('');
     setInfo(result.demo_code
-      ? `Mode démo : votre code est ${result.demo_code}`
+      ? `Mode démo : ton code est ${result.demo_code}`
       : `Code à ${OTP_LENGTH} chiffres envoyé par SMS au ${result.phone_number}`);
   };
 
@@ -39,7 +39,7 @@ export function useOtpLogin() {
     } catch (error) {
       // A refused code is cleared so the next one can be typed straight away.
       if (step === 'code') { setFailures((count) => count + 1); setCode(''); }
-      notify('Connexion impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+      notify('Connexion impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
       return null;
     } finally {
       setBusy(false);
@@ -50,7 +50,7 @@ export function useOtpLogin() {
     if (busy) return;
     setBusy(true);
     try { await sendCode(phone); } catch (error) {
-      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally { setBusy(false); }
   };
 

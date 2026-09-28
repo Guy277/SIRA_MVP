@@ -1,12 +1,22 @@
 // Client of the SIRA back-end (NestJS API + SIRA-MORE). Every screen goes
 // through this module; no screen talks to the network on its own.
 import Constants from 'expo-constants';
+import type { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { currentToken, expireSession } from '@/lib/session';
 
 export type Coordinates = { latitude: number; longitude: number };
 export type CategoryName = 'coule' | 'debout' | 'suspendu';
 export type LegMode = 'walk' | 'wait' | 'transfer' | 'sotra' | 'gbaka' | 'woro' | 'taxi' | 'boat';
+
+// A stop told to the traveller: on_line, a stop of the line itself (« à … »);
+// otherwise only a landmark nearby (« vers … »).
+export type StopMention = { name: string; on_line: boolean };
+// One instruction of a walk (« Tourne à droite dans Avenue Lamblin. »), with a named
+// stop as landmark when the street has no name, and where it applies (said there, GPS).
+export type WalkStep = { text: string; distance_m: number; landmark: string | null; point?: [number, number] };
+// A stop of a ride, with where it is (« Tu viens de passer Gare Nord »).
+export type RideStopPoint = { name: string; lon: number; lat: number };
 
 export type ApiLeg = {
   id: string;
@@ -22,6 +32,19 @@ export type ApiLeg = {
   line_code?: string;
   // Other lines serving the same boarding and alighting stops.
   alternatives?: LineAlternative[];
+  // Where to get on and off (named stops of the 2021 network), what the vehicle shows.
+  board_stop?: StopMention | null;
+  alight_stop?: StopMention | null;
+  via_stops?: string[];
+  before_alight_stop?: string | null;
+  headsign?: string | null;
+  stop_count?: number | null;
+  ride_stops?: RideStopPoint[];
+  // Waiting: where. Walking: from where, to which stop, and the way in words.
+  at_stop?: StopMention | null;
+  from_stop?: StopMention | null;
+  to_stop?: StopMention | null;
+  walk_steps?: WalkStep[];
 };
 
 export type LineAlternative = { line_id: string; code?: string; name: string; mode: LegMode };
@@ -85,6 +108,16 @@ export function apiBaseUrl() {
 
 export class SiraApiError extends Error {}
 
+// In development (phone on the PC's Wi-Fi, browser or Expo Go), the address called and the
+// phone's own reason help to find what blocks: PC off, other Wi-Fi, firewall, upload refused.
+// Also written in the Expo terminal. Never shown in production.
+const unreachable = (what: string, error?: unknown) => {
+  if (!__DEV__) return `${what} injoignable. Vérifie ta connexion.`;
+  const reason = error instanceof Error && error.message ? ` (${error.message})` : '';
+  console.warn(`[SIRA] ${what} injoignable à ${apiBaseUrl()}${reason}`);
+  return `${what} injoignable à ${apiBaseUrl()}${reason}. Vérifie que le PC est allumé et sur le même Wi-Fi.`;
+};
+
 export async function apiJson<T>(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const { timeoutMs = 15_000, ...rest } = init;
   const controller = new AbortController();
@@ -98,8 +131,8 @@ export async function apiJson<T>(path: string, init: RequestInit & { timeoutMs?:
       signal: controller.signal,
     });
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw new SiraApiError('Le serveur SIRA met trop de temps à répondre. Réessayez dans un instant.');
-    throw new SiraApiError('Serveur SIRA injoignable. Vérifiez votre connexion.');
+    if (error instanceof Error && error.name === 'AbortError') throw new SiraApiError('Le serveur SIRA met trop de temps à répondre. Réessaie dans un instant.');
+    throw new SiraApiError(unreachable('Serveur SIRA', error));
   } finally {
     clearTimeout(timer);
   }
@@ -210,7 +243,10 @@ export type VoiceReply = {
   // Where the answer comes from: a FAQ entry (« modes.gbaka »), « sira-more », « signalements »…
   sources?: string[];
 };
-export type VoiceAudio = Blob | { uri: string; name: string; type: string };
+// The recording: a Blob on the web, an expo-file-system File on the phone. Expo's fetch
+// (SDK 57) sends a File part by reading its bytes; it refuses React Native's old
+// { uri, name, type } object (« Unsupported FormDataPart implementation »).
+export type VoiceAudio = Blob | File;
 
 // The trip being followed, sent with a question so SIRA can answer « je descends
 // où ? » from the engine's own figures and the travellers' live reports.
@@ -245,8 +281,8 @@ async function voiceRequest<T = VoiceReply>(path: string, init: RequestInit): Pr
   try {
     response = await fetch(`${apiBaseUrl()}${path}`, { ...init, signal: controller.signal });
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw new SiraApiError('SIRA met trop de temps à répondre. Réessayez.');
-    throw new SiraApiError('Assistant vocal injoignable. Vérifiez votre connexion.');
+    if (error instanceof Error && error.name === 'AbortError') throw new SiraApiError('SIRA met trop de temps à répondre. Réessaie.');
+    throw new SiraApiError(unreachable('Assistant vocal', error));
   } finally {
     clearTimeout(timer);
   }
@@ -262,11 +298,16 @@ async function voiceRequest<T = VoiceReply>(path: string, init: RequestInit): Pr
   return response.json() as Promise<T>;
 }
 
+const appendAudio = (form: FormData, audio: VoiceAudio) => {
+  if (audio instanceof Blob) form.append('audio', audio, 'voix.webm');
+  // The File keeps its own name (…m4a) and type: Expo's fetch reads them.
+  else form.append('audio', audio as unknown as Blob);
+};
+
 // Spoken request: audio recorded by the app (never stored by SIRA).
 export function askByVoice(audio: VoiceAudio, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null) {
   const form = new FormData();
-  if (audio instanceof Blob) form.append('audio', audio, 'voix.webm');
-  else form.append('audio', audio as unknown as Blob);
+  appendAudio(form, audio);
   if (position) {
     form.append('lat', String(position.latitude));
     form.append('lon', String(position.longitude));
@@ -291,7 +332,6 @@ export function askByText(text: string, position: Coordinates | null, context: V
 export type ShortAnswer = { transcript: { text: string }; answer: 'yes' | 'no' | null; amount: number | null };
 export function answerByVoice(audio: VoiceAudio) {
   const form = new FormData();
-  if (audio instanceof Blob) form.append('audio', audio, 'voix.webm');
-  else form.append('audio', audio as unknown as Blob);
+  appendAudio(form, audio);
   return voiceRequest<ShortAnswer>('/voice/answer', { method: 'POST', body: form });
 }

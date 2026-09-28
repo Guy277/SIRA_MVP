@@ -149,8 +149,8 @@ export default function ReportEventScreen() {
             {/* Speech Bubble */}
             <View style={styles.speechBubbleBox}>
               <Text style={styles.speechBubbleText}>
-                <Text style={styles.boldText}>En signalant un événement</Text>, vous nous aidez
-                à <Text style={styles.boldText}>améliorer SIRA</Text> et à vous proposer
+                <Text style={styles.boldText}>En signalant un événement</Text>, tu nous aides
+                à <Text style={styles.boldText}>améliorer SIRA</Text> et à te proposer
                 des <Text style={styles.boldText}>itinéraires plus optimisés.</Text>
               </Text>
               <View style={styles.speechBubblePointer} />
@@ -168,7 +168,7 @@ export default function ReportEventScreen() {
           <View style={styles.headingSection}>
             <Text style={styles.mainHeading}>Que se passe-t-il ?</Text>
             <Text style={styles.subHeading}>
-              Sélectionnez le type d'événement que vous voulez signaler.
+              Choisis le type d'événement que tu veux signaler.
             </Text>
           </View>
 

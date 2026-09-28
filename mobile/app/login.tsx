@@ -51,7 +51,7 @@ const WHITE_LOGO_TOP = (270 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_LEFT = (148 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
 import { OTP_LENGTH, useOtpLogin } from '@/lib/use-otp-login';
-import { goBack, goHome } from '@/lib/navigation';
+import { goHome } from '@/lib/navigation';
 import { firstName, setSession, useKnownTraveller, useSession } from '@/lib/session';
 import { logoutUser } from '@/hooks/use-auth';
 import { updateName } from '@/lib/sira-api';
@@ -59,13 +59,11 @@ import { notify } from '@/lib/notify';
 import { playIntroToday } from '@/lib/motion';
 import { RotatingText } from '@/components/rotating-text';
 import { checkOrangeNumber, formatLocal } from '@/lib/phone';
-import { LOGIN_CODE, LOGIN_NAME, LOGIN_PHONE, LOGIN_SIGNED_IN } from '@/lib/spoken';
-import { say } from '@/lib/voice';
 
 const WELCOME_PHRASES = [
   'Bus, gbaka, wôrô-wôrô, bateau, taxi : tout Abidjan dans une appli.',
-  'SIRA trouve le meilleur trajet pour votre budget.',
-  'Un bouchon signalé ? SIRA vous fait passer ailleurs.',
+  'SIRA trouve le meilleur trajet pour ton budget.',
+  'Un bouchon signalé ? SIRA te fait passer ailleurs.',
 ];
 
 
@@ -104,9 +102,7 @@ export default function LoginScreen() {
   const signedIn = Boolean(session) && !switching;
   const name = firstName(traveller);
   const phone = typedPhone ?? (traveller ? formatLocal(traveller.phone_number) : '');
-  // The sign-in stays silent (SIRA's voice starts at home, with « Akwaba »): the
-  // instruction of each step is read only when « Écouter » is touched.
-  const instruction = askName ? LOGIN_NAME : signedIn ? LOGIN_SIGNED_IN : otp.step === 'code' ? LOGIN_CODE : LOGIN_PHONE;
+  // The sign-in stays silent and light: SIRA's voice starts at home, with « Akwaba ».
   // Only Orange mobile numbers (07): the traveller is told while typing.
   const numberCheck = checkOrangeNumber(phone);
 
@@ -115,7 +111,7 @@ export default function LoginScreen() {
     if (signedIn && !askName) { goHome(router); return; }
     if (otp.step === 'phone' && !numberCheck.ok) {
       setRefusedNumbers((count) => count + 1);
-      if (!numberCheck.message) notify('Numéro incomplet', 'Entrez les 10 chiffres de votre numéro Orange : 07 XX XX XX XX.');
+      if (!numberCheck.message) notify('Numéro incomplet', 'Entre les 10 chiffres de ton numéro Orange : 07 XX XX XX XX.');
       return;
     }
     const result = await otp.submit(phone, typedCode);
@@ -138,7 +134,7 @@ export default function LoginScreen() {
         const user = await updateName(value);
         setSession({ token: session.token, user });
       } catch (error) {
-        notify('Prénom non enregistré', error instanceof Error ? error.message : 'Vous pourrez l’ajouter dans votre profil.');
+        notify('Prénom non enregistré', error instanceof Error ? error.message : 'Tu pourras l’ajouter dans ton profil.');
       }
     }
     goHome(router);
@@ -152,9 +148,11 @@ export default function LoginScreen() {
     setSwitching(true);
   };
 
-  // Before this screen comes the presentation (COMMENCER);
-  // going back must never open the app without signing in.
-  const handleBack = () => (session ? goBack(router) : router.replace('/onboarding'));
+  // Signed out: back to the presentation (COMMENCER), never into the app without
+  // signing in. Signed in (« Heureux de te revoir », or the first-name step), there
+  // is no back: it would only lead home, like « Continuer » / « Plus tard ».
+  const showBack = !session;
+  const handleBack = () => router.replace('/onboarding');
 
   return (
     <View style={styles.container}>
@@ -170,16 +168,18 @@ export default function LoginScreen() {
       <View style={styles.darkOverlay} />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* Top Left Circular Orange Back Button */}
+        {/* Top Left Circular Orange Back Button (its room is kept, so nothing moves). */}
         <View style={styles.topNavRow}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.8}
-            accessibilityLabel="Retour"
-          >
-            <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+          {showBack && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBack}
+              activeOpacity={0.8}
+              accessibilityLabel="Retour"
+            >
+              <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Diagonal Road Stripe Image (Top: 126px, Left: -20px, 450x138) */}
@@ -233,25 +233,25 @@ export default function LoginScreen() {
                 <>
                   <Animated.Text entering={enter(0, 0)} style={styles.titleLine1}>ENCHANTÉ !</Animated.Text>
                   <Animated.Text entering={enter(1, 0)} style={styles.titleLine2}>
-                    VOTRE COMPTE <Text style={styles.titleOrange}>EST PRÊT</Text>
+                    TON COMPTE <Text style={styles.titleOrange}>EST PRÊT</Text>
                   </Animated.Text>
                   <Animated.Text entering={enter(2, 0)} style={styles.subtitle}>
-                    <Text style={styles.subtitleBold}>Comment doit-on vous appeler ?</Text>{'\n'}
-                    SIRA vous saluera par votre prénom.
+                    <Text style={styles.subtitleBold}>Comment on t’appelle ?</Text>{'\n'}
+                    SIRA te saluera par ton prénom.
                   </Animated.Text>
                 </>
               ) : known === undefined ? null : traveller ? (
                 <>
                   <Animated.Text entering={enter(0)} style={styles.titleLine1}>HEUREUX</Animated.Text>
                   <Animated.Text entering={enter(1)} style={styles.titleLine2}>
-                    DE <Text style={styles.titleOrange}>VOUS REVOIR{name ? ',' : ''}</Text>
+                    DE <Text style={styles.titleOrange}>TE REVOIR{name ? ',' : ''}</Text>
                   </Animated.Text>
                   {name && <Animated.Text entering={enter(2)} style={[styles.titleLine2, styles.titleOrange]}>{name}</Animated.Text>}
                   <Animated.Text entering={enter(3)} style={styles.subtitle}>
                     {signedIn ? (
-                      <>Votre compte est déjà actif sur ce téléphone.{'\n'}<Text style={styles.subtitleBold}>Continuez directement, sans code.</Text></>
+                      <>Ton compte est déjà actif sur ce téléphone.{'\n'}<Text style={styles.subtitleBold}>Continue directement, sans code.</Text></>
                     ) : (
-                      <>Votre mobilité à Abidjan vous attend.{'\n'}<Text style={styles.subtitleBold}>Confirmez votre numéro Orange : code à 4 chiffres par SMS.</Text></>
+                      <>Ta mobilité à Abidjan t’attend.{'\n'}<Text style={styles.subtitleBold}>Confirme ton numéro Orange : code à 4 chiffres par SMS.</Text></>
                     )}
                   </Animated.Text>
                 </>
@@ -266,22 +266,11 @@ export default function LoginScreen() {
                     <RotatingText phrases={WELCOME_PHRASES} style={[styles.subtitle, styles.noMargin]} />
                   </Animated.View>
                   <Animated.Text entering={enter(3)} style={[styles.subtitle, styles.subtitleBold]}>
-                    Entrez votre numéro Orange (07) : code à 4 chiffres par SMS.
+                    Entre ton numéro Orange (07) : code à 4 chiffres par SMS.
                   </Animated.Text>
                 </>
               )}
             </View>
-
-            <TouchableOpacity
-              style={styles.listenButton}
-              onPress={() => { void say(instruction, 'requested'); }}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Écouter la consigne"
-            >
-              <Ionicons name="volume-high" size={16} color="#F26522" />
-              <Text style={styles.listenText}>Écouter</Text>
-            </TouchableOpacity>
 
             {askName && (
               <View style={styles.inputWrapper}>
@@ -290,7 +279,7 @@ export default function LoginScreen() {
                 </View>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Votre prénom"
+                  placeholder="Ton prénom"
                   placeholderTextColor="#AAAAAA"
                   value={typedName}
                   onChangeText={setName}
@@ -352,7 +341,7 @@ export default function LoginScreen() {
 
             {traveller && !askName && (
               <Text style={styles.switchLink} onPress={switchAccount} accessibilityRole="button">
-                {name ? `Vous n'êtes pas ${name} ? ` : 'Pas votre compte ? '}<Text style={styles.subtitleBold}>Changer de compte</Text>
+                {name ? `Tu n'es pas ${name} ? ` : 'Pas ton compte ? '}<Text style={styles.subtitleBold}>Changer de compte</Text>
               </Text>
             )}
           </ScrollView>
@@ -390,6 +379,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topNavRow: {
+    minHeight: 46,
     paddingHorizontal: 20,
     paddingTop: 6,
     paddingBottom: 2,
@@ -556,24 +546,6 @@ const styles = StyleSheet.create({
   },
   subtitleBold: {
     color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  listenButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(242, 101, 34, 0.7)',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    marginBottom: 14,
-  },
-  listenText: {
-    color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '700',
   },
   inputWrapper: {

@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { useSyncExternalStore } from 'react';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import { reversePlace, searchPlaces, type Coordinates } from '@/lib/sira-api';
+import { needsSecureContext, POSITION_NEEDS_HTTPS } from '@/lib/secure-context';
 
 export const CURRENT_LOCATION = 'Ma position actuelle';
 
@@ -21,8 +22,9 @@ export function knownPlace(title: string) {
 
 // Asks for location permission only when the user picks "Ma position actuelle".
 export async function locateUser(): Promise<Coordinates> {
+  if (needsSecureContext()) throw new Error(POSITION_NEEDS_HTTPS);
   const permission = await Location.requestForegroundPermissionsAsync();
-  if (permission.status !== 'granted') throw new Error('Autorisez la localisation pour partir de votre position.');
+  if (permission.status !== 'granted') throw new Error('Autorise la localisation pour partir de ta position.');
   const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
   const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
   rememberPlace(CURRENT_LOCATION, coordinates);
@@ -42,7 +44,8 @@ export function distanceM(a: Coordinates, b: Coordinates) {
 export function nearestPlaceLabel(coordinates: Coordinates): string | null {
   let best: { title: string; distance: number } | null = null;
   for (const [title, place] of registry) {
-    if (title === CURRENT_LOCATION) continue;
+    // Not an earlier « Près de … » of the traveller (it gave « Près de Près de … »).
+    if (title === CURRENT_LOCATION || title === 'Ma position' || title.startsWith('Près de ')) continue;
     const distance = distanceM(coordinates, place);
     if (!best || distance < best.distance) best = { title, distance };
   }
@@ -102,6 +105,10 @@ export function refreshCurrentPlace() {
 export function isOwnPosition(label: string) {
   return label === CURRENT_LOCATION || label === 'Ma position' || (current.status === 'ready' && label === current.title);
 }
+
+// What the traveller reads for a place: their own position is « Ma position », as in
+// Google Maps (« Votre position ») or Bonjour RATP, not the landmark it was named after.
+export const placeLabel = (label: string) => (isOwnPosition(label) ? 'Ma position' : label);
 
 export function useCurrentPlace() {
   return useSyncExternalStore(

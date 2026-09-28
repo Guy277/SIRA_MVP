@@ -80,7 +80,7 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
           <Ionicons name="arrow-back" size={22} color="#000000" />
         </TouchableOpacity>
         <View style={styles.hint}>
-          <Text style={styles.hintText}>Déplacez la carte ou touchez un endroit</Text>
+          <Text style={styles.hintText}>Déplace la carte ou touche un endroit</Text>
         </View>
       </View>
 

@@ -55,9 +55,9 @@ export default function AppearanceSettingsScreen() {
   };
 
   const getModalTitle = () => {
-    if (activeModal === 'theme') return 'CHOISISSEZ UN THÈME';
-    if (activeModal === 'textSize') return 'CHOISISSEZ LA TAILLE DU TEXTE';
-    if (activeModal === 'mapStyle') return "CHOISISSEZ L'AFFICHAGE DE LA CARTE";
+    if (activeModal === 'theme') return 'CHOISIS UN THÈME';
+    if (activeModal === 'textSize') return 'CHOISIS LA TAILLE DU TEXTE';
+    if (activeModal === 'mapStyle') return "CHOISIS L'AFFICHAGE DE LA CARTE";
     return '';
   };
 

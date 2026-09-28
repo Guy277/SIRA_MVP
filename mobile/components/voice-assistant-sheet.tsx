@@ -11,6 +11,7 @@ import type { Coordinates, VoiceJourneyRequest, VoiceReply } from '@/lib/sira-ap
 import { useVoiceAssistant } from '@/lib/use-voice-assistant';
 import { MIC_PROMPT } from '@/lib/spoken';
 import { say } from '@/lib/voice';
+import { needsSecureContext } from '@/lib/secure-context';
 
 const EXAMPLES = ['Je quitte Yopougon, je vais au Plateau', 'Le gbaka pour Anyama, ça fait combien ?', 'Il y a un accident à Adjamé'];
 // Seconds before the trip starts by itself, after the answer (time to cancel).
@@ -99,11 +100,15 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
     void voice.toggle();
   };
 
-  const hint = listening ? "Je vous écoute… j'envoie dès que vous vous taisez"
+  // Web page in plain http (phone on the Wi-Fi): the browser gives no microphone.
+  // Said at once, with a way to write the destination instead.
+  const noMic = needsSecureContext();
+  const hint = noMic && !reply && !thinking ? 'Micro indisponible sans HTTPS : écris ta destination ou touche un exemple'
+    : listening ? "Je t'écoute… j'envoie dès que tu te tais"
     : thinking ? 'SIRA réfléchit…'
     : counting !== null ? `On y va ! Départ dans ${counting} s`
-    : voice.awaitingAnswer ? 'Répondez, je vous écoute'
-    : 'Touchez le micro et dites où vous allez';
+    : voice.awaitingAnswer ? 'Réponds, je t’écoute'
+    : 'Touche le micro et dis où tu vas';
 
   return (
     <View style={styles.overlay}>
@@ -122,7 +127,7 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
           accessibilityRole="button"
           accessibilityLabel={listening ? 'Envoyer ma demande' : 'Parler à SIRA'}
         >
-          <Animated.View style={[styles.micOuter, listening && styles.micOuterListening, pulseStyle]}>
+          <Animated.View style={[styles.micOuter, listening && styles.micOuterListening, noMic && styles.micUnavailable, pulseStyle]}>
             <View style={[styles.micInner, listening && styles.micInnerListening]}>
               {thinking
                 ? <ActivityIndicator color="#FFFFFF" size="large" />
@@ -132,7 +137,7 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
         </TouchableOpacity>
 
         <ScrollView style={styles.conversation} contentContainerStyle={styles.conversationContent}>
-          {reply?.transcript?.text ? <Text style={styles.heard}>Vous : « {reply.transcript.text} »</Text> : null}
+          {reply?.transcript?.text ? <Text style={styles.heard}>Toi : « {reply.transcript.text} »</Text> : null}
           {reply && (
             <View style={styles.answer} accessibilityLiveRegion="polite">
               <Text style={styles.answerLabel}>SIRA</Text>
@@ -165,7 +170,7 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
           </TouchableOpacity>
         )}
 
-        {voice.offerTyping && (
+        {(voice.offerTyping || noMic) && (
           <TouchableOpacity style={styles.goButton} onPress={onTypeInstead} activeOpacity={0.85}>
             <Ionicons name="create" size={18} color="#FFFFFF" />
             <Text style={styles.goButtonText}>Écrire ou montrer sur la carte</Text>
@@ -174,7 +179,7 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
 
         {!reply && !listening && !thinking && (
           <>
-            <Text style={styles.examplesLabel}>Ou touchez un exemple :</Text>
+            <Text style={styles.examplesLabel}>Ou touche un exemple :</Text>
             <View style={styles.chips}>
               {EXAMPLES.map((example) => (
                 <TouchableOpacity key={example} style={styles.chip} onPress={() => void voice.ask(example)} activeOpacity={0.8}>
@@ -204,6 +209,9 @@ const styles = StyleSheet.create({
   title: { color: '#FFFFFF', fontSize: 20, fontWeight: '700', marginBottom: 4 },
   subtitle: { color: '#AAAAAA', fontSize: 14, marginBottom: 22, textAlign: 'center' },
   subtitleGo: { color: '#F26522', fontWeight: '800', fontSize: 16 },
+  micUnavailable: {
+    opacity: 0.45,
+  },
   micOuter: {
     width: 104, height: 104, borderRadius: 52, backgroundColor: 'rgba(242, 101, 34, 0.2)',
     justifyContent: 'center', alignItems: 'center', marginBottom: 18,

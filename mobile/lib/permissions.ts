@@ -6,10 +6,12 @@ import { AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import { ensureCurrentPlace } from '@/lib/places';
+import { needsSecureContext } from '@/lib/secure-context';
 
 export type PermissionKind = 'location' | 'microphone';
 // granted · denied (can still be asked) · blocked (settings only) · unknown (never asked)
-export type PermissionState = 'granted' | 'denied' | 'blocked' | 'unknown' | 'checking';
+// · insecure (web page in plain http: the browser gives neither, see lib/secure-context.ts)
+export type PermissionState = 'granted' | 'denied' | 'blocked' | 'unknown' | 'checking' | 'insecure';
 
 type Response = { status: string; canAskAgain?: boolean };
 const toState = ({ status, canAskAgain }: Response): PermissionState =>
@@ -19,13 +21,14 @@ const read = { location: Location.getForegroundPermissionsAsync, microphone: get
 const ask = { location: Location.requestForegroundPermissionsAsync, microphone: requestRecordingPermissionsAsync };
 
 export const PERMISSION_LABELS: Record<PermissionState, string> = {
-  granted: 'Autorisé', denied: 'Refusé', blocked: 'Refusé', unknown: 'Pas encore demandé', checking: '…',
+  granted: 'Autorisé', denied: 'Refusé', blocked: 'Refusé', unknown: 'Pas encore demandé', checking: '…', insecure: 'HTTPS nécessaire',
 };
 
 export const canOpenSettings = Platform.OS !== 'web';
 export const openPhoneSettings = () => Linking.openSettings().catch(() => {});
 
 async function readPermissions() {
+  if (needsSecureContext()) return { location: 'insecure', microphone: 'insecure' } as Record<PermissionKind, PermissionState>;
   const entries = await Promise.all((Object.keys(read) as PermissionKind[]).map(async (kind) => {
     try { return [kind, toState(await read[kind]())] as const; } catch { return [kind, 'unknown'] as const; }
   }));

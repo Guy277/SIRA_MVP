@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { searchPlaces, type PlaceResult } from '@/lib/sira-api';
-import { rememberPlace } from '@/lib/places';
+import { placeLabel, rememberPlace } from '@/lib/places';
 
 export interface LocationItem {
   id: string;
@@ -102,6 +102,8 @@ interface LocationSuggestionsListProps {
   onBackPress?: () => void;
   onOpenMap?: () => void;
   currentLocationName?: string;
+  // Small label above the header's place (« Je suis ici », « Je pars de »).
+  headerLabel?: string;
   showFullHeader?: boolean;
   placeholder?: string;
 }
@@ -114,6 +116,7 @@ export function LocationSuggestionsList({
   onBackPress,
   onOpenMap,
   currentLocationName = 'Ma position',
+  headerLabel = 'Je suis ici',
   showFullHeader = true,
   placeholder = 'Quartier, gare, carrefour, lieu…',
 }: LocationSuggestionsListProps) {
@@ -167,10 +170,10 @@ export function LocationSuggestionsList({
             onPress={onUseCurrentLocation}
             activeOpacity={0.8}
           >
-            <Text style={styles.headerSublabel}>Je suis ici</Text>
+            <Text style={styles.headerSublabel}>{headerLabel}</Text>
             <View style={styles.headerTitleRow}>
               <Text style={styles.headerTitleText} numberOfLines={1}>
-                {currentLocationName}
+                {placeLabel(currentLocationName)}
               </Text>
               <Ionicons name="chevron-forward-circle" size={16} color="#000000" style={{ marginLeft: 4 }} />
             </View>
@@ -214,7 +217,7 @@ export function LocationSuggestionsList({
             </View>
             <View style={styles.locationTextCol}>
               <Text style={styles.locationTitle} numberOfLines={1}>Choisir sur la carte</Text>
-              <Text style={styles.locationSubtitle} numberOfLines={1}>Déplacez l’épingle jusqu’au bon endroit</Text>
+              <Text style={styles.locationSubtitle} numberOfLines={1}>Déplace l’épingle jusqu’au bon endroit</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#F26522" />
           </TouchableOpacity>
@@ -233,7 +236,7 @@ export function LocationSuggestionsList({
 
             <View style={styles.locationTextCol}>
               <Text style={styles.customQueryTitle} numberOfLines={1}>
-                "{query.trim()}"
+                « {query.trim()} »
               </Text>
               <Text style={styles.locationSubtitle} numberOfLines={1}>
                 Rechercher cet endroit à Abidjan

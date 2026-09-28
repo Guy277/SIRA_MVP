@@ -62,7 +62,7 @@ export function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
           <View style={styles.contentBody}>
             <View style={styles.confirmationCard}>
               <Text style={styles.questionText}>
-                ÊTES-VOUS SÛR DE{'\n'}VOULOIR VOUS{'\n'}DÉCONNECTER ?
+                ES-TU SÛR DE{'\n'}VOULOIR TE{'\n'}DÉCONNECTER ?
               </Text>
 
               <View style={styles.buttonsRow}>

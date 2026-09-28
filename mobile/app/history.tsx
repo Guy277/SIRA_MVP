@@ -193,7 +193,7 @@ export default function HistoryScreen() {
         duration: selectedItem.duration,
         costRange: selectedItem.costRange,
       });
-      Alert.alert('Favoris', `Le trajet "${selectedItem.title}" a été ajouté à vos favoris.`);
+      Alert.alert('Favoris', `Le trajet "${selectedItem.title}" a été ajouté à tes favoris.`);
     }
     setSelectedItem(null);
   };
@@ -281,8 +281,8 @@ export default function HistoryScreen() {
               <Text style={styles.emptyStateTitle}>Aucun historique trouvé</Text>
               <Text style={styles.emptyStateSubtitle}>
                 {searchQuery
-                  ? 'Aucun résultat ne correspond à votre recherche.'
-                  : "Vous n'avez pas encore de trajets enregistrés."}
+                  ? 'Aucun résultat ne correspond à ta recherche.'
+                  : "Tu n'as pas encore de trajets enregistrés."}
               </Text>
             </View>
           }

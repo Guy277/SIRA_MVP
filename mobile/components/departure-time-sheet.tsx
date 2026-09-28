@@ -54,7 +54,7 @@ function Sheet({ value, onClose, onChange }: Props) {
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Fermer" />
       <View style={styles.sheet}>
         <View style={styles.handle} />
-        <Text style={styles.title}>Quand partez-vous ?</Text>
+        <Text style={styles.title}>Tu pars quand ?</Text>
 
         <TouchableOpacity style={[styles.nowRow, !value && styles.nowRowActive]} onPress={() => { onChange(null); onClose(); }} activeOpacity={0.8}>
           <Ionicons name="flash" size={18} color={!value ? '#FFFFFF' : '#F26522'} />

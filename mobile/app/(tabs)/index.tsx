@@ -60,6 +60,8 @@ export default function HomeScreen() {
   useEffect(() => { void ensureCurrentPlace(); }, []);
   const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  // Another departure than one's own position, picked in the header of « On va où ? ».
+  const [pickedDeparture, setPickedDeparture] = useState<string | null>(null);
   const [bubbleHeight, setBubbleHeight] = useState(90);
   // The map, the character and the search bar come in once a day.
   const [intro] = useState(() => playIntroToday('home'));
@@ -102,14 +104,22 @@ export default function HomeScreen() {
 
   const handleLocationSelect = (selectedLoc: string) => {
     setIsYangoModalOpen(false);
-    // The departure is already the traveller's position: it cannot be the destination.
-    if (isOwnPosition(selectedLoc)) {
-      notify('Choisissez une destination', 'Vous êtes déjà à cet endroit : indiquez où vous voulez aller.');
+    const departure = pickedDeparture;
+    // Leaving from one's own position, it cannot also be the destination.
+    if (!departure && isOwnPosition(selectedLoc)) {
+      notify('Choisis une destination', 'Tu es déjà à cet endroit : indique où tu veux aller, ou touche « Ma position » pour changer de départ.');
       return;
     }
+    if (departure && selectedLoc === departure) {
+      notify('Choisis une autre destination', 'Le départ et l’arrivée sont le même endroit.');
+      return;
+    }
+    // From another departure, « Ma position » can be the destination (going back home).
+    const destination = isOwnPosition(selectedLoc) && here.status === 'ready' ? here.title : selectedLoc;
+    setPickedDeparture(null);
     router.push({
       pathname: '/(tabs)/explore',
-      params: { destination: selectedLoc, query: selectedLoc },
+      params: { destination, query: destination, ...(departure ? { from: departure } : {}) },
     });
   };
 
@@ -294,6 +304,8 @@ export default function HomeScreen() {
         visible={isYangoModalOpen}
         onClose={() => setIsYangoModalOpen(false)}
         onSelectLocation={handleLocationSelect}
+        departureName={pickedDeparture ?? undefined}
+        onSelectDeparture={(title) => setPickedDeparture(isOwnPosition(title) ? null : title)}
         currentLocationName={here.status === 'ready' ? here.title : 'Ma position'}
         placeholder="On va où ?"
         initialQuery=""

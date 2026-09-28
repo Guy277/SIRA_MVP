@@ -33,7 +33,7 @@ export default function InfoSettingsScreen() {
       onPress: () =>
         Alert.alert(
           'À propos de SIRA',
-          'SIRA est une plateforme de mobilité intelligente conçue pour optimiser vos déplacements urbains et interurbains à Abidjan.'
+          'SIRA est une plateforme de mobilité intelligente conçue pour optimiser tes déplacements urbains et interurbains à Abidjan.'
         ),
     },
     {
@@ -43,17 +43,17 @@ export default function InfoSettingsScreen() {
       onPress: () =>
         Alert.alert(
           "Conditions d'utilisation",
-          "Consultez l'ensemble des conditions générales et règles d'utilisation de la plateforme SIRA."
+          "Consulte l'ensemble des conditions générales et règles d'utilisation de la plateforme SIRA."
         ),
     },
     {
       id: 'privacy',
       title: 'Politique de confidentialité',
-      subtitle: 'Comment nous protégeons vos données',
+      subtitle: 'Comment nous protégeons tes données',
       onPress: () =>
         Alert.alert(
           'Politique de confidentialité',
-          'SIRA s’engage à protéger vos données personnelles et votre vie privée conformément aux réglementations en vigueur.'
+          'SIRA s’engage à protéger tes données personnelles et ta vie privée conformément aux réglementations en vigueur.'
         ),
     },
     {
@@ -63,7 +63,7 @@ export default function InfoSettingsScreen() {
       onPress: () =>
         Alert.alert(
           'Nous contacter',
-          'Notre équipe support est à votre disposition 7j/7.\nEmail: support@sira.ci\nTél: +225 07 00 00 00 00'
+          'Notre équipe support est à ta disposition 7j/7.\nEmail: support@sira.ci\nTél: +225 07 00 00 00 00'
         ),
     },
   ];

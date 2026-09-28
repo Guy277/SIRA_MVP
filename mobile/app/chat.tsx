@@ -24,7 +24,7 @@ type Message = { id: string; from: 'me' | 'sira'; text: string; reply?: VoiceRep
 
 const TRIP_QUESTIONS = ['Où en est mon trajet ?', 'Je descends où ?', 'Y a des bouchons sur mon trajet ?', 'Ça fait combien ?', "J'arrive à quelle heure ?"];
 const GENERAL_QUESTIONS = ['C’est quoi Coulé, Debout, Suspendu ?', 'Différence entre gbaka et wôrô ?', 'Comment signaler un accident ?',
-  'Le bateau-bus part d’où à Treichville ?', 'Vous gardez ma voix ?'];
+  'Le bateau-bus part d’où à Treichville ?', 'Tu gardes ma voix ?'];
 
 let messageCount = 0;
 const message = (from: Message['from'], text: string, extra: Partial<Message> = {}): Message =>

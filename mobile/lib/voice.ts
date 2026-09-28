@@ -13,9 +13,8 @@ export type VoiceMode = 'on' | 'alerts' | 'off';
 // expo-audio's player emits this event (typed loosely by the SDK).
 type PlayerEvents = { addListener: (event: 'playbackStatusUpdate', listener: (status: { didJustFinish: boolean }) => void) => { remove(): void } };
 // guidance: steps of the trip; alert: incidents, next stop; answer: reply to
-// something the traveller asked (always spoken unless muted); greeting: hello;
-// requested: the traveller touched « Écouter » (spoken even when muted).
-export type SpeechKind = 'guidance' | 'alert' | 'answer' | 'greeting' | 'requested';
+// something the traveller asked (always spoken unless muted); greeting: hello.
+export type SpeechKind = 'guidance' | 'alert' | 'answer' | 'greeting';
 
 const KEY = 'sira-voice-mode';
 const MODES: VoiceMode[] = ['on', 'alerts', 'off'];
@@ -60,7 +59,7 @@ export function useVoiceMode() {
 }
 
 const allowed = (kind: SpeechKind) =>
-  kind === 'requested' || mode === 'on' || (mode === 'alerts' && (kind === 'alert' || kind === 'answer'));
+  mode === 'on' || (mode === 'alerts' && (kind === 'alert' || kind === 'answer'));
 
 // Kept outside the screens so a sentence goes on when the screen changes.
 let player: AudioPlayer | null = null;

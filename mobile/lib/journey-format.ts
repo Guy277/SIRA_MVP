@@ -1,5 +1,5 @@
 // Turns engine journeys into what the maquette's cards and timeline display.
-import type { ApiJourney, ApiLeg, CategoryName, Coordinates, LegMode } from '@/lib/sira-api';
+import type { ApiJourney, ApiLeg, CategoryName, Coordinates, LegMode, StopMention } from '@/lib/sira-api';
 
 export type CategoryLabel = 'Coulé' | 'Debout' | 'Suspendu';
 
@@ -78,10 +78,11 @@ export function journeySummary(journey: ApiJourney) {
   return [changes === 0 ? 'Direct' : `${changes} changement${changes > 1 ? 's' : ''}`, walk ? `${formatDistance(walk / 1000)} à pied` : null].filter(Boolean).join(' · ');
 }
 
-// Step timeline with real clock times, starting at the chosen departure.
+// Step timeline with real clock times, starting at the chosen departure. Steps of
+// 0 min are left out (already at the stop: nothing to walk, nothing to wait).
 export function timeline(journey: ApiJourney, departureAt: Date) {
   let cursor = departureAt.getTime();
-  return journey.legs.filter((leg) => leg.mode !== 'wait' || leg.duration > 0).map((leg) => {
+  return journey.legs.filter((leg) => leg.duration > 0 || isVehicle(leg)).map((leg) => {
     const start = new Date(cursor);
     cursor += leg.duration * 60_000;
     return { leg, start, end: new Date(cursor) };
@@ -92,13 +93,21 @@ export function arrivalTime(journey: ApiJourney, departureAt: Date) {
   return new Date(departureAt.getTime() + journey.duration * 60_000);
 }
 
-export function stepTitle(leg: ApiLeg) {
+// « à l’arrêt « Carrefour Kouté » » for a stop of the line, « vers « … » » for a landmark.
+export const atStop = (stop: StopMention) => (stop.on_line ? `à l’arrêt « ${stop.name} »` : `vers « ${stop.name} »`);
+const toStop = (stop: StopMention) => (stop.on_line ? `jusqu’à l’arrêt « ${stop.name} »` : `vers « ${stop.name} »`);
+
+// Title of a step. `destination`: the place of arrival, for the last walk.
+export function stepTitle(leg: ApiLeg, destination?: string) {
   switch (leg.mode) {
-    case 'walk': return `Marchez pendant ${leg.duration} min`;
-    case 'wait': return `Attendez environ ${leg.duration} min`;
-    case 'transfer': return `Changez à pied (${leg.duration} min)`;
-    case 'taxi': return `Prenez un taxi (${leg.duration} min)`;
-    default: return `Prenez le ${shortLine(leg)} (${leg.duration} min)`;
+    case 'walk':
+      if (leg.to_stop) return `Marche ${leg.duration} min ${toStop(leg.to_stop)}`;
+      if (leg.from_stop && destination) return `Marche ${leg.duration} min jusqu’à ${destination}`;
+      return `Marche pendant ${leg.duration} min`;
+    case 'wait': return `Attends environ ${leg.duration} min`;
+    case 'transfer': return leg.to_stop ? `Change à pied ${toStop(leg.to_stop)} (${leg.duration} min)` : `Change à pied (${leg.duration} min)`;
+    case 'taxi': return `Prends un taxi (${leg.duration} min)`;
+    default: return `Prends le ${shortLine(leg)} (${leg.duration} min)`;
   }
 }
 
@@ -107,19 +116,46 @@ export function stepDescription(leg: ApiLeg & { duration_p90?: number }) {
   const metres = /(\d[\d\s]*) m\b/.exec(leg.detail)?.[1]?.replace(/\s/g, '');
   switch (leg.mode) {
     case 'walk':
-    case 'transfer':
-      return metres ? `${Number(metres).toLocaleString('fr-FR')} m à pied` : 'Courte marche';
-    case 'wait':
-      return leg.duration_p90 && leg.duration_p90 > leg.duration
-        ? `Aux heures de pointe, prévoir jusqu’à ${leg.duration_p90} min`
-        : 'Temps d’attente estimé';
+    case 'transfer': {
+      const distance = metres ? `${Number(metres).toLocaleString('fr-FR')} m à pied` : 'Courte marche';
+      return leg.from_stop ? `${distance}, depuis « ${leg.from_stop.name} »` : distance;
+    }
+    case 'wait': {
+      const peak = leg.duration_p90 && leg.duration_p90 > leg.duration ? `aux heures de pointe, jusqu’à ${leg.duration_p90} min` : null;
+      const where = leg.at_stop ? atStop(leg.at_stop) : null;
+      if (where) return peak ? `${where.replace(/^./, (letter) => letter.toUpperCase())} · ${peak}` : where.replace(/^./, (letter) => letter.toUpperCase());
+      return peak ? `Aux heures de pointe, prévois jusqu’à ${leg.duration_p90} min` : 'Temps d’attente estimé';
+    }
     case 'taxi':
       return 'Taxi compteur, trajet direct';
     default: {
+      // What the vehicle shows in the direction travelled, else the two ends of the line.
+      if (leg.headsign) return `Direction « ${leg.headsign} » (écrit sur le véhicule)`;
       const [, direction] = leg.label.split(':');
       return direction ? `Direction ${direction.trim()}` : leg.label;
     }
   }
+}
+
+// Where to get on and off a ride, and how to know you are on the way.
+export type RideGuide = { board: string | null; via: string | null; alight: string | null; ready: string | null };
+export function rideGuide(leg: ApiLeg): RideGuide {
+  const stops = leg.stop_count ? ` · ${leg.stop_count} arrêt${leg.stop_count > 1 ? 's' : ''}` : '';
+  return {
+    board: leg.board_stop ? `Monte ${atStop(leg.board_stop)}` : null,
+    via: leg.via_stops?.length ? `Passe par : ${leg.via_stops.join(' · ')}` : null,
+    alight: leg.alight_stop ? `Descends ${atStop(leg.alight_stop)}${stops}` : null,
+    ready: leg.before_alight_stop ? `Prépare-toi après « ${leg.before_alight_stop} »` : null,
+  };
+}
+
+// « Tourne à gauche dans Avenue Lamblin. » — a landmark when the street has no name,
+// and the place of arrival named instead of « Ta destination ».
+export function walkStepText(step: { text: string; landmark: string | null }, destination?: string) {
+  const text = destination
+    ? step.text.replace(/^Ta destination/, `« ${destination} »`).replace(/ta destination/, `« ${destination} »`)
+    : step.text;
+  return step.landmark ? `${text.replace(/\.$/, '')}, au niveau de « ${step.landmark} ».` : text;
 }
 
 export const toLatLng = ([longitude, latitude]: [number, number]): Coordinates => ({ latitude, longitude });

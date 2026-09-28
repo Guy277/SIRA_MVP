@@ -64,9 +64,9 @@ export default function TrafficScreen() {
     try {
       upsertReport(await voteReport(report.id, kind, clientId()));
       setSelectedId(null);
-      notify('Merci', kind === 'confirm' ? 'Confirmation enregistrée.' : 'Votre avis a été enregistré.');
+      notify('Merci', kind === 'confirm' ? 'Confirmation enregistrée.' : 'Ton avis a été enregistré.');
     } catch (error) {
-      notify('Vote impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+      notify('Vote impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally {
       setVoting(false);
     }

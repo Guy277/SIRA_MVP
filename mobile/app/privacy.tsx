@@ -12,6 +12,7 @@ import { goBack } from '@/lib/navigation';
 import {
   canOpenSettings, openPhoneSettings, PERMISSION_LABELS, usePermissions, type PermissionKind, type PermissionState,
 } from '@/lib/permissions';
+import { MIC_NEEDS_HTTPS, POSITION_NEEDS_HTTPS } from '@/lib/secure-context';
 import { privacySummary, type PrivacySummary } from '@/lib/sira-api';
 import { useSession } from '@/lib/session';
 
@@ -132,6 +133,9 @@ export default function PrivacyScreen() {
                   <Text style={styles.itemBody}>{permission.why}</Text>
                   {state === 'blocked' && !canOpenSettings && (
                     <Text style={styles.hint}>Pour changer ce choix, passe par les réglages de ton navigateur.</Text>
+                  )}
+                  {state === 'insecure' && (
+                    <Text style={styles.hint}>{permission.kind === 'microphone' ? MIC_NEEDS_HTTPS : POSITION_NEEDS_HTTPS}</Text>
                   )}
                 </View>
                 {permissionAction(permission.kind, state)}

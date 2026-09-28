@@ -85,7 +85,7 @@ export default function ReportEventDetailScreen() {
       upsertReport(report);
     } catch (error) {
       void say(REPORT_FAILED, 'alert');
-      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
+      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
       return;
     } finally {
       setSubmitting(false);
@@ -202,7 +202,7 @@ export default function ReportEventDetailScreen() {
                       style={styles.textInputNormal}
                       value={descriptionText}
                       onChangeText={setDescriptionText}
-                      placeholder="Décrivez brièvement la situation."
+                      placeholder="Décris brièvement la situation."
                       placeholderTextColor="#888888"
                     />
                   </View>

@@ -84,11 +84,11 @@ export default function NotificationAccidentDetailScreen() {
             </View>
 
             <Text style={styles.alertMainTitle}>
-              Accident signalé sur votre itinéraire
+              Accident signalé sur ton itinéraire
             </Text>
 
             <Text style={styles.alertDescriptionText}>
-              Un accident vient d’être signalé sur votre itinéraire actuel en direction de Cocody. L’incident a été signalé sur le Boulevard Latrille et pourrait entraîner un ralentissement d’environ 12 minutes sur votre trajet. SIRA a identifié une alternative pour vous permettre d’éviter la zone concernée.
+              Un accident vient d’être signalé sur ton itinéraire actuel en direction de Cocody. L’incident a été signalé sur le Boulevard Latrille et pourrait entraîner un ralentissement d’environ 12 minutes sur ton trajet. SIRA a identifié une alternative pour te permettre d’éviter la zone concernée.
             </Text>
           </View>
 

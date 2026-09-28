@@ -45,7 +45,7 @@ export default function SettingsScreen() {
     {
       id: 'location',
       title: 'Localisation',
-      subtitle: 'Gérer l’accès à votre position',
+      subtitle: 'Gérer l’accès à ta position',
       iconName: 'location',
       onPress: () => router.push('/location-settings'),
     },
