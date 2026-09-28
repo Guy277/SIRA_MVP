@@ -27,8 +27,7 @@ if not exist node_modules (
   )
 )
 
-if not exist mobile
-ode_modules (
+if not exist mobile\node_modules (
   echo Installation de l'application mobile, une seule fois, quelques minutes...
   call npm --prefix mobile install
   if errorlevel 1 (
