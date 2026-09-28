@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,8 +21,8 @@ import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { fetchJourneys, journeyImpact, reportFare, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
 import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
 import { clientId, upsertReport, useLiveReports } from '@/lib/reports';
-import { locateUser } from '@/lib/places';
-import { goBack } from '@/lib/navigation';
+import { locateUser, refreshCurrentPlace } from '@/lib/places';
+import { goBack, goHome } from '@/lib/navigation';
 import { currentToken } from '@/lib/session';
 import { alightSoonSpeech, arrivalSpeech, fareQuestion, gpsEvent, minutes, spokenJourney, startSpeech, stepSpeech } from '@/lib/guidance';
 import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
@@ -52,6 +53,12 @@ export default function NavigationActiveScreen() {
   const [arrived, setArrived] = useState(false);
   const [fare, setFare] = useState<{ state: 'ask' | 'sent'; typed: string }>({ state: 'ask', typed: '' });
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  // Small phones: the top card grows (title on two lines), so what sits under it
+  // follows its real bottom; the bottom card keeps only the icon of « Quitter ».
+  const [hudBottom, setHudBottom] = useState(0);
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const narrow = screenWidth < 360;
+  const belowHud = { top: Math.max(screenHeight * 0.22, hudBottom + 10) };
   const [impact, setImpact] = useState<{ journeyId: string; value: ReportImpact } | null>(null);
   const [alternative, setAlternative] = useState<ApiJourney | null>(null);
   const [rerouting, setRerouting] = useState(false);
@@ -129,7 +136,7 @@ export default function NavigationActiveScreen() {
     try { upsertReport(await voteReport(reportId, kind, clientId())); } catch { /* déjà voté ou hors ligne */ }
   };
 
-  const destinationName = search?.arrival.name ?? 'ta destination';
+  const destinationName = search?.arrival.name ?? 'votre destination';
   // Community price asked on arrival (lines with a known id, not taxis).
   const fareLeg = journey?.legs.find((leg) => isVehicle(leg) && leg.mode !== 'taxi' && leg.line_id) ?? null;
   const canShareFare = Boolean(fareLeg && currentToken());
@@ -187,7 +194,7 @@ export default function NavigationActiveScreen() {
     alerted.current.add(incident.report.id);
     const { report } = incident;
     void question.ask(
-      `Attention : ${report.title.toLowerCase()} confirmé sur ton trajet, vers ${report.location}. Environ ${minutes(delay)} de retard. Je cherche un détour ? Dis oui ou non.`,
+      `Attention : ${report.title.toLowerCase()} confirmé sur votre trajet, vers ${report.location}. Environ ${minutes(delay)} de retard. Je cherche un détour ? Dites oui ou non.`,
       `reroute:${report.id}`,
     ).then((answer) => {
       if (answer?.answer === 'yes') void findAlternative();
@@ -199,7 +206,7 @@ export default function NavigationActiveScreen() {
     if (!alternative || alerted.current.has(alternative.id)) return;
     alerted.current.add(alternative.id);
     void question.ask(
-      `J'ai trouvé un détour : ${spokenJourney(alternative)}, environ ${minutes(alternative.duration)}. Dis oui pour le prendre.`,
+      `J'ai trouvé un détour : ${spokenJourney(alternative)}, environ ${minutes(alternative.duration)}. Dites oui pour le prendre.`,
       `adopt:${alternative.id}`,
     ).then((answer) => {
       if (answer?.answer === 'yes') adoptAlternative();
@@ -304,6 +311,7 @@ export default function NavigationActiveScreen() {
         {/* Top instruction banner: tap to move to the next step */}
         <TouchableOpacity
           style={styles.topHudCard}
+          onLayout={(event) => setHudBottom(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}
           activeOpacity={0.9}
           onPress={nextStep}
         >
@@ -343,7 +351,7 @@ export default function NavigationActiveScreen() {
         </TouchableOpacity>
 
         {/* Map Side Quick Action Buttons (Right Side) */}
-        <View style={styles.mapSideControls}>
+        <View style={[styles.mapSideControls, belowHud]}>
           <View style={styles.voiceModeRow}>
             {modeChip && (
               <View style={styles.voiceModeChip}>
@@ -367,7 +375,7 @@ export default function NavigationActiveScreen() {
         </View>
 
         {/* Journey traffic status from confirmed community reports */}
-        <View style={[styles.liveTrafficBadge, affected.length > 0 && styles.liveTrafficBadgeAlert]}>
+        <View style={[styles.liveTrafficBadge, belowHud, { maxWidth: screenWidth - 16 - 16 - 44 - 10 }, affected.length > 0 && styles.liveTrafficBadgeAlert]}>
           <View style={[styles.liveDotPulse, affected.length > 0 && styles.liveDotAlert]} />
           <Text style={styles.liveTrafficText}>
             {affected.length ? `${affected[0].report.title} confirmé · +${delay} min` : 'Aucun incident confirmé sur votre trajet'}
@@ -385,7 +393,7 @@ export default function NavigationActiveScreen() {
             <View style={styles.siraSpeechBubble}>
               <View style={styles.voiceWaveHeader}>
                 <Ionicons name="mic" size={12} color="#F26522" />
-                <Text style={styles.voiceLabel}>{question.listening ? 'SIRA T’ÉCOUTE…' : 'SIRA VOCAL'}</Text>
+                <Text style={styles.voiceLabel}>{question.listening ? 'SIRA VOUS ÉCOUTE…' : 'SIRA VOCAL'}</Text>
               </View>
               <Text style={styles.siraSpeechText}>{question.listening ? 'Réponds « oui » ou « non », ou touche un bouton.' : voiceText}</Text>
             </View>
@@ -449,13 +457,13 @@ export default function NavigationActiveScreen() {
           <View style={styles.bottomDashboardCard}>
             <View style={styles.arrivalHeader}>
               <Ionicons name="flag" size={24} color="#10B981" />
-              <Text style={styles.arrivalTitle}>Te voilà à {destinationName} !</Text>
+              <Text style={styles.arrivalTitle}>Vous voilà à {destinationName} !</Text>
             </View>
             {canShareFare && fareLeg && fare.state === 'ask' && (
               <>
                 <Text style={styles.arrivalSub}>
                   {question.asking === 'fare' && question.listening ? 'Dis le prix payé… ' : ''}
-                  Combien as-tu payé pour {journeyTitle({ ...journey, legs: [fareLeg] })} ?
+                  Combien avez-vous payé pour {journeyTitle({ ...journey, legs: [fareLeg] })} ?
                 </Text>
                 <View style={styles.alternativeButtons}>
                   <TextInput
@@ -477,10 +485,16 @@ export default function NavigationActiveScreen() {
                 </View>
               </>
             )}
-            {fare.state === 'sent' && <Text style={styles.arrivalSub}>Merci ! Ton prix aide les prochains voyageurs.</Text>}
+            {fare.state === 'sent' && <Text style={styles.arrivalSub}>Merci ! Votre prix aide les prochains voyageurs.</Text>}
             <TouchableOpacity
               style={[styles.cancelExitBtn, styles.arrivalDone]}
-              onPress={() => { question.cancel(); goBack(router); }}
+              onPress={() => {
+                // Arrived: the trip is over, the home map is next (as in Google Maps and Waze).
+                question.cancel();
+                journeyStore.finish();
+                void refreshCurrentPlace();
+                goHome(router);
+              }}
               activeOpacity={0.85}
             >
               <Text style={styles.cancelExitText}>Terminer</Text>
@@ -524,7 +538,7 @@ export default function NavigationActiveScreen() {
             </View>
 
             <View style={styles.destCol}>
-              <Text style={styles.destNameText} numberOfLines={1}>
+              <Text style={styles.destNameText} numberOfLines={narrow ? 2 : 1}>
                 {targetDestination}
               </Text>
               <Text style={styles.destSubText}>
@@ -535,10 +549,12 @@ export default function NavigationActiveScreen() {
             <TouchableOpacity
               style={styles.sosButton}
               onPress={() => setShowExitConfirm(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Quitter le guidage"
               activeOpacity={0.85}
             >
               <Ionicons name="stop-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.sosButtonText}>Quitter</Text>
+              {!narrow && <Text style={styles.sosButtonText}>Quitter</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -566,6 +582,7 @@ export default function NavigationActiveScreen() {
                   style={styles.confirmExitBtn}
                   onPress={() => {
                     setShowExitConfirm(false);
+                    journeyStore.stop();
                     goBack(router);
                   }}
                   activeOpacity={0.8}
@@ -760,8 +777,10 @@ const styles = StyleSheet.create({
   },
   hudBottomRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10,
+    rowGap: 6,
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
@@ -825,6 +844,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
+    flexShrink: 1,
   },
   siraVoiceFloatingBar: {
     marginHorizontal: 16,
@@ -935,6 +955,7 @@ const styles = StyleSheet.create({
   },
   destCol: {
     flex: 1,
+    minWidth: 0,
     paddingHorizontal: 8,
   },
   destNameText: {

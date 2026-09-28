@@ -11,9 +11,12 @@ export type JourneySearch = {
   categories: Record<CategoryName, string[]>;
 };
 
-type State = { search: JourneySearch | null; selectedId: string | null; activeJourney: ApiJourney | null };
+// The trip just finished: the home screen offers the way back and says goodbye once.
+export type FinishedTrip = { from: { name: string } & Coordinates; to: { name: string } & Coordinates; at: number; greeted: boolean };
 
-let state: State = { search: null, selectedId: null, activeJourney: null };
+type State = { search: JourneySearch | null; selectedId: string | null; activeJourney: ApiJourney | null; finished: FinishedTrip | null };
+
+let state: State = { search: null, selectedId: null, activeJourney: null, finished: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<State>) {
@@ -31,6 +34,15 @@ export const journeyStore = {
     selectedId: journey.id,
     search: state.search ? { ...state.search, journeys: [journey, ...state.search.journeys] } : state.search,
   }),
+  // Arrived: the journey is no longer followed nor chosen (the chat stops talking about it).
+  finish: () => set({
+    activeJourney: null,
+    selectedId: null,
+    finished: state.search ? { from: state.search.departure, to: state.search.arrival, at: Date.now(), greeted: false } : state.finished,
+  }),
+  // Guidance left before arriving.
+  stop: () => set({ activeJourney: null }),
+  markFinishedGreeted: () => { if (state.finished) set({ finished: { ...state.finished, greeted: true } }); },
   get: () => state,
 };
 

@@ -9,6 +9,8 @@ import * as Haptics from 'expo-haptics';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import type { Coordinates, VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
 import { useVoiceAssistant } from '@/lib/use-voice-assistant';
+import { MIC_PROMPT } from '@/lib/spoken';
+import { say } from '@/lib/voice';
 
 const EXAMPLES = ['Je quitte Yopougon, je vais au Plateau', 'Le gbaka pour Anyama, ça fait combien ?', 'Il y a un accident à Adjamé'];
 // Seconds before the trip starts by itself, after the answer (time to cancel).
@@ -52,6 +54,8 @@ export function VoiceAssistantSheet(props: Props) {
 function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstead, onReport }: Props) {
   const voice = useVoiceAssistant(position);
   const listening = voice.phase === 'recording';
+  // SIRA says how to use it as soon as it opens (touching the microphone cuts it short).
+  useEffect(() => { void say(MIC_PROMPT, 'answer'); }, []);
   const thinking = voice.phase === 'thinking';
   const reply = voice.reply;
 
@@ -95,11 +99,11 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
     void voice.toggle();
   };
 
-  const hint = listening ? "Je t'écoute… j'envoie dès que tu te tais"
+  const hint = listening ? "Je vous écoute… j'envoie dès que vous vous taisez"
     : thinking ? 'SIRA réfléchit…'
     : counting !== null ? `On y va ! Départ dans ${counting} s`
-    : voice.awaitingAnswer ? 'Réponds, je t’écoute'
-    : 'Touche le micro et dis où tu vas';
+    : voice.awaitingAnswer ? 'Répondez, je vous écoute'
+    : 'Touchez le micro et dites où vous allez';
 
   return (
     <View style={styles.overlay}>
@@ -128,7 +132,7 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
         </TouchableOpacity>
 
         <ScrollView style={styles.conversation} contentContainerStyle={styles.conversationContent}>
-          {reply?.transcript?.text ? <Text style={styles.heard}>Toi : « {reply.transcript.text} »</Text> : null}
+          {reply?.transcript?.text ? <Text style={styles.heard}>Vous : « {reply.transcript.text} »</Text> : null}
           {reply && (
             <View style={styles.answer} accessibilityLiveRegion="polite">
               <Text style={styles.answerLabel}>SIRA</Text>
@@ -170,7 +174,7 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
 
         {!reply && !listening && !thinking && (
           <>
-            <Text style={styles.examplesLabel}>Ou touche un exemple :</Text>
+            <Text style={styles.examplesLabel}>Ou touchez un exemple :</Text>
             <View style={styles.chips}>
               {EXAMPLES.map((example) => (
                 <TouchableOpacity key={example} style={styles.chip} onPress={() => void voice.ask(example)} activeOpacity={0.8}>

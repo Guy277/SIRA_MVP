@@ -90,6 +90,14 @@ export function ensureCurrentPlace(): Promise<CurrentPlace> {
   return pending;
 }
 
+// The traveller has moved (end of a trip): « Ma position » is looked up again.
+export function refreshCurrentPlace() {
+  if (pending) return pending;
+  current = { status: 'locating' };
+  currentListeners.forEach((listener) => listener());
+  return ensureCurrentPlace();
+}
+
 // True for labels that stand for the traveller's own position.
 export function isOwnPosition(label: string) {
   return label === CURRENT_LOCATION || label === 'Ma position' || (current.status === 'ready' && label === current.title);

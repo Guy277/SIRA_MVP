@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFavorites } from '@/hooks/use-favorites';
 import { OsmMapView } from '@/components/osm-map-view';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
+import { journeySpeech } from '@/lib/spoken';
+import { useSpeech } from '@/lib/voice';
 import { alternativesText, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
 import { fareSummaries, reportFare, type FareSummary, type LegMode } from '@/lib/sira-api';
 import { currentToken } from '@/lib/session';
@@ -41,6 +43,7 @@ export default function RouteDetailScreen() {
   const arrival = search?.arrival.name ?? '';
   const tripTitle = `D’${departure} à ${arrival}`;
   const steps = journey && search ? timeline(journey, search.departureAt) : [];
+  useSpeech(journey && search ? `journey:${journey.id}:${search.departureAt.getTime()}` : null, journey ? journeySpeech(journey) : null);
 
   // Community fares (cahier des charges : prix confirmé ou corrigé par les
   // voyageurs). Taxi prices depend on distance and are not crowd-sourced.

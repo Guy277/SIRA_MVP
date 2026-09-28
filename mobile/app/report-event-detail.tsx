@@ -16,10 +16,12 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
 import { notify } from '@/lib/notify';
 import { createReport, type Coordinates } from '@/lib/sira-api';
+import { REPORT_FAILED, REPORT_SENT, reportDetailSpeech } from '@/lib/spoken';
+import { say, useSpeech } from '@/lib/voice';
 import { locateUser, nearestPlaceLabel } from '@/lib/places';
 import { REPORT_TYPE_BY_CATEGORY, clientId, upsertReport } from '@/lib/reports';
 import { journeyStore } from '@/lib/journey-store';
@@ -28,6 +30,8 @@ import { goBack } from '@/lib/navigation';
 const { width, height } = Dimensions.get('window');
 
 export default function ReportEventDetailScreen() {
+  // The list ends above the bottom bar (its last item stays reachable on small phones).
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ categoryId?: string; title?: string }>();
@@ -64,6 +68,8 @@ export default function ReportEventDetailScreen() {
     ? `${params.title} constaté`
     : 'Accident de la circulation constaté';
 
+  useSpeech(`report:${params.categoryId ?? 'autre'}`, reportDetailSpeech(params.title ?? 'Accident de la circulation'));
+
   const handleSubmitReport = async () => {
     if (!position || submitting) return;
     setSubmitting(true);
@@ -78,11 +84,13 @@ export default function ReportEventDetailScreen() {
       });
       upsertReport(report);
     } catch (error) {
+      void say(REPORT_FAILED, 'alert');
       notify('Envoi impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
       return;
     } finally {
       setSubmitting(false);
     }
+    void say(REPORT_SENT, 'answer');
     notify(
       'Merci, signalement envoyé',
       'Il est visible sur la carte et comptera dès qu’un autre usager le confirme.',
@@ -138,7 +146,7 @@ export default function ReportEventDetailScreen() {
         >
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -271,6 +279,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#F26522',
+    marginLeft: 8,
+    flexShrink: 0,
   },
   flexOne: {
     flex: 1,
@@ -414,6 +424,7 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     flex: 1,
+    minWidth: 0,
   },
   textInputBold: {
     fontSize: 14,

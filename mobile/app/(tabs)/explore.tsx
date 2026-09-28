@@ -18,6 +18,8 @@ import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, resolvePlace, useC
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { alternativesText, arrivalTime, formatClock, formatDuration, formatPrice, isVehicle, journeySummary } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
+import { resultsSpeech, SEARCH_ERRORS } from '@/lib/spoken';
+import { useSpeech } from '@/lib/voice';
 import { SkeletonCards } from '@/components/skeleton-cards';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -106,6 +108,14 @@ export default function RouteExploreScreen() {
     })();
     return () => { cancelled = true; };
   }, [departure, arrival, departAt, searchKey, waitingForPosition, ownPositionUnavailable]);
+
+  // SIRA tells the result out loud, once per search: the cheapest way, or why there is none.
+  const searchFailed = finished?.key === searchKey && finished.error !== null;
+  const spokenResult = sameEndpoints ? SEARCH_ERRORS.sameEndpoints
+    : finished?.key !== searchKey || loading ? null
+    : searchFailed ? (finished?.error?.startsWith('Aucun') ? SEARCH_ERRORS.nothing : SEARCH_ERRORS.offline)
+    : search ? resultsSpeech(search) : null;
+  useSpeech(spokenResult ? `results:${searchKey}` : null, spokenResult, searchFailed || sameEndpoints ? 'alert' : 'guidance');
 
   const swap = () => {
     setPickedDeparture(arrival || null);

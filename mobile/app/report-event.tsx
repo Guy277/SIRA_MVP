@@ -11,13 +11,25 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { REPORT_CHOOSE } from '@/lib/spoken';
+import { useSpeech } from '@/lib/voice';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
 
 const { width } = Dimensions.get('window');
+
+// Banner sizes follow the screen: the character shrinks on narrow phones and
+// the bubble takes the room left beside it, so they never cover each other.
+const CHARACTER_WIDTH = Math.min(180, width * 0.42);
+const CHARACTER_HEIGHT = CHARACTER_WIDTH * (220 / 180);
+const BUBBLE_WIDTH = Math.max(150, width - CHARACTER_WIDTH - 18 - 14);
+// Three category cards per row: on narrow phones the labels get a smaller font
+// (« Embouteillage » must fit on one line, not be cut in the middle).
+const CARD_WIDTH = (width - 56) / 3;
+const NARROW_CARDS = CARD_WIDTH < 100;
 
 interface EventCategory {
   id: string;
@@ -27,9 +39,12 @@ interface EventCategory {
 }
 
 export default function ReportEventScreen() {
+  // The list ends above the bottom bar (its last item stays reachable on small phones).
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
+  useSpeech('report:choose', REPORT_CHOOSE);
 
   const categories: EventCategory[] = [
     {
@@ -118,7 +133,7 @@ export default function ReportEventScreen() {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Top Banner Illustration with Assistant & Speech Bubble */}
@@ -134,10 +149,9 @@ export default function ReportEventScreen() {
             {/* Speech Bubble */}
             <View style={styles.speechBubbleBox}>
               <Text style={styles.speechBubbleText}>
-                <Text style={styles.boldText}>En signalant un événement</Text>,{'\n'}
-                vous nous aidez à <Text style={styles.boldText}>améliorer</Text>{'\n'}
-                <Text style={styles.boldText}>SIRA</Text> et à vous proposer <Text style={styles.boldText}>des</Text>{'\n'}
-                <Text style={styles.boldText}>itinéraires plus optimisés.</Text>
+                <Text style={styles.boldText}>En signalant un événement</Text>, vous nous aidez
+                à <Text style={styles.boldText}>améliorer SIRA</Text> et à vous proposer
+                des <Text style={styles.boldText}>itinéraires plus optimisés.</Text>
               </Text>
               <View style={styles.speechBubblePointer} />
             </View>
@@ -152,7 +166,7 @@ export default function ReportEventScreen() {
 
           {/* Heading Section */}
           <View style={styles.headingSection}>
-            <Text style={styles.mainHeading}>Que  se passe-t-il ?</Text>
+            <Text style={styles.mainHeading}>Que se passe-t-il ?</Text>
             <Text style={styles.subHeading}>
               Sélectionnez le type d'événement que vous voulez signaler.
             </Text>
@@ -275,7 +289,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 20,
     left: 18,
-    width: width * 0.52,
+    width: BUBBLE_WIDTH,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 12,
@@ -316,8 +330,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 5,
     bottom: -5,
-    width: 180,
-    height: 220,
+    width: CHARACTER_WIDTH,
+    height: CHARACTER_HEIGHT,
   },
   headingSection: {
     paddingHorizontal: 20,
@@ -348,12 +362,12 @@ const styles = StyleSheet.create({
     rowGap: 14,
   },
   categoryCard: {
-    width: (width - 56) / 3,
+    width: CARD_WIDTH,
     height: 112,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 12,
-    paddingHorizontal: 4,
+    paddingHorizontal: NARROW_CARDS ? 2 : 4,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -383,11 +397,11 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   categoryTitle: {
-    fontSize: 12,
+    fontSize: NARROW_CARDS ? 10.5 : 12,
     fontWeight: '800',
     color: '#000000',
     textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: NARROW_CARDS ? 13 : 14,
   },
   bottomBarContainer: {
     flexDirection: 'row',

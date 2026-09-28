@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,12 +18,13 @@ import * as Haptics from 'expo-haptics';
 import { LocationSuggestionsList } from '@/components/location-suggestions-list';
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
-import { firstName, useSession } from '@/lib/session';
+import { firstName, useSession, useSessionRestored } from '@/lib/session';
 import { ensureCurrentPlace, isOwnPosition, rememberPlace, useCurrentPlace } from '@/lib/places';
 import { VoiceAssistantSheet } from '@/components/voice-assistant-sheet';
 import type { VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
-import { journeyStore } from '@/lib/journey-store';
-import { say } from '@/lib/voice';
+import { journeyStore, useJourneyStore } from '@/lib/journey-store';
+import { prepareSpeech, say } from '@/lib/voice';
+import { arrivalHomeSpeech, greetingSpeech, MIC_PROMPT } from '@/lib/spoken';
 import { notify } from '@/lib/notify';
 import { playIntroToday } from '@/lib/motion';
 import { TypewriterText } from '@/components/typewriter-text';
@@ -45,6 +46,9 @@ const CHARACTER_LEFT = (39 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 const SEARCH_PILL_WIDTH = (364 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 const SEARCH_PILL_HEIGHT = (58 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 
+// SIRA says hello once per opening of the app (not at every return to this screen).
+let greetedThisLaunch = false;
+
 export default function HomeScreen() {
   const router = useRouter();
   const greetingName = firstName(useSession()?.user);
@@ -54,14 +58,47 @@ export default function HomeScreen() {
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   // SIRA greets in full (bubble, typed words) on the first visit of the day.
   const [intro] = useState(() => playIntroToday('home'));
-  // …and says hello out loud once a day, by first name when SIRA knows it.
+  // …and says hello out loud at every opening of the app: « Akwaba Guy ! Je suis
+  // SIRA, ton assistant de mobilité. On va où ? » (« Akwaba ! » without a name).
+  // Only once this screen is really shown: it is mounted underneath the sign-in screen,
+  // where SIRA must not talk over « Comment tu t'appelles ? ».
+  const sessionRestored = useSessionRestored();
+  const focused = useIsFocused();
   useEffect(() => {
-    if (!greetingName) return;
+    if (!sessionRestored || !focused || greetedThisLaunch) return;
     const timer = setTimeout(() => {
-      if (playIntroToday('voice-greeting')) void say(`Akwaba ${greetingName} ! Où est-ce qu'on va aujourd'hui ?`, 'greeting');
+      greetedThisLaunch = true;
+      void say(greetingSpeech(greetingName), 'greeting');
+      // The microphone prompt is prepared meanwhile, so it starts at once.
+      void prepareSpeech([MIC_PROMPT]);
     }, 1400);
     return () => clearTimeout(timer);
-  }, [greetingName]);
+  }, [sessionRestored, focused, greetingName]);
+
+  // Just back from a trip: the way back is one touch away (people often make the
+  // round trip), and SIRA says goodbye once instead of « Akwaba ».
+  const { finished } = useJourneyStore();
+  const wayBackLabel = finished
+    ? (isOwnPosition(finished.from.name) ? 'Retour au point de départ' : `Retour vers ${finished.from.name}`)
+    : null;
+  useEffect(() => {
+    if (!finished || finished.greeted || !focused || !wayBackLabel) return;
+    journeyStore.markFinishedGreeted();
+    void say(arrivalHomeSpeech(finished.to.name, wayBackLabel), 'guidance');
+  }, [finished, focused, wayBackLabel]);
+
+  const handleWayBack = () => {
+    if (!finished) return;
+    const target = isOwnPosition(finished.from.name) ? 'Point de départ' : finished.from.name;
+    rememberPlace(target, { latitude: finished.from.latitude, longitude: finished.from.longitude });
+    // From the traveller's position when it is known, else from where the trip ended.
+    const fromHere = here.status === 'ready' && !here.outside;
+    if (!fromHere) rememberPlace(finished.to.name, { latitude: finished.to.latitude, longitude: finished.to.longitude });
+    router.push({
+      pathname: '/(tabs)/explore',
+      params: { destination: target, query: target, ...(fromHere ? {} : { from: finished.to.name }) },
+    });
+  };
 
   const handleLocationSelect = (selectedLoc: string) => {
     setIsYangoModalOpen(false);
@@ -168,7 +205,7 @@ export default function HomeScreen() {
             style={[styles.speechGreeting, styles.speechGreetingBold]}
           />
           <Animated.Text entering={intro ? FadeIn.delay(1250).duration(350) : FadeIn.duration(250)} style={styles.speechMain}>
-            Je suis <Text style={styles.siraBold}>SIRA</Text>, votre
+            Je suis <Text style={styles.siraBold}>SIRA</Text>, ton
           </Animated.Text>
           <Animated.Text entering={intro ? FadeIn.delay(1450).duration(350) : FadeIn.duration(250)} style={styles.speechSub}>assistant de mobilité.</Animated.Text>
           {/* Speech bubble pointer arrow */}
@@ -186,6 +223,20 @@ export default function HomeScreen() {
 
         {/* Bottom Destination Section */}
         <Animated.View entering={intro ? FadeInUp.delay(900).duration(400) : FadeIn.duration(250)} style={styles.bottomBarContainer}>
+          {/* Way back after a trip (« Retour vers Treichville »): the reverse journey in one touch. */}
+          {wayBackLabel && (
+            <TouchableOpacity
+              style={styles.wayBackChip}
+              onPress={handleWayBack}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={wayBackLabel}
+            >
+              <Ionicons name="return-down-back" size={18} color="#F26522" />
+              <Text style={styles.wayBackText} numberOfLines={1}>{wayBackLabel}</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Destination Search Bar (Floating Pill - Orange inactive / Dark active) */}
           <TouchableOpacity
             style={styles.searchPill}
@@ -198,7 +249,7 @@ export default function HomeScreen() {
 
             <View style={styles.searchInputWrapper}>
               <Text style={styles.searchPlaceholderText}>
-                Où allez-vous ?
+                On va où ?
               </Text>
             </View>
 
@@ -221,7 +272,7 @@ export default function HomeScreen() {
         onClose={() => setIsYangoModalOpen(false)}
         onSelectLocation={handleLocationSelect}
         currentLocationName={here.status === 'ready' ? here.title : 'Ma position'}
-        placeholder="Où allez-vous ?"
+        placeholder="On va où ?"
         initialQuery=""
       />
 
@@ -361,6 +412,28 @@ const styles = StyleSheet.create({
     width: SEARCH_PILL_WIDTH,
     marginBottom: 10,
     zIndex: 30,
+  },
+  wayBackChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: SEARCH_PILL_WIDTH,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 22,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  wayBackText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    flexShrink: 1,
   },
   searchPill: {
     width: SEARCH_PILL_WIDTH,

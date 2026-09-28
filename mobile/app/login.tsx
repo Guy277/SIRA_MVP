@@ -59,6 +59,8 @@ import { notify } from '@/lib/notify';
 import { playIntroToday } from '@/lib/motion';
 import { RotatingText } from '@/components/rotating-text';
 import { checkOrangeNumber, formatLocal } from '@/lib/phone';
+import { LOGIN_CODE, LOGIN_NAME, LOGIN_PHONE } from '@/lib/spoken';
+import { useSpeech } from '@/lib/voice';
 
 const WELCOME_PHRASES = [
   'Bus, gbaka, wôrô-wôrô, bateau, taxi : tout Abidjan dans une appli.',
@@ -102,6 +104,9 @@ export default function LoginScreen() {
   const signedIn = Boolean(session) && !switching;
   const name = firstName(traveller);
   const phone = typedPhone ?? (traveller ? formatLocal(traveller.phone_number) : '');
+  // Each step is said out loud once: the number, then the SMS code, then the first name.
+  const loginStep = askName ? 'name' : signedIn ? null : otp.step;
+  useSpeech(loginStep ? `login:${loginStep}` : null, loginStep === 'name' ? LOGIN_NAME : loginStep === 'code' ? LOGIN_CODE : LOGIN_PHONE);
   // Only Orange mobile numbers (07): the traveller is told while typing.
   const numberCheck = checkOrangeNumber(phone);
 
