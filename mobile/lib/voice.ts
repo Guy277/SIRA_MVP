@@ -13,8 +13,9 @@ export type VoiceMode = 'on' | 'alerts' | 'off';
 // expo-audio's player emits this event (typed loosely by the SDK).
 type PlayerEvents = { addListener: (event: 'playbackStatusUpdate', listener: (status: { didJustFinish: boolean }) => void) => { remove(): void } };
 // guidance: steps of the trip; alert: incidents, next stop; answer: reply to
-// something the traveller asked (always spoken unless muted); greeting: hello.
-export type SpeechKind = 'guidance' | 'alert' | 'answer' | 'greeting';
+// something the traveller asked (always spoken unless muted); greeting: hello;
+// requested: the traveller touched « Écouter » (spoken even when muted).
+export type SpeechKind = 'guidance' | 'alert' | 'answer' | 'greeting' | 'requested';
 
 const KEY = 'sira-voice-mode';
 const MODES: VoiceMode[] = ['on', 'alerts', 'off'];
@@ -44,7 +45,7 @@ export function setVoiceMode(next: VoiceMode) {
 export function cycleVoiceMode() {
   const next = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
   setVoiceMode(next);
-  if (next !== 'off') void say(next === 'on' ? 'Voix activée.' : 'Je vous préviens seulement des alertes.', 'alert');
+  if (next !== 'off') void say(next === 'on' ? 'Voix activée.' : 'Je te préviens seulement des alertes.', 'alert');
   return next;
 }
 
@@ -59,19 +60,44 @@ export function useVoiceMode() {
 }
 
 const allowed = (kind: SpeechKind) =>
-  mode === 'on' || (mode === 'alerts' && (kind === 'alert' || kind === 'answer'));
+  kind === 'requested' || mode === 'on' || (mode === 'alerts' && (kind === 'alert' || kind === 'answer'));
 
 // Kept outside the screens so a sentence goes on when the screen changes.
 let player: AudioPlayer | null = null;
 let finish: (() => void) | null = null;
 let sentence = 0;  // only the latest sentence is spoken
 
+// True while SIRA is talking: every screen then shows how to stop it (WCAG 1.4.2).
+let speaking = false;
+const speakingListeners = new Set<() => void>();
+function setSpeaking(next: boolean) {
+  if (speaking === next) return;
+  speaking = next;
+  speakingListeners.forEach((l) => l());
+}
+export function useSpeaking() {
+  return useSyncExternalStore(
+    (listener) => { speakingListeners.add(listener); return () => speakingListeners.delete(listener); },
+    () => speaking,
+    () => speaking,
+  );
+}
+
+const finished = () => {
+  finish?.();
+  finish = null;
+  setSpeaking(false);
+};
+
+// Number of the last sentence cut before its end (« Stop », or a newer sentence).
+let interrupted = 0;
+
 export function stopSpeaking() {
+  interrupted = sentence;
   player?.remove();
   player = null;
   Speech.stop().catch(() => {});
-  finish?.();
-  finish = null;
+  finished();
 }
 
 // Sentences written by the app (greeting, steps, prompts) come back often: SIRA's
@@ -164,15 +190,17 @@ function sayAfterFirstTouch(next: Pending) {
 }
 
 // Speaks one sentence (the previous one stops). Resolves when it has been said,
-// so a conversation can listen again right after a question.
-export async function say(text: string, kind: SpeechKind = 'guidance', audioBase64: string | null = null): Promise<void> {
-  if (!text || !allowed(kind)) return;
-  if (needsTouch()) { sayAfterFirstTouch({ text, kind, audioBase64 }); return; }
+// so a conversation can listen again right after a question: true when it was
+// said to the end, false when it was not said or was cut (so a series of
+// sentences stops with it).
+export async function say(text: string, kind: SpeechKind = 'guidance', audioBase64: string | null = null): Promise<boolean> {
+  if (!text || !allowed(kind)) return false;
+  if (needsTouch()) { sayAfterFirstTouch({ text, kind, audioBase64 }); return false; }
   stopSpeaking();
   const mine = ++sentence;
   const done = new Promise<void>((resolve) => { finish = resolve; });
   const uri = await wavUri(audioBase64, text);
-  if (mine !== sentence) return;  // a newer sentence took over
+  if (mine !== sentence) return false;  // a newer sentence took over
   try {
     if (!uri) throw new Error('Piper indisponible');
     const current = createAudioPlayer({ uri });
@@ -180,17 +208,21 @@ export async function say(text: string, kind: SpeechKind = 'guidance', audioBase
     const subscription = (current as unknown as PlayerEvents).addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish && player === current) {
         subscription.remove();
-        finish?.();
-        finish = null;
+        finished();
       }
     });
     current.play();
   } catch {
-    Speech.speak(text, { language: 'fr-FR', onDone: () => finish?.(), onStopped: () => finish?.(), onError: () => finish?.() });
+    // A sentence stopped for a newer one must not end the newer one.
+    const end = () => { if (mine === sentence) finished(); };
+    Speech.speak(text, { language: 'fr-FR', onDone: end, onStopped: end, onError: end });
   }
+  setSpeaking(true);
   // Never wait forever (autoplay blocked, audio route lost…).
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, 2000 + text.length * 90));
   await Promise.race([done, timeout]);
+  if (mine === sentence) setSpeaking(false);
+  return mine === sentence && interrupted !== mine;
 }
 
 // A screen that speaks once per situation: `key` names the situation (a search,

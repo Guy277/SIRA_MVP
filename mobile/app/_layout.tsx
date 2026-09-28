@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { restoreSession } from '@/lib/session';
 import { loadIntroMemory } from '@/lib/motion';
 import { loadVoiceMode } from '@/lib/voice';
+import { SpeakingPill } from '@/components/speaking-pill';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -199,6 +200,8 @@ export default function RootLayout() {
         />
       </Stack>
 
+      {/* While SIRA talks by itself, every screen shows how to stop it. */}
+      <SpeakingPill />
       <StatusBar style="light" />
     </>
   );

@@ -1,36 +1,80 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   ScrollView,
-  TextInput,
+  Share,
   Dimensions,
-  Platform,
   Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useFavorites } from '@/hooks/use-favorites';
 import { OsmMapView } from '@/components/osm-map-view';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
-import { journeySpeech } from '@/lib/spoken';
-import { useSpeech } from '@/lib/voice';
-import { alternativesText, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
-import { fareSummaries, reportFare, type FareSummary, type LegMode } from '@/lib/sira-api';
-import { currentToken } from '@/lib/session';
+import { journeyReading } from '@/lib/spoken';
+import { say } from '@/lib/voice';
+import { alternativesText, arrivalTime, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legBadges, legCodes, legPath, MODE_NAMES, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import { fareSummaries, type ApiLeg, type Coordinates, type FareSummary, type LegMode } from '@/lib/sira-api';
 import { notify } from '@/lib/notify';
 import { goBack } from '@/lib/navigation';
 
 const STEP_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
-  walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus', woro: 'car-sport', taxi: 'car', boat: 'boat',
+  walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus-outline', woro: 'car-sport', taxi: 'car', boat: 'boat',
 };
 
-const { width, height } = Dimensions.get('window');
+// Three kinds of steps, three looks (as in Google Maps): what you ride is big and
+// on the road, walking is a small dot on a dotted path, waiting a small clock.
+type StepKind = 'ride' | 'walk' | 'wait';
+const kindOf = (leg: ApiLeg): StepKind => (isVehicle(leg) ? 'ride' : leg.mode === 'wait' ? 'wait' : 'walk');
+
+// « Bus SOTRA 26 / 85 », « Gbaka », « Taxi »: the line to look for.
+function rideBadge(leg: ApiLeg) {
+  const { codes } = legCodes(leg);
+  return codes.length ? `${MODE_NAMES[leg.mode]} ${codes.slice(0, 3).join(' / ')}` : MODE_NAMES[leg.mode];
+}
+
+// Every step sits on the same column: the icon slot is as wide as the biggest icon,
+// so all texts start on one line, never on the road.
+const ICON_SLOT = 48;
+const ROAD_WIDTH = 14;
+// The road reaches the centre of the next step's icon.
+const ROAD_REACH = ICON_SLOT / 2;
+const WALK_DOTS = Array.from({ length: 24 }, (_, index) => index);
+
+// The piece of road under a step, up to the next one: drawn from top to bottom
+// when the screen opens (like « ON TRACE »), a dotted path when walking.
+function RoadPiece({ kind, delay }: { kind: StepKind; delay: number }) {
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.set(withDelay(delay, withTiming(1, { duration: 260, reduceMotion: ReduceMotion.System })));
+  }, [delay, progress]);
+  const grow = useAnimatedStyle(() => ({ transform: [{ scaleY: progress.get() }] }));
+  if (kind === 'walk') {
+    return (
+      <Animated.View style={[styles.walkPath, grow]} pointerEvents="none">
+        {WALK_DOTS.map((dot) => <View key={dot} style={styles.walkDot} />)}
+      </Animated.View>
+    );
+  }
+  return (
+    <Animated.View style={[styles.roadPiece, grow]} pointerEvents="none">
+      <View style={styles.roadCenterLine} />
+    </Animated.View>
+  );
+}
+
+// Journeys already read out loud (coming back to the screen does not read it again).
+const readJourneys = new Set<string>();
+
+const { height } = Dimensions.get('window');
 
 export default function RouteDetailScreen() {
   const router = useRouter();
@@ -43,14 +87,46 @@ export default function RouteDetailScreen() {
   const arrival = search?.arrival.name ?? '';
   const tripTitle = `D’${departure} à ${arrival}`;
   const steps = journey && search ? timeline(journey, search.departureAt) : [];
-  useSpeech(journey && search ? `journey:${journey.id}:${search.departureAt.getTime()}` : null, journey ? journeySpeech(journey) : null);
+  const arrivalAt = journey && search ? arrivalTime(journey, search.departureAt) : null;
+  const insets = useSafeAreaInsets();
+
+  // Touching a step shows its stretch alone on the map; the compass shows all of it.
+  const [focusedStep, setFocusedStep] = useState<number | null>(null);
+  const focusPath: Coordinates[] | null = focusedStep !== null && steps[focusedStep] ? legPath(steps[focusedStep].leg) : null;
+
+  // SIRA reads the journey once, sentence by sentence, and the part being read
+  // lights up: -1 the summary, then each step, then the arrival (steps.length).
+  // « Stop » (or leaving for the guidance) ends the reading.
+  const [reading, setReading] = useState<number | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => {
+    if (!journey || !search) return;
+    const key = `${journey.id}:${search.departureAt.getTime()}`;
+    if (readJourneys.has(key)) return;
+    readJourneys.add(key);
+    const legs = timeline(journey, search.departureAt).map((step) => step.leg);
+    const text = journeyReading(journey, legs, arrival, arrivalTime(journey, search.departureAt));
+    const parts: [number, string][] = [[-1, text.summary], ...text.steps.map((sentence, index): [number, string] => [index, sentence]), [legs.length, text.arrival]];
+    void (async () => {
+      for (const [index, sentence] of parts) {
+        await Promise.resolve();
+        if (!mounted.current) return;
+        setReading(index);
+        if (!(await say(sentence, 'guidance'))) break;
+      }
+      if (mounted.current) setReading(null);
+    })();
+  }, [journey, search, arrival]);
 
   // Community fares (cahier des charges : prix confirmé ou corrigé par les
   // voyageurs). Taxi prices depend on distance and are not crowd-sourced.
   const fareLegs = (journey?.legs ?? []).filter((leg) => isVehicle(leg) && leg.mode !== 'taxi' && leg.line_id);
   const fareLegKey = fareLegs.map((leg) => leg.line_id).join('|');
   const [fares, setFares] = useState<Record<string, FareSummary>>({});
-  const [paidInput, setPaidInput] = useState<string | null>(null);
   useEffect(() => {
     const ids = fareLegKey ? fareLegKey.split('|') : [];
     if (!ids.length) return;
@@ -61,27 +137,6 @@ export default function RouteDetailScreen() {
     return () => { cancelled = true; };
   }, [fareLegKey]);
 
-  const submitPaidPrice = async () => {
-    const leg = fareLegs[0];
-    const amount = Number((paidInput ?? '').replace(/\s/g, ''));
-    if (!leg?.line_id || !Number.isFinite(amount) || amount <= 0) {
-      notify('Prix invalide', 'Indiquez le montant payé en francs CFA, par exemple 200.');
-      return;
-    }
-    if (!currentToken()) {
-      notify('Connexion requise', 'Connectez-vous avec votre numéro pour partager le prix payé.', [{ text: 'Se connecter', onPress: () => router.push('/login') }]);
-      return;
-    }
-    try {
-      const summary = await reportFare(leg.line_id, leg.mode, amount);
-      setFares((current) => ({ ...current, [summary.line_id]: summary }));
-      setPaidInput(null);
-      notify('Merci !', summary.validated ? 'Ce prix est maintenant confirmé par la communauté.' : 'Votre prix aide les prochains voyageurs.');
-    } catch (error) {
-      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessayez dans un instant.');
-    }
-  };
-
   const [isLiked, setIsLiked] = useState(false);
   const isFavorite = checkIsFavorite(tripTitle);
 
@@ -91,8 +146,15 @@ export default function RouteDetailScreen() {
     router.push({ pathname: '/navigation-active', params: { destination: arrival } });
   };
 
-  const handleShare = () => {
-    Alert.alert('Partager le trajet', `Lien de partage généré pour le trajet de ${departure} à ${arrival}.`);
+  // The phone's own sharing (WhatsApp, SMS…), with the journey in words.
+  const handleShare = async () => {
+    if (!journey) return;
+    const message = `Mon trajet SIRA : ${departure} → ${arrival}. ${journeyTitle(journey)}, ${formatDuration(journey.duration)}, ${formatPrice(journey.price)}.`;
+    try {
+      await Share.share({ message });
+    } catch {
+      notify('Partage impossible', 'Ce téléphone ne permet pas de partager depuis ici.');
+    }
   };
 
   const handleToggleFavorite = () => {
@@ -133,7 +195,7 @@ export default function RouteDetailScreen() {
             <Ionicons name="arrow-back" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Décomposition d'itinéraire</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Ton trajet</Text>
 
           <View style={styles.headerRightActions}>
             <TouchableOpacity
@@ -159,7 +221,7 @@ export default function RouteDetailScreen() {
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 110 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Upper Map View Section */}
@@ -171,6 +233,7 @@ export default function RouteDetailScreen() {
               origin={search?.departure}
               destination={search?.arrival}
               routeCoordinates={journeyPath(journey)}
+              focusCoordinates={focusPath}
             />
 
             {/* Top Right Map Legend Badges */}
@@ -193,158 +256,164 @@ export default function RouteDetailScreen() {
             <TouchableOpacity
               style={styles.mapCompassFab}
               activeOpacity={0.8}
-              onPress={() => {}}
+              onPress={() => setFocusedStep(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Voir tout le trajet"
             >
               <Ionicons name="navigate-sharp" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
-          {/* Timeline Breakdown Section */}
-          <View style={styles.timelineSectionWrapper}>
-            {/* Timeline Steps Column */}
-            <View style={styles.timelineColumn}>
-              {/* Continuous Black Vertical Road Stripe with White Dashed Center Line */}
-              <View style={styles.blackRoadStripe}>
-                <View style={styles.dashedCenterLine} />
+          {/* Summary first, as in Citymapper: how long, how much, when you arrive. */}
+          {journey && arrivalAt && (
+            <Animated.View entering={FadeIn.duration(250)} style={[styles.summaryCard, reading === -1 && styles.lit]}>
+              <Text style={styles.summaryMain}>{formatDuration(journey.duration)} · {formatPrice(journey.price)}</Text>
+              <Text style={styles.summaryMeta}>
+                Arrivée {formatClock(arrivalAt)}{journey.distance_km ? ` · ${formatDistance(journey.distance_km)}` : ''}
+              </Text>
+              <View style={styles.summaryModes}>
+                {legBadges(journey).map((badge, index) => (
+                  <View key={index} style={[styles.modeChip, badge.kind === 'walk' && styles.modeChipWalk]}>
+                    <Ionicons name={badge.kind === 'walk' ? 'walk' : STEP_ICONS[badge.mode]} size={13} color={badge.kind === 'walk' ? '#4B5563' : '#FFFFFF'} />
+                    <Text style={[styles.modeChipText, badge.kind === 'walk' && styles.modeChipTextWalk]}>
+                      {badge.kind === 'walk' ? `${badge.minutes} min` : badge.text}
+                    </Text>
+                  </View>
+                ))}
               </View>
+              <Text style={styles.summaryNote}>Estimation à partir des lignes open data 2021.</Text>
+              <View style={styles.summaryActions}>
+                <TouchableOpacity style={styles.summaryAction} onPress={handleToggleFavorite} activeOpacity={0.7} accessibilityRole="button">
+                  <Ionicons name={isFavorite ? 'bookmark' : 'bookmark-outline'} size={18} color={isFavorite ? '#F26522' : '#111111'} />
+                  <Text style={styles.summaryActionText}>Favori</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.summaryAction} onPress={handleShare} activeOpacity={0.7} accessibilityRole="button">
+                  <Ionicons name="share-social-outline" size={18} color="#111111" />
+                  <Text style={styles.summaryActionText}>Partager</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.summaryAction} onPress={handleLike} activeOpacity={0.7} accessibilityRole="button">
+                  <Ionicons name={isLiked ? 'thumbs-up' : 'thumbs-up-outline'} size={18} color={isLiked ? '#F26522' : '#111111'} />
+                  <Text style={styles.summaryActionText}>Utile</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          )}
 
-              {!journey && (
-                <View style={styles.stepItemRow}>
-                  {/* Same icon slot as a step, so the text clears the road stripe. */}
-                  <View style={styles.orangeStepIconCircle}>
+          {/* The steps on SIRA's road: one column for the icons, one for the texts. */}
+          <View style={styles.timeline}>
+            {!journey && (
+              <View style={styles.stepRow}>
+                <View style={styles.iconSlot}>
+                  <View style={styles.rideIcon}>
                     <Ionicons name="information" size={20} color="#FFFFFF" />
                   </View>
-                  <View style={styles.stepTextWrapper}>
-                    <Text style={styles.stepTitle}>Aucun trajet sélectionné</Text>
-                    <Text style={styles.stepSubDesc}>Revenez aux résultats et choisissez un itinéraire.</Text>
-                  </View>
                 </View>
-              )}
+                <View style={styles.stepBody}>
+                  <Text style={styles.stepTitle}>Aucun trajet sélectionné</Text>
+                  <Text style={styles.stepSubDesc}>Revenez aux résultats et choisissez un itinéraire.</Text>
+                </View>
+              </View>
+            )}
 
-              {steps.map(({ leg, start, end }) => (
-                <View key={leg.id} style={styles.stepItemRow}>
-                  <View style={styles.orangeStepIconCircle}>
-                    <Ionicons name={STEP_ICONS[leg.mode] ?? 'ellipse'} size={20} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.stepTextWrapper}>
-                    <Text style={styles.stepTitle}>{stepTitle(leg)}</Text>
-                    <Text style={styles.stepSubDesc}>{stepDescription(leg)}</Text>
-                    {isVehicle(leg) && (
-                      <Text style={styles.stepCostText}>
-                        Coût estimé : <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
-                      </Text>
-                    )}
-                    {isVehicle(leg) && alternativesText(leg) && (
-                      <Text style={styles.alternativesText}>{alternativesText(leg)} — prenez le premier qui passe.</Text>
-                    )}
-                    {leg.line_id && fares[leg.line_id]?.reports ? (
-                      <Text style={styles.communityFareText}>
-                        {fares[leg.line_id].validated
-                          ? `Prix confirmé par ${fares[leg.line_id].agreeing} voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)}`
-                          : `${fares[leg.line_id].reports} avis de voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)} (à confirmer)`}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.stepMetaText}>{formatClock(start)} → {formatClock(end)}</Text>
-                  </View>
-                </View>
-              ))}
-
-              {journey && (
-                <View style={styles.stepItemRow}>
-                  <View style={styles.stepTextWrapper}>
-                    <Text style={styles.stepSubDesc}>
-                      Total : <Text style={styles.boldText}>{formatDuration(journey.duration)}</Text> · <Text style={styles.boldText}>{formatPrice(journey.price)}</Text>{journey.distance_km ? ` · ${formatDistance(journey.distance_km)}` : ''}
-                    </Text>
-                    <Text style={styles.stepMetaText}>Durées et prix estimés à partir des lignes open data 2021.</Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Step 5: Destination Arrival */}
-              <View style={styles.stepItemRow}>
-                <View style={styles.orangeStepIconCircle}>
-                  <Ionicons name="location" size={22} color="#FFFFFF" />
-                </View>
-                <View style={styles.stepTextWrapper}>
-                  <Text style={styles.stepTitle}>{arrival}</Text>
-                  <Text style={styles.stepSubDesc}>Vous êtes bien arrivé !</Text>
-                  {fareLegs.length > 0 && (paidInput === null ? (
-                    <TouchableOpacity onPress={() => setPaidInput('')} activeOpacity={0.8}>
-                      <Text style={styles.communityFareLink}>Combien avez-vous payé pour le {journeyTitle({ ...journey!, legs: [fareLegs[0]] })} ?</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.paidRow}>
-                      <TextInput
-                        style={styles.paidInput}
-                        value={paidInput}
-                        onChangeText={setPaidInput}
-                        keyboardType="number-pad"
-                        placeholder="Montant en F"
-                        placeholderTextColor="#999999"
-                      />
-                      <TouchableOpacity style={styles.paidButton} onPress={submitPaidPrice} activeOpacity={0.85}>
-                        <Text style={styles.paidButtonText}>Envoyer</Text>
-                      </TouchableOpacity>
+            {steps.map(({ leg, start }, index) => {
+              const kind = kindOf(leg);
+              const canFocus = legPath(leg).length > 1;
+              const lit = reading === index || focusedStep === index;
+              return (
+                <Animated.View key={leg.id} entering={FadeInDown.delay(120 + index * 120).duration(280)}>
+                  <Pressable
+                    style={styles.stepRow}
+                    onPress={() => setFocusedStep(focusedStep === index ? null : index)}
+                    disabled={!canFocus}
+                    accessibilityRole="button"
+                    accessibilityHint={canFocus ? 'Montre cette étape sur la carte' : undefined}
+                  >
+                    <RoadPiece kind={kind} delay={220 + index * 120} />
+                    <View style={styles.iconSlot}>
+                      {kind === 'ride' ? (
+                        <View style={[styles.rideIcon, lit && styles.iconLit]}>
+                          <Ionicons name={STEP_ICONS[leg.mode] ?? 'ellipse'} size={22} color="#FFFFFF" />
+                        </View>
+                      ) : kind === 'wait' ? (
+                        <View style={[styles.waitIcon, lit && styles.iconLit]}>
+                          <Ionicons name="time-outline" size={17} color="#F26522" />
+                        </View>
+                      ) : (
+                        <View style={[styles.walkIcon, lit && styles.iconLit]}>
+                          <Ionicons name={STEP_ICONS[leg.mode] ?? 'walk'} size={14} color="#4B5563" />
+                        </View>
+                      )}
                     </View>
-                  ))}
+                    <View style={[styles.stepBody, lit && styles.lit]}>
+                      <View style={styles.stepHead}>
+                        <Text style={[styles.stepTitle, kind !== 'ride' && styles.stepTitleLight]}>{stepTitle(leg)}</Text>
+                        <Text style={styles.stepClock}>{formatClock(start)}</Text>
+                      </View>
+                      {/* The line to look for (a taxi is already said in the title). */}
+                      {kind === 'ride' && leg.mode !== 'taxi' && (
+                        <View style={styles.lineBadge}>
+                          <Text style={styles.lineBadgeText}>{rideBadge(leg)}</Text>
+                        </View>
+                      )}
+                      <Text style={styles.stepSubDesc}>{stepDescription(leg)}</Text>
+                      {kind === 'ride' && (
+                        <Text style={styles.stepCostText}>
+                          Coût estimé : <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
+                        </Text>
+                      )}
+                      {kind === 'ride' && alternativesText(leg) && (
+                        <Text style={styles.alternativesText}>{alternativesText(leg)} — prenez le premier qui passe.</Text>
+                      )}
+                      {leg.line_id && fares[leg.line_id]?.reports ? (
+                        <Text style={styles.communityFareText}>
+                          {fares[leg.line_id].validated
+                            ? `Prix confirmé par ${fares[leg.line_id].agreeing} voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)}`
+                            : `${fares[leg.line_id].reports} avis de voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)} (à confirmer)`}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
 
-                  {/* Icon Actions Row (Thumbs Up, Share, Bookmark) */}
-                  <View style={styles.stepActionsRow}>
-                    <TouchableOpacity
-                      onPress={handleLike}
-                      activeOpacity={0.7}
-                      style={styles.stepActionIconBtn}
-                    >
-                      <Ionicons
-                        name={isLiked ? 'thumbs-up' : 'thumbs-up-outline'}
-                        size={18}
-                        color={isLiked ? '#F26522' : '#000000'}
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleShare}
-                      activeOpacity={0.7}
-                      style={styles.stepActionIconBtn}
-                    >
-                      <Ionicons name="share-social-outline" size={18} color="#000000" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleToggleFavorite}
-                      activeOpacity={0.7}
-                      style={styles.stepActionIconBtn}
-                    >
-                      <Ionicons
-                        name={isFavorite ? 'bookmark' : 'bookmark-outline'}
-                        size={18}
-                        color={isFavorite ? '#F26522' : '#000000'}
-                      />
-                    </TouchableOpacity>
+            {/* Arrival: the road stops here. */}
+            {journey && arrivalAt && (
+              <Animated.View entering={FadeInDown.delay(120 + steps.length * 120).duration(280)} style={styles.stepRow}>
+                <View style={styles.iconSlot}>
+                  <View style={[styles.rideIcon, reading === steps.length && styles.iconLit]}>
+                    <Ionicons name="location" size={22} color="#FFFFFF" />
                   </View>
                 </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Floating Action Button: Démarrer l'itinéraire */}
-          <View style={styles.floatingButtonContainer}>
-            <TouchableOpacity
-              style={styles.demarrerBtn}
-              onPress={handleStartNavigation}
-              activeOpacity={0.88}
-            >
-              <View style={styles.demarrerIconCircle}>
-                <Image
-                  source={require('@/assets/images/orange-pin-icon.png')}
-                  style={styles.demarrerPinIcon}
-                  contentFit="contain"
-                />
-              </View>
-              <Text style={styles.demarrerBtnText}>Démarrer l'itinéraire</Text>
-            </TouchableOpacity>
+                <View style={[styles.stepBody, reading === steps.length && styles.lit]}>
+                  <View style={styles.stepHead}>
+                    <Text style={styles.stepTitle}>{arrival}</Text>
+                    <Text style={styles.stepClock}>{formatClock(arrivalAt)}</Text>
+                  </View>
+                  <Text style={styles.stepSubDesc}>Arrivée</Text>
+                </View>
+              </Animated.View>
+            )}
           </View>
         </ScrollView>
+
+        {/* Démarrer stays on screen, above the phone's bottom edge. */}
+        <View style={[styles.floatingButtonContainer, { bottom: 16 + insets.bottom }]}>
+          <TouchableOpacity
+            style={styles.demarrerBtn}
+            onPress={handleStartNavigation}
+            activeOpacity={0.88}
+          >
+            <View style={styles.demarrerIconCircle}>
+              <Image
+                source={require('@/assets/images/orange-pin-icon.png')}
+                style={styles.demarrerPinIcon}
+                contentFit="contain"
+              />
+            </View>
+            <Text style={styles.demarrerBtnText}>{"Démarrer l'itinéraire"}</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -356,39 +425,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#15803D',
     marginTop: 2,
-  },
-  communityFareLink: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#F26522',
-    marginTop: 6,
-  },
-  paidRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-  },
-  paidInput: {
-    flex: 1,
-    height: 36,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    fontSize: 13,
-    color: '#000000',
-  },
-  paidButton: {
-    backgroundColor: '#F26522',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  paidButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 12,
   },
   container: {
     flex: 1,
@@ -516,60 +552,207 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
   },
-  timelineSectionWrapper: {
+  summaryCard: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  summaryMain: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#000000',
+  },
+  summaryMeta: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4B5563',
+    marginTop: 2,
+  },
+  summaryModes: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  modeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F26522',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  modeChipWalk: {
+    backgroundColor: '#F3F4F6',
+  },
+  modeChipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  modeChipTextWalk: {
+    color: '#4B5563',
+  },
+  summaryNote: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  summaryActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  summaryAction: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+  },
+  summaryActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111111',
+  },
+  // The part SIRA is reading, or the step shown on the map.
+  lit: {
+    backgroundColor: '#FFF3EA',
+  },
+  timeline: {
     paddingHorizontal: 16,
     paddingTop: 18,
-    position: 'relative',
-    minHeight: 400,
   },
-  timelineColumn: {
-    flex: 1,
-    position: 'relative',
-    paddingRight: 0,
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingBottom: 18,
   },
-  blackRoadStripe: {
+  iconSlot: {
+    width: ICON_SLOT,
+    height: ICON_SLOT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  roadPiece: {
     position: 'absolute',
-    left: 17,
-    top: 14,
-    bottom: 30,
-    width: 14,
+    left: (ICON_SLOT - ROAD_WIDTH) / 2,
+    top: ICON_SLOT / 2,
+    bottom: -ROAD_REACH,
+    width: ROAD_WIDTH,
     backgroundColor: '#000000',
-    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    transformOrigin: 'top',
+    zIndex: 1,
   },
-  dashedCenterLine: {
+  roadCenterLine: {
     width: 2,
-    height: '92%',
+    height: '100%',
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#FFFFFF',
   },
-  stepItemRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 22,
+  walkPath: {
+    position: 'absolute',
+    left: ICON_SLOT / 2 - 2,
+    top: ICON_SLOT / 2,
+    bottom: -ROAD_REACH,
+    width: 4,
+    alignItems: 'center',
+    gap: 5,
+    paddingTop: 16,
+    overflow: 'hidden',
+    transformOrigin: 'top',
+    zIndex: 1,
   },
-  orangeStepIconCircle: {
+  walkDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#9CA3AF',
+  },
+  rideIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
     backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 3,
     shadowColor: '#F26522',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
   },
-  stepTextWrapper: {
+  waitIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#F26522',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  walkIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#9CA3AF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconLit: {
+    transform: [{ scale: 1.12 }],
+  },
+  stepBody: {
     flex: 1,
-    marginLeft: 14,
-    paddingRight: 10,
+    minWidth: 0,
+    marginLeft: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  stepHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  stepClock: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#4B5563',
+    marginTop: 1,
+  },
+  lineBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#111111',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  lineBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '800',
   },
   alternativesText: {
     fontSize: 12,
@@ -578,10 +761,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   stepTitle: {
+    flex: 1,
     fontSize: 15,
     fontWeight: '900',
     color: '#000000',
     lineHeight: 19,
+  },
+  stepTitleLight: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
   },
   stepSubDesc: {
     fontSize: 12.5,
@@ -594,28 +783,12 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginTop: 2,
   },
-  stepMetaText: {
-    fontSize: 11.5,
-    color: '#666666',
-    fontWeight: '600',
-    marginTop: 3,
-  },
   boldText: {
     fontWeight: '900',
     color: '#000000',
   },
-  stepActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginTop: 8,
-  },
-  stepActionIconBtn: {
-    padding: 4,
-  },
   floatingButtonContainer: {
     position: 'absolute',
-    bottom: 24,
     right: 16,
     zIndex: 20,
   },

@@ -2,30 +2,18 @@
 // in « tu », for travellers who walk, are in the noise or have no time to read.
 // Figures (price, duration) always come from SIRA-MORE, never written here.
 // The guidance during a trip is in lib/guidance.ts.
-import type { ApiJourney } from '@/lib/sira-api';
+import type { ApiJourney, ApiLeg } from '@/lib/sira-api';
 import type { JourneySearch } from '@/lib/journey-store';
 import { isVehicle } from '@/lib/journey-format';
-import { minutes, spokenJourney } from '@/lib/guidance';
+import { minutes, spokenJourney, spokenLine } from '@/lib/guidance';
+import { isNight } from '@/lib/greeting';
 
 const francs = (price: number | null | undefined) => (price == null ? 'prix à confirmer' : `${price} francs`);
 
-// Home, at every opening of the app.
-export const greetingSpeech = (firstName: string | null) =>
-  `Akwaba${firstName ? ` ${firstName}` : ''} ! Je suis SIRA, ton assistant de mobilité. On va où ?`;
-
-// Home, after a trip: goodbye (« journée », « soirée » or « nuit », Abidjan time), and how to go back.
-const partOfDay = (date: Date) => {
-  const hour = date.getUTCHours();
-  return hour >= 5 && hour < 18 ? 'journée' : hour >= 18 && hour < 22 ? 'soirée' : 'nuit';
-};
-export const arrivalHomeSpeech = (arrival: string, wayBack: string, now = new Date()) =>
-  `Bonne ${partOfDay(now)} à ${arrival} ! Pour rentrer, touche ${wayBack}.`;
+// The home greeting (« Akwaba Guy ! … ») is written and said from lib/greeting.ts.
 
 // Voice assistant, as soon as it opens.
 export const MIC_PROMPT = 'Assistant vocal SIRA. Touche le micro et dis où tu vas.';
-
-// Lines closed at night in the 2021 data (latest closing 22:00, opening 05:00), Abidjan time (UTC).
-const isNight = (date: Date) => date.getUTCHours() >= 22 || date.getUTCHours() < 5;
 
 // Results of a search: how many ways, and the cheapest one.
 export function resultsSpeech(search: JourneySearch) {
@@ -51,10 +39,22 @@ export const SEARCH_ERRORS = {
   offline: "Je n'arrive pas à joindre SIRA. Vérifie ta connexion, puis réessaie.",
 };
 
-// Detail of a journey, before leaving.
-export const journeySpeech = (journey: ApiJourney) =>
-  `${spokenJourney(journey).replace(/^./, (letter) => letter.toUpperCase())}. Environ ${minutes(journey.duration)} et ${francs(journey.price)}. `
-  + "Touche Démarrer l'itinéraire pour commencer.";
+// Detail of a journey, before leaving: read step by step, each sentence lighting
+// up its step on the screen (the summary, every step, then the arrival).
+const spokenClock = (date: Date) => `${date.getHours()} h${date.getMinutes() ? ` ${String(date.getMinutes()).padStart(2, '0')}` : ''}`;
+function stepSpeech(leg: ApiLeg) {
+  switch (leg.mode) {
+    case 'walk': return `Marche environ ${minutes(leg.duration)}.`;
+    case 'transfer': return `Change à pied, environ ${minutes(leg.duration)}.`;
+    case 'wait': return `Attends environ ${minutes(leg.duration)}.`;
+    default: return `Prends ${spokenLine(leg)}, environ ${minutes(leg.duration)}.`;
+  }
+}
+export const journeyReading = (journey: ApiJourney, legs: ApiLeg[], arrival: string, arrivalAt: Date) => ({
+  summary: `Ton trajet : ${spokenJourney(journey)}. Environ ${minutes(journey.duration)} et ${francs(journey.price)}.`,
+  steps: legs.map(stepSpeech),
+  arrival: `Tu arrives à ${arrival} vers ${spokenClock(arrivalAt)}. Touche Démarrer l'itinéraire pour partir.`,
+});
 
 // Reports.
 export const REPORT_CHOOSE = 'Quel incident veux-tu signaler ? Touche le bon type.';
@@ -62,7 +62,8 @@ export const reportDetailSpeech = (title: string) => `${title}. Vérifie l'endro
 export const REPORT_SENT = "Merci ! Ton signalement est envoyé. Il comptera dès qu'un autre voyageur le confirme.";
 export const REPORT_FAILED = "Je n'ai pas pu envoyer ton signalement. Réessaie dans un instant.";
 
-// Sign-in.
+// Sign-in: read only when the traveller touches « Écouter » (the screen stays silent).
+export const LOGIN_SIGNED_IN = 'Ton compte est déjà actif sur ce téléphone. Touche Continuer.';
 export const LOGIN_PHONE = 'Entre ton numéro Orange qui commence par 07.';
 export const LOGIN_CODE = 'Je t\'ai envoyé un code par SMS. Entre les 4 chiffres.';
 export const LOGIN_NAME = 'Bienvenue ! Comment tu t\'appelles ?';

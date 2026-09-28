@@ -51,7 +51,7 @@ const WHITE_LOGO_TOP = (270 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const WHITE_LOGO_LEFT = (148 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 
 import { OTP_LENGTH, useOtpLogin } from '@/lib/use-otp-login';
-import { goBack } from '@/lib/navigation';
+import { goBack, goHome } from '@/lib/navigation';
 import { firstName, setSession, useKnownTraveller, useSession } from '@/lib/session';
 import { logoutUser } from '@/hooks/use-auth';
 import { updateName } from '@/lib/sira-api';
@@ -59,8 +59,8 @@ import { notify } from '@/lib/notify';
 import { playIntroToday } from '@/lib/motion';
 import { RotatingText } from '@/components/rotating-text';
 import { checkOrangeNumber, formatLocal } from '@/lib/phone';
-import { LOGIN_CODE, LOGIN_NAME, LOGIN_PHONE } from '@/lib/spoken';
-import { useSpeech } from '@/lib/voice';
+import { LOGIN_CODE, LOGIN_NAME, LOGIN_PHONE, LOGIN_SIGNED_IN } from '@/lib/spoken';
+import { say } from '@/lib/voice';
 
 const WELCOME_PHRASES = [
   'Bus, gbaka, wôrô-wôrô, bateau, taxi : tout Abidjan dans une appli.',
@@ -104,15 +104,15 @@ export default function LoginScreen() {
   const signedIn = Boolean(session) && !switching;
   const name = firstName(traveller);
   const phone = typedPhone ?? (traveller ? formatLocal(traveller.phone_number) : '');
-  // Each step is said out loud once: the number, then the SMS code, then the first name.
-  const loginStep = askName ? 'name' : signedIn ? null : otp.step;
-  useSpeech(loginStep ? `login:${loginStep}` : null, loginStep === 'name' ? LOGIN_NAME : loginStep === 'code' ? LOGIN_CODE : LOGIN_PHONE);
+  // The sign-in stays silent (SIRA's voice starts at home, with « Akwaba »): the
+  // instruction of each step is read only when « Écouter » is touched.
+  const instruction = askName ? LOGIN_NAME : signedIn ? LOGIN_SIGNED_IN : otp.step === 'code' ? LOGIN_CODE : LOGIN_PHONE;
   // Only Orange mobile numbers (07): the traveller is told while typing.
   const numberCheck = checkOrangeNumber(phone);
 
   // Number -> 4-digit SMS code -> session; a new number creates the account.
   const handleLogin = async (typedCode?: string) => {
-    if (signedIn && !askName) { router.replace('/(tabs)'); return; }
+    if (signedIn && !askName) { goHome(router); return; }
     if (otp.step === 'phone' && !numberCheck.ok) {
       setRefusedNumbers((count) => count + 1);
       if (!numberCheck.message) notify('Numéro incomplet', 'Entrez les 10 chiffres de votre numéro Orange : 07 XX XX XX XX.');
@@ -121,7 +121,7 @@ export default function LoginScreen() {
     const result = await otp.submit(phone, typedCode);
     if (!result) return;
     if (result.is_new_user && !result.user.full_name) setAskName(true);
-    else router.replace('/(tabs)');
+    else goHome(router);
   };
 
   // The code is checked as soon as its 4th digit is typed.
@@ -141,7 +141,7 @@ export default function LoginScreen() {
         notify('Prénom non enregistré', error instanceof Error ? error.message : 'Vous pourrez l’ajouter dans votre profil.');
       }
     }
-    router.replace('/(tabs)');
+    goHome(router);
   };
 
   // "Ce n'est pas vous ?": signs out and starts again with an empty form.
@@ -272,6 +272,17 @@ export default function LoginScreen() {
               )}
             </View>
 
+            <TouchableOpacity
+              style={styles.listenButton}
+              onPress={() => { void say(instruction, 'requested'); }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Écouter la consigne"
+            >
+              <Ionicons name="volume-high" size={16} color="#F26522" />
+              <Text style={styles.listenText}>Écouter</Text>
+            </TouchableOpacity>
+
             {askName && (
               <View style={styles.inputWrapper}>
                 <View style={styles.iconCircle}>
@@ -336,7 +347,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {askName && (
-              <Text style={styles.switchLink} onPress={() => router.replace('/(tabs)')} accessibilityRole="button">Plus tard</Text>
+              <Text style={styles.switchLink} onPress={() => goHome(router)} accessibilityRole="button">Plus tard</Text>
             )}
 
             {traveller && !askName && (
@@ -545,6 +556,24 @@ const styles = StyleSheet.create({
   },
   subtitleBold: {
     color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  listenButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(242, 101, 34, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    marginBottom: 14,
+  },
+  listenText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
   },
   inputWrapper: {

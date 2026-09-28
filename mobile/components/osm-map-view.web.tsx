@@ -13,6 +13,8 @@ interface OsmMapViewProps {
   origin?: Coordinates | null;
   destination?: Coordinates | null;
   routeCoordinates?: { latitude: number; longitude: number }[];
+  // One step of the journey, touched in its detail: drawn darker, and the map zooms on it.
+  focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
   onReportPress?: (report: TrafficReport) => void;
   style?: ViewStyle;
@@ -28,7 +30,7 @@ function markerElement(className: string, text = '') {
   return node;
 }
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], reports = [], onReportPress, style }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], focusCoordinates, reports = [], onReportPress, style }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -47,6 +49,8 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       map.on('load', () => {
         map.addSource('journey', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'journey-line', type: 'line', source: 'journey', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#F26522', 'line-width': 5 } });
+        map.addSource('focus', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({ id: 'focus-line', type: 'line', source: 'focus', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1E1E1E', 'line-width': 7 } });
         mapRef.current = map;
         setReady(true);
       });
@@ -76,14 +80,19 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         type: 'FeatureCollection',
         features: routeCoordinates.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: routeCoordinates.map((point) => [point.longitude, point.latitude]) } }] : [],
       });
-      const points = routeCoordinates.length ? routeCoordinates : [start, end].filter((point): point is Coordinates => Boolean(point));
+      const focus = focusCoordinates && focusCoordinates.length > 1 ? focusCoordinates : null;
+      (map.getSource('focus') as GeoJSONSource | undefined)?.setData({
+        type: 'FeatureCollection',
+        features: focus ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: focus.map((point) => [point.longitude, point.latitude]) } }] : [],
+      });
+      const points = focus ?? (routeCoordinates.length ? routeCoordinates : [start, end].filter((point): point is Coordinates => Boolean(point)));
       if (points.length >= 2) {
         const lons = points.map((point) => point.longitude); const lats = points.map((point) => point.latitude);
         map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 50, duration: 600, maxZoom: 15 });
       }
     });
     return () => { active = false; };
-  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, reports, onReportPress]);
+  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, focusCoordinates, reports, onReportPress]);
 
   return (
     <View style={[styles.container, style]}>

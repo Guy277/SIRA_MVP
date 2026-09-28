@@ -23,8 +23,8 @@ import { ensureCurrentPlace, isOwnPosition, rememberPlace, useCurrentPlace } fro
 import { VoiceAssistantSheet } from '@/components/voice-assistant-sheet';
 import type { VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
-import { prepareSpeech, say } from '@/lib/voice';
-import { arrivalHomeSpeech, greetingSpeech, MIC_PROMPT } from '@/lib/spoken';
+import { cycleVoiceMode, useVoiceMode, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
+import { useHomeGreeting } from '@/lib/use-home-greeting';
 import { notify } from '@/lib/notify';
 import { playIntroToday } from '@/lib/motion';
 import { TypewriterText } from '@/components/typewriter-text';
@@ -46,46 +46,46 @@ const CHARACTER_LEFT = (39 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 const SEARCH_PILL_WIDTH = (364 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 const SEARCH_PILL_HEIGHT = (58 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 
-// SIRA says hello once per opening of the app (not at every return to this screen).
-let greetedThisLaunch = false;
+const VOICE_ICONS: Record<VoiceMode, keyof typeof Ionicons.glyphMap> = { on: 'volume-high', alerts: 'notifications', off: 'volume-mute' };
+
+// A line of the bubble: « SIRA » in bold.
+const bubbleLine = (line: string) => line.split(/(SIRA)/).map((part, index) =>
+  part === 'SIRA' ? <Text key={index} style={styles.siraBold}>SIRA</Text> : part);
 
 export default function HomeScreen() {
   const router = useRouter();
-  const greetingName = firstName(useSession()?.user);
+  const session = useSession();
+  const greetingName = firstName(session?.user);
   const here = useCurrentPlace();
   useEffect(() => { void ensureCurrentPlace(); }, []);
   const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
-  // SIRA greets in full (bubble, typed words) on the first visit of the day.
+  const [bubbleHeight, setBubbleHeight] = useState(90);
+  // The map, the character and the search bar come in once a day.
   const [intro] = useState(() => playIntroToday('home'));
-  // …and says hello out loud at every opening of the app: « Akwaba Guy ! Je suis
-  // SIRA, ton assistant de mobilité. On va où ? » (« Akwaba ! » without a name).
-  // Only once this screen is really shown: it is mounted underneath the sign-in screen,
-  // where SIRA must not talk over « Comment tu t'appelles ? ».
-  const sessionRestored = useSessionRestored();
-  const focused = useIsFocused();
-  useEffect(() => {
-    if (!sessionRestored || !focused || greetedThisLaunch) return;
-    const timer = setTimeout(() => {
-      greetedThisLaunch = true;
-      void say(greetingSpeech(greetingName), 'greeting');
-      // The microphone prompt is prepared meanwhile, so it starts at once.
-      void prepareSpeech([MIC_PROMPT]);
-    }, 1400);
-    return () => clearTimeout(timer);
-  }, [sessionRestored, focused, greetingName]);
+  const voiceMode = useVoiceMode();
 
   // Just back from a trip: the way back is one touch away (people often make the
-  // round trip), and SIRA says goodbye once instead of « Akwaba ».
+  // round trip), and SIRA says goodbye instead of « Akwaba ».
   const { finished } = useJourneyStore();
   const wayBackLabel = finished
     ? (isOwnPosition(finished.from.name) ? 'Retour au point de départ' : `Retour vers ${finished.from.name}`)
     : null;
-  useEffect(() => {
-    if (!finished || finished.greeted || !focused || !wayBackLabel) return;
-    journeyStore.markFinishedGreeted();
-    void say(arrivalHomeSpeech(finished.to.name, wayBackLabel), 'guidance');
-  }, [finished, focused, wayBackLabel]);
+
+  // SIRA's message: the bubble shows exactly what the voice says, at the same moment
+  // (opening of the app, new sign-in, back after 30 min, end of a trip), and it
+  // follows the hour. Only once this screen is really shown: it is mounted underneath
+  // the sign-in screen, where SIRA must not talk over « Comment tu t'appelles ? ».
+  const focused = useIsFocused();
+  const message = useHomeGreeting({
+    ready: useSessionRestored(),
+    focused,
+    userId: session?.user.id ?? null,
+    sessionToken: session?.token ?? null,
+    firstName: greetingName,
+    arrival: finished && wayBackLabel ? { to: finished.to.name, wayBack: wayBackLabel, pending: !finished.greeted } : null,
+    onArrivalSaid: journeyStore.markFinishedGreeted,
+  });
 
   const handleWayBack = () => {
     if (!finished) return;
@@ -192,25 +192,48 @@ export default function HomeScreen() {
           >
             <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
           </TouchableOpacity>
+          {/* SIRA's voice: on -> alerts only -> off (kept on this phone). */}
+          <TouchableOpacity
+            style={styles.voiceButton}
+            onPress={cycleVoiceMode}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Voix : ${VOICE_MODE_LABELS[voiceMode]}. Touche pour changer.`}
+          >
+            <Ionicons name={VOICE_ICONS[voiceMode]} size={18} color={voiceMode === 'off' ? '#94A3B8' : '#FFFFFF'} />
+          </TouchableOpacity>
         </View>
 
-        {/* Speech / Greeting Bubble (Positioned above character's head with speech pointer tail) */}
-        {/* The bubble pops up, "Akwaba" writes itself, then SIRA introduces itself. */}
-        <Animated.View entering={intro ? ZoomIn.delay(350).springify().damping(14) : FadeIn.duration(250)} style={styles.speechBubble}>
-          <TypewriterText
-            key={greetingName ?? ''}
-            play={intro}
-            delayMs={650}
-            text={`Akwaba${greetingName ? ` ${greetingName}` : ''} !`}
-            style={[styles.speechGreeting, styles.speechGreetingBold]}
-          />
-          <Animated.Text entering={intro ? FadeIn.delay(1250).duration(350) : FadeIn.duration(250)} style={styles.speechMain}>
-            Je suis <Text style={styles.siraBold}>SIRA</Text>, ton
-          </Animated.Text>
-          <Animated.Text entering={intro ? FadeIn.delay(1450).duration(350) : FadeIn.duration(250)} style={styles.speechSub}>assistant de mobilité.</Animated.Text>
-          {/* Speech bubble pointer arrow */}
-          <View style={styles.speechBubbleArrow} />
-        </Animated.View>
+        {/* SIRA's bubble, above the character's head: pops up with the voice,
+            « Akwaba Guy ! » writes itself, then the other lines come. It grows
+            upwards, so it never covers the character. */}
+        {message && (
+          <Animated.View
+            key={message.key}
+            entering={message.animate ? ZoomIn.delay(150).springify().damping(14) : FadeIn.duration(250)}
+            style={[styles.speechBubble, { top: Math.max(56, CHARACTER_TOP - 20 - bubbleHeight) }]}
+            onLayout={(event) => setBubbleHeight(event.nativeEvent.layout.height)}
+            accessibilityLiveRegion="polite"
+          >
+            <TypewriterText
+              play={message.animate}
+              delayMs={450}
+              text={message.greeting.hello}
+              style={[styles.speechGreeting, styles.speechGreetingBold]}
+            />
+            {message.greeting.lines.map((line, index) => (
+              <Animated.Text
+                key={line}
+                entering={message.animate ? FadeIn.delay(1000 + index * 350).duration(350) : FadeIn.duration(250)}
+                style={index === message.greeting.lines.length - 1 ? styles.speechSub : styles.speechMain}
+              >
+                {bubbleLine(line)}
+              </Animated.Text>
+            ))}
+            {/* Speech bubble pointer arrow */}
+            <View style={styles.speechBubbleArrow} />
+          </Animated.View>
+        )}
 
         {/* 3D Animated Assistant Character - Designer Specs (324x486 at Top: 414px, Left: 39px, Angle: 0deg, Opacity: 1) */}
         <Animated.View entering={intro ? FadeInDown.duration(500) : FadeIn.duration(250)} style={styles.characterContainer} pointerEvents="none">
@@ -309,9 +332,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   topHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 18,
     paddingTop: 8,
     zIndex: 30,
+  },
+  voiceButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   backButton: {
     width: 36,
@@ -328,7 +366,6 @@ const styles = StyleSheet.create({
   },
   speechBubble: {
     position: 'absolute',
-    top: CHARACTER_TOP - 110,
     left: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.78)',
     paddingHorizontal: 20,

@@ -62,13 +62,14 @@ export function legBadges(journey: ApiJourney): LegBadge[] {
 export function alternativesText(leg: ApiLeg, { otherModesOnly = false } = {}) {
   const others = (leg.alternatives ?? []).filter((line) => !otherModesOnly || line.mode !== leg.mode);
   if (!others.length) return null;
-  const names = others.slice(0, 4).map((line) => {
+  // Several lines can end at the same place: each way of saying it is listed once.
+  const names = [...new Set(others.map((line) => {
     if (line.code) return `${line.mode === 'boat' ? 'bateau' : 'bus'} ${line.code}`;
     const [, route] = line.name.split(':');
     const terminus = route?.split('↔').pop()?.trim();
     return `${MODE_SHORT[line.mode]?.toLowerCase() ?? 'ligne'}${terminus ? ` vers ${terminus}` : ''}`;
-  });
-  return `Aussi possible : ${names.join(', ')}${others.length > 4 ? '…' : ''}`;
+  }))];
+  return `Aussi possible : ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`;
 }
 
 export function journeySummary(journey: ApiJourney) {
@@ -122,6 +123,9 @@ export function stepDescription(leg: ApiLeg & { duration_p90?: number }) {
 }
 
 export const toLatLng = ([longitude, latitude]: [number, number]): Coordinates => ({ latitude, longitude });
+
+// The stretch of one step, to show it alone on the map.
+export const legPath = (leg: ApiLeg): Coordinates[] => (leg.geometry ?? []).map(toLatLng);
 
 export function journeyPath(journey: ApiJourney | null | undefined): Coordinates[] {
   if (!journey) return [];

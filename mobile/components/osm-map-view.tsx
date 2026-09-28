@@ -16,6 +16,8 @@ interface OsmMapViewProps {
   origin?: Coordinates | null;
   destination?: Coordinates | null;
   routeCoordinates?: { latitude: number; longitude: number }[];
+  // One step of the journey, touched in its detail: drawn darker, and the map zooms on it.
+  focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
   onReportPress?: (report: TrafficReport) => void;
   style?: ViewStyle;
@@ -43,6 +45,7 @@ export function OsmMapView({
   origin,
   destination,
   routeCoordinates: activeRoute = [],
+  focusCoordinates,
   reports = [],
   onReportPress,
   style,
@@ -56,7 +59,12 @@ export function OsmMapView({
   // Fit bounds dynamically when route or markers update
   useEffect(() => {
     if (mapRef.current) {
-      if (activeRoute.length > 0) {
+      if (focusCoordinates && focusCoordinates.length > 1) {
+        mapRef.current.fitToCoordinates(focusCoordinates, {
+          edgePadding: { top: 70, right: 60, bottom: 70, left: 60 },
+          animated: true,
+        });
+      } else if (activeRoute.length > 0) {
         mapRef.current.fitToCoordinates(activeRoute, {
           edgePadding: { top: 70, right: 60, bottom: 70, left: 60 },
           animated: true,
@@ -68,7 +76,7 @@ export function OsmMapView({
         });
       }
     }
-  }, [activeRoute, startCoords, endCoords]);
+  }, [activeRoute, focusCoordinates, startCoords, endCoords]);
 
   return (
     <View style={[styles.container, style]}>
@@ -138,6 +146,9 @@ export function OsmMapView({
             strokeColor="#F26522"
             strokeWidth={5}
           />
+        )}
+        {focusCoordinates && focusCoordinates.length > 1 && (
+          <Polyline coordinates={focusCoordinates} strokeColor="#1E1E1E" strokeWidth={7} />
         )}
       </MapView>
 
