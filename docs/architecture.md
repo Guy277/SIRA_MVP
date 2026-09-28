@@ -100,6 +100,18 @@ ouvert au réseau ; PostgreSQL et Valhalla ne sont joignables que depuis la mach
 
 ## Sécurité
 
+**CORS (navigateurs)** : une seule règle pour l'API HTTP et Socket.IO, dans `services/api/src/cors.ts`.
+
+| Mode | Origines acceptées |
+| --- | --- |
+| Développement (`SIRA_ENV` absent ou `development`) | la liste `CORS_ORIGIN` ; `http(s)://<hôte>:8081` et `:8082` (Expo) quand l'hôte est `localhost`, `127.x` ou une IP privée (`10.x`, `172.16–31.x`, `192.168.x`) ; `https://*.trycloudflare.com` (`npm run dev:tunnel`) |
+| Production (tout autre `SIRA_ENV`) | **uniquement** la liste `CORS_ORIGIN` ; liste vide = toutes les origines navigateur refusées (message au démarrage) |
+
+Les requêtes sans en-tête `Origin` (Expo Go natif, curl, service vocal) ne sont pas concernées. Les services
+internes (SIRA-MORE 8000, comptes 8100, voix 8200) écoutent sur `127.0.0.1` : un téléphone ne joint que l'API (4000).
+En production, `SIRA_ENV=production` est transmis à l'API comme au service des comptes (`infra/compose.yaml`).
+
+
 - Aucun secret dans le dépôt : `.env` n'est pas versionné, `.env.example` ne contient que les noms de variables.
 - `COMMUNITY_JWT_SECRET` est obligatoire en production et le mode démo SMS y est refusé.
 - Les branches `AKA` et `BANATOU` contiennent dans leur historique des identifiants et des données personnelles : les clés doivent être régénérées.

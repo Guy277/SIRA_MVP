@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev:stack": "node scripts/start-dev-stack.mjs",
+    "dev:tunnel": "node scripts/dev-tunnel.mjs",
     "test:runtime": "node scripts/start-dev-stack.mjs --smoke-test",
     "test": "node --test tests/*.test.mjs",
     "test:ai": "py -3 -m unittest discover -s services/engine/tests -v",

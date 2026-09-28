@@ -34,6 +34,8 @@ services:
       SIRA_DATA_ROOT: /data
       SIRA_GRAPH_WORKER: "true"
       CORS_ORIGIN: http://localhost:8080
+      # production: only CORS_ORIGIN (services/api/src/cors.ts), like the community service.
+      SIRA_ENV: ${SIRA_ENV:-development}
     volumes:
       - ../data:/data:ro,Z
     expose: ["4000"]

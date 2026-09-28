@@ -47,6 +47,56 @@ Sous Windows, on peut aussi double-cliquer sur `LANCER_SIRA_WINDOWS.bat`.
 
 **Sur un serveur** : `podman compose -f infra/compose.yaml up -d` (voir [docs/architecture.md](docs/architecture.md)).
 
+## Tester sur téléphone
+
+`npm run dev:stack` affiche l'adresse à ouvrir sur le téléphone (elle change avec le réseau) et prévient
+de ce qui bloquerait :
+
+```text
+[SIRA] Sur téléphone (même Wi-Fi, Wi-Fi) : http://192.168.x.x:8081
+[SIRA] Test API depuis le téléphone : http://192.168.x.x:4000/api/v1/health
+[SIRA] Micro et GPS : HTTPS nécessaire -> npm run dev:tunnel, ou l'appli Expo Go (QR code)
+```
+
+1. **Même Wi-Fi** pour le PC et le téléphone. Certains Wi-Fi (école, hôtel, box en mode invité) isolent les
+   appareils entre eux : utiliser alors le **partage de connexion du téléphone** pour le PC.
+2. **Pare-feu Windows**, une seule fois : PowerShell **en administrateur**, puis
+   `powershell -ExecutionPolicy Bypass -File scripts\windows\autoriser-telephone.ps1`.
+   Il ouvre les ports 8081 et 4000 **uniquement en profil Privé et pour le réseau local**, et propose de passer
+   le réseau en **Privé** (un réseau en « Public » bloque toujours le téléphone ; ne le faire que sur un réseau
+   de confiance). Pour tout retirer : `scripts\windows\retirer-regles-telephone.ps1`.
+3. **VPN** : le désactiver sur le PC et sur le téléphone pendant les tests.
+4. Ouvrir d'abord `http://<IP>:4000/api/v1/health` sur le téléphone : si ça ne répond pas, le souci est réseau
+   (pare-feu, Wi-Fi isolé, VPN), pas l'appli.
+5. **Micro et GPS** : Safari et Chrome ne les donnent qu'en **HTTPS** (ou sur `localhost`). Sur `http://<IP>:8081`,
+   l'appli le dit (« nécessite une connexion sécurisée ») ; il reste le choix sur la carte et l'écrit.
+   Pour les tester : `npm run dev:tunnel` (HTTPS, voir ci-dessous) ou **Expo Go**.
+
+| Où | Adresse | Écrans et trajets | Micro | « Ma position » (GPS) |
+| --- | --- | --- | --- | --- |
+| Navigateur du PC | `http://localhost:8081` | ✅ | ✅ | ✅ |
+| Navigateur du téléphone | `http://<IP>:8081` | ✅ | ❌ (HTTPS requis) | ❌ (HTTPS requis) |
+| Navigateur du téléphone | tunnel `https://…trycloudflare.com` | ✅ | ✅ | ✅ |
+| Expo Go (QR code) | appli native | ✅ | ✅ | ✅ |
+
+**Tunnel HTTPS** (`npm run dev:tunnel`, avec `npm run dev:stack` déjà lancé) : installer une fois
+`winget install Cloudflare.cloudflared`. Le script ouvre un tunnel vers l'API, lance l'appli (port 8081, ou 8082
+si le premier Expo tourne déjà) avec `EXPO_PUBLIC_API_URL` pointant sur ce tunnel (sans modifier `mobile/.env`),
+puis ouvre un tunnel vers l'appli et affiche l'adresse à ouvrir. **Le PC est accessible depuis Internet tant que
+le terminal est ouvert** (Ctrl+C ferme tout) ; ne pas partager le lien : en développement le code SMS s'affiche
+à l'écran. Si le script échoue, procédure manuelle :
+
+```bash
+cloudflared tunnel --url http://localhost:4000        # note l'adresse https de l'API
+cd mobile
+set EXPO_PUBLIC_API_URL=https://<adresse-api>.trycloudflare.com/api/v1
+npx expo start --port 8082
+cloudflared tunnel --url http://localhost:8082        # adresse à ouvrir sur le téléphone
+```
+
+Si `mobile/.env` contient `EXPO_PUBLIC_API_URL`, l'appli appelle cette adresse au lieu du PC : `dev:stack`
+le signale.
+
 ## Où modifier quoi
 
 | Je veux changer… | Fichier(s) |

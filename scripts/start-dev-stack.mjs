@@ -5,6 +5,7 @@ import { createConnection } from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { phoneAccessNotes } from "./dev-network.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const isWindows = process.platform === "win32";
@@ -123,8 +124,10 @@ const apiEnv = {
   SIRA_DATA_ROOT: join(root, "data"),
   SIRA_GRAPH_WORKER: "true",
   // 8081 : appli Expo dans le navigateur ; 8080 : appli web exportée servie par Nginx (infra/compose.yaml).
-  // Expo Go (téléphone) n'est pas concerné par CORS.
-  CORS_ORIGIN: "http://localhost:8081,http://localhost:8080",
+  // En développement, l'API accepte aussi http://<IP du PC>:8081 (téléphone sur le même Wi-Fi) et les
+  // tunnels https://*.trycloudflare.com : voir services/api/src/cors.ts. Expo Go n'est pas concerné par CORS.
+  CORS_ORIGIN: process.env.CORS_ORIGIN || "http://localhost:8081,http://localhost:8080",
+  SIRA_ENV: "development",
 };
 
 const portInUse = (port) => new Promise((resolvePort) => {
@@ -146,8 +149,9 @@ if (!smokeTest && process.env.SIRA_MOBILE !== "false") {
   if (!existsSync(join(mobileDir, "node_modules"))) {
     mobileNote = "Appli non lancée : installe-la d'abord avec  cd mobile && npm install";
   } else if (await portInUse(8081)) {
-    mobileNote = "Appli déjà lancée sur http://localhost:8081 (Expo Go : son QR code est dans l'autre terminal)";
+    mobileNote = "Port 8081 déjà pris : un autre Expo est sans doute ouvert (son QR code est dans l'autre terminal). L'appli n'est pas relancée ici.";
   } else {
+    // Mode LAN (par défaut d'Expo, pas --localhost) : le téléphone joint le PC par son adresse IP.
     const mobile = start("appli Expo", npx, ["expo", "start", "--port", "8081"], {}, mobileDir);
     mobile.siraExpectedExit = true; // fermer Expo ne doit pas arrêter les services
     mobileNote = "Appli : http://localhost:8081 — sur téléphone, scanne le QR code avec Expo Go (même Wi-Fi)";
@@ -199,6 +203,8 @@ try {
         .catch(() => console.warn("[SIRA] L'assistant vocal ne répond pas : voir services/voice/README.md"));
     }
     if (mobileNote) console.log(`[SIRA] ${mobileNote}`);
+    // Tester sur un téléphone : adresses du PC, profil réseau Windows, mobile/.env (README « Tester sur téléphone »).
+    for (const note of phoneAccessNotes(root)) console.log(`[SIRA] ${note}`);
   } else {
     if (apiHealth?.service !== "sira-api") throw new Error("L'API ne répond pas comme l'API SIRA.");
     const journeyRequest = {
