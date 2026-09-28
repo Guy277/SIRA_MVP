@@ -4,6 +4,10 @@ import type { WalkConnectorKind } from "./walk-config";
 
 export type RoutingPoint = { lat: number; lon: number };
 
+// One instruction of the walk, in French, as Valhalla gives it (« Tournez à droite
+// dans l'allée. »), with where it starts, to add a landmark when the street has no name.
+export type WalkStep = { text: string; distance_m: number; point: Coordinate; street: string | null; arrive: boolean };
+
 export type PedestrianRoute = {
   distanceKm: number;
   durationMinutes: number;
@@ -15,12 +19,15 @@ export type PedestrianRoute = {
   connectorKind: WalkConnectorKind;
   source: "valhalla_osm";
   walkingDurationS: number;
+  steps?: WalkStep[];
 };
+
+type ValhallaManeuver = { type?: number; instruction?: string; length?: number; begin_shape_index?: number; street_names?: string[] };
 
 type ValhallaResponse = {
   trip?: {
     summary?: { time?: number; length?: number };
-    legs?: Array<{ shape?: string | { coordinates?: Coordinate[] } }>;
+    legs?: Array<{ shape?: string | { coordinates?: Coordinate[] }; maneuvers?: ValhallaManeuver[] }>;
   };
 };
 
@@ -68,6 +75,41 @@ const extractCoordinates = (data: ValhallaResponse): Coordinate[] => {
   return [];
 };
 
+// SIRA says « tu »: Valhalla's French instructions are in « vous » (« Tournez à gauche. »).
+const TU_VERBS: Record<string, string> = {
+  marchez: "marche", tournez: "tourne", gardez: "garde", continuez: "continue", prenez: "prends",
+  traversez: "traverse", faites: "fais", restez: "reste", entrez: "entre", sortez: "sors", serrez: "serre",
+  rejoignez: "rejoins", allez: "va", montez: "monte", descendez: "descends", suivez: "suis",
+  empruntez: "emprunte", quittez: "quitte", utilisez: "utilise", passez: "passe", continuer: "continuer",
+};
+const keepCase = (source: string, word: string) => (source[0] === source[0].toUpperCase() ? word[0].toUpperCase() + word.slice(1) : word);
+export const toTu = (text: string) => text
+  .replace(/\b([Dd])irigez-vous\b/g, (_, d: string) => `${d}irige-toi`)
+  // No \b after « é »: JavaScript word boundaries only know ASCII letters.
+  .replace(/\bVous êtes arrivée?s?(?=[\s.,!]|$)/g, "Tu es arrivé")
+  .replace(/\b([Ff])aites\b/g, (_, f: string) => `${f}ais`)
+  .replace(/\bvous êtes\b/g, "tu es")
+  .replace(/\b([Vv])otre destination\b/g, (_, v: string) => (v === "V" ? "Ta destination" : "ta destination"))
+  .replace(/\b([Vv])otre\b/g, (_, v: string) => (v === "V" ? "Ton" : "ton"))
+  .replace(/\b([A-Za-zÀ-ÿ]+ez)\b/g, (word: string) => {
+    const tu = TU_VERBS[word.toLowerCase()];
+    return tu ? keepCase(word, tu) : word;
+  });
+
+// Valhalla maneuver types 4, 5, 6: arrival (« Votre destination est sur la droite. »).
+const ARRIVAL_TYPES = new Set([4, 5, 6]);
+
+export const walkSteps = (data: ValhallaResponse, coordinates: Coordinate[]): WalkStep[] =>
+  (data.trip?.legs?.[0]?.maneuvers ?? [])
+    .filter((maneuver) => maneuver.instruction)
+    .map((maneuver) => ({
+      text: toTu(maneuver.instruction!.trim()),
+      distance_m: Math.round((maneuver.length ?? 0) * 1000),
+      point: coordinates[Math.min(maneuver.begin_shape_index ?? 0, coordinates.length - 1)],
+      street: maneuver.street_names?.[0] ?? null,
+      arrive: ARRIVAL_TYPES.has(maneuver.type ?? 0),
+    }));
+
 export const routePedestrian = async (
   valhallaUrl: string,
   origin: RoutingPoint,
@@ -85,7 +127,7 @@ export const routePedestrian = async (
     units: "kilometers",
     language: "fr-FR",
     shape_format: "geojson",
-    directions_options: { units: "kilometers" },
+    directions_options: { units: "kilometers", language: "fr-FR" },
   };
   try {
     const startedAt = performance.now();
@@ -114,6 +156,7 @@ export const routePedestrian = async (
           connectorKind: options.connectorKind,
           source: "valhalla_osm",
           walkingDurationS: Math.round(seconds),
+          steps: walkSteps(data, coordinates),
         };
       }
     }

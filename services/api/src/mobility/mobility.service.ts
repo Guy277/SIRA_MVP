@@ -5,6 +5,13 @@ import { TransportGraph, type AvoidArea, type NetworkJourney, type TransportFeat
 import { distanceToLineM } from "../reports/reports.service";
 import { combineConfidence, type SiraTransportMode, estimateRideDuration, estimateWait } from "./estimators";
 import { decodeValhallaShape, haversineKm, routePedestrian, type PedestrianRoute } from "./pedestrian-router";
+import { StopIndex, type RideStop, type RideStops } from "./stop-index";
+
+// A stop told to the traveller: on_line, a stop of the line (« à … »); otherwise a nearby landmark (« vers … »).
+type StopMention = { name: string; on_line: boolean };
+const mention = (stop: RideStop | null | undefined): StopMention | null => (stop ? { name: stop.name, on_line: stop.on_line } : null);
+// Only a real stop is named at the end of a walk (« L'arrêt « X » est sur la droite. »).
+const stopName = (stop: StopMention | null | undefined) => (stop?.on_line ? stop.name : null);
 import { classifyTransferDistance, SIRA_WALK, type WalkConnectorKind } from "./walk-config";
 import { JourneyProfiler } from "./journey-profiler";
 import { TransportRepository } from "./transport.repository";
@@ -213,6 +220,8 @@ export class MobilityService implements OnModuleInit {
   private readonly profileJourneys = process.env.SIRA_JOURNEY_PROFILING === "true";
   private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
   private transportGraph?: TransportGraph;
+  // Named stops of the network (where to get on and off, landmarks for walking); null if the file is missing.
+  private stopIndex?: StopIndex | null;
   // Off-thread graph search keeps the API responsive during a search.
   private readonly useGraphWorker = process.env.SIRA_GRAPH_WORKER === "true";
   private graphWorker?: GraphWorkerClient;
@@ -225,6 +234,7 @@ export class MobilityService implements OnModuleInit {
     const warmRadiusKm = SIRA_WALK.maxTransferDistanceM >= 800 ? 0.8 : SIRA_WALK.maxTransferDistanceM / 1000;
     if (this.useGraphWorker) this.graphWorker = new GraphWorkerClient(this.transportDatasetPath(), warmRadiusKm);
     else this.getTransportGraph().warmUp(warmRadiusKm);
+    this.getStopIndex();
   }
 
   private routeGraph(...args: Parameters<TransportGraph["route"]>): Promise<NetworkJourney | null> {
@@ -1092,7 +1102,7 @@ if (!deduplicatedCandidates.length) {
     ).sort((left, right) => Number(left.duration) + Number(left.price) / 50 - (Number(right.duration) + Number(right.price) / 50));
     const source = postgisCandidateIds.size > 0 && feasible.some((c) => postgisCandidateIds.has(c.id as string)) ? "postgis_multimodal" : "local_geojson";
     return this.withProfile({
-      journeys: feasible.map((candidate, index) => ({ ...candidate, recommended: index === 0, reasons: ["Respecte vos contraintes", "Classement de secours déterministe"] })),
+      journeys: feasible.map((candidate, index) => ({ ...candidate, recommended: index === 0, reasons: ["Respecte tes contraintes", "Classement de secours déterministe"] })),
       recommended_id: feasible[0]?.id ?? null,
       rejected_count: deduplicatedCandidates.length - feasible.length,
       source,
@@ -1108,6 +1118,30 @@ if (!deduplicatedCandidates.length) {
 
   private readTransportDataset(): { type: "FeatureCollection"; features: TransportFeature[] } {
     return JSON.parse(readFileSync(this.transportDatasetPath(), "utf8"));
+  }
+
+  private getStopIndex() {
+    if (this.stopIndex === undefined) this.stopIndex = StopIndex.load(join(this.dataRoot, "processed", "transport-network-unified.json"));
+    return this.stopIndex;
+  }
+
+  // The walk in words: Valhalla's French instructions, a named stop as landmark where
+  // the street has no name (« Tournez à droite » → « … au niveau de Station Shell »),
+  // and the stop to reach named at the end (« L'arrêt « Carrefour Kouté » est sur la droite. »).
+  private describeWalk(route: PedestrianRoute, target: string | null) {
+    const stops = this.getStopIndex();
+    return (route.steps ?? [])
+      .filter((step) => step.arrive || step.distance_m > 0)
+      .slice(0, 12)
+      .map((step) => {
+        // « Ta destination est sur la gauche. » / « Tu es arrivé à ta destination. »
+        const text = step.arrive && target
+          ? step.text.replace(/^Ta destination/, `L'arrêt « ${target} »`).replace(/ta destination/, `l'arrêt « ${target} »`)
+          : step.text;
+        const landmark = !step.arrive && !step.street ? stops?.nearest(step.point, 40)?.name ?? null : null;
+        // point: where the instruction applies, so the guidance says it just before (GPS).
+        return { text, distance_m: step.distance_m, landmark: landmark && landmark !== target ? landmark : null, point: step.point };
+      });
   }
 
   private getTransportGraph() {
@@ -1224,10 +1258,12 @@ if (!deduplicatedCandidates.length) {
       return null;
     }
 
-    const legs: Array<Record<string, unknown>> = [this.walkingLeg(`${id}-access`, "Rejoindre le réseau de transport", access)];
+    const rideStops: Array<RideStops | null> = route.legs.map((leg) => this.getStopIndex()?.describeRide(leg.lineId, leg.coordinates) ?? null);
+    const legs: Array<Record<string, unknown>> = [this.walkingLeg(`${id}-access`, "Rejoindre le réseau de transport", access, { to: mention(rideStops[0]?.board) })];
     route.legs.forEach((leg, index) => {
+      const stops = rideStops[index];
       legs.push({
-        id: `${id}-wait-${index}`, mode: "wait", label: `Attente estimée — ${leg.mode}`,
+        id: `${id}-wait-${index}`, mode: "wait", label: `Attente estimée — ${leg.mode}`, at_stop: mention(stops?.board),
         detail: `${leg.waitMinutes} min (P90 ${leg.waitP90} min) · ${leg.waitMethod.startsWith("historical_") ? "fréquence déclarée 2021" : "valeur-type à calibrer"}`,
         duration: leg.waitMinutes, duration_p90: leg.waitP90, price: 0, geometry: [], dataStatus: "estimated_mvp",
         estimate_method: leg.waitMethod, confidence: leg.waitConfidence,
@@ -1238,6 +1274,9 @@ if (!deduplicatedCandidates.length) {
         duration: leg.durationMinutes, duration_p90: leg.durationP90, price: leg.price, price_p90: leg.priceP90,
         geometry: leg.coordinates, line_id: leg.lineId, line_code: leg.code, alternatives: leg.alternatives.map((line) => ({ line_id: line.lineId, code: line.code, name: line.name, mode: line.mode })), source: `${leg.operator} · ${leg.network} · ${leg.lineId}`,
         dataStatus: "historical_open_data", estimate_method: leg.durationMethod, confidence: leg.sourceConfidence,
+        board_stop: mention(stops?.board), alight_stop: mention(stops?.alight), via_stops: stops?.via ?? [],
+        before_alight_stop: stops?.before_alight ?? null, headsign: stops?.headsign ?? null, stop_count: stops?.stop_count ?? null,
+        ride_stops: stops?.stops ?? [],
       });
       const transfer = route.transfers.find((candidate) => candidate.afterLegIndex === index);
       const routedTransfer = transfer ? confirmedTransfers[route.transfers.indexOf(transfer)] : null;
@@ -1249,10 +1288,12 @@ if (!deduplicatedCandidates.length) {
           duration, duration_p90: routedTransfer.durationP90 + transfer.interchangeBufferMinutes, price: 0,
           geometry: routedTransfer.coordinates, dataStatus: routedTransfer.guidanceAvailable ? "routed_osm" : "estimated_mvp",
           estimate_method: routedTransfer.method, confidence: routedTransfer.confidence, guidance_available: routedTransfer.guidanceAvailable,
+          from_stop: mention(stops?.alight), to_stop: mention(rideStops[index + 1]?.board),
+          walk_steps: this.describeWalk(routedTransfer, stopName(mention(rideStops[index + 1]?.board))),
         });
       }
     });
-    legs.push(this.walkingLeg(`${id}-egress`, "Terminer à pied", egress));
+    legs.push(this.walkingLeg(`${id}-egress`, "Terminer à pied", egress, { from: mention(rideStops[rideStops.length - 1]?.alight) }));
 
     const walkingMinutes = access.durationMinutes + egress.durationMinutes + confirmedTransfers.reduce((sum, transfer) => sum + transfer.durationMinutes, 0);
     const transferBufferMinutes = route.transfers.reduce((sum, transfer) => sum + transfer.interchangeBufferMinutes, 0);
@@ -1284,9 +1325,10 @@ if (!deduplicatedCandidates.length) {
     };
   }
 
-  private walkingLeg(id: string, label: string, route: PedestrianRoute) {
+  private walkingLeg(id: string, label: string, route: PedestrianRoute, places: { from?: StopMention | null; to?: StopMention | null } = {}) {
     return {
-      id, mode: "walk", label,
+      id, mode: "walk", label, from_stop: places.from ?? null, to_stop: places.to ?? null,
+      walk_steps: this.describeWalk(route, stopName(places.to)),
       detail: `${route.durationMinutes} min · ${Math.round(route.distanceKm * 1000)} m${route.guidanceAvailable ? " · chemin OSM" : " · estimation sans guidage"}`,
       duration: route.durationMinutes, duration_p90: route.durationP90, price: 0, geometry: route.coordinates,
       dataStatus: route.guidanceAvailable ? "routed_osm" : "estimated_mvp", estimate_method: route.method,
