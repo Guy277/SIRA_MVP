@@ -1,0 +1,6 @@
+# Serveur de test SIRA : HTTPS automatique (Let's Encrypt) pour SIRA_DOMAIN, puis tout vers Nginx.
+# SIRA_DOMAIN vient de infra/server.env (ex. 13-51-20-30.sslip.io, ou test.sira.ci).
+# Caddy remplace l'en-tête X-Forwarded-For par l'adresse réelle du voyageur : Nginx peut s'y fier.
+{$SIRA_DOMAIN} {
+	reverse_proxy nginx:80
+}

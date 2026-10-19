@@ -1,0 +1,54 @@
+# Serveur de test SIRA (EC2) : complète infra/compose.yaml, ne le remplace pas.
+# Lancé par scripts/server/install.sh, ou à la main depuis la racine du projet :
+#   docker compose --env-file infra/server.env -f infra/compose.yaml -f infra/compose.server.yaml up -d --build
+# Procédure complète : docs/serveur-test-aws.md
+#
+# Ce qui change par rapport à la stack locale :
+# - Caddy devient le seul point public (80 et 443) et obtient le certificat HTTPS tout seul ;
+#   Nginx n'est plus publié, il ne reçoit que ce que Caddy lui relaie.
+# - Le mot de passe Postgres et les secrets viennent de infra/server.env (jamais dans Git).
+# - CORS_ORIGIN = l'adresse HTTPS du serveur.
+
+services:
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SIRA_DOMAIN: ${SIRA_DOMAIN:?SIRA_DOMAIN manquant dans infra/server.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
+      - caddy_data:/data:Z
+      - caddy_config:/config:Z
+    depends_on: [nginx]
+    restart: unless-stopped
+
+  nginx:
+    # Plus de port 8080 : seul Caddy parle à Nginx, sur le réseau privé des conteneurs.
+    ports: !reset []
+    volumes:
+      # L'adresse du voyageur, transmise par Caddy (X-Forwarded-For) : sans elle, les limites par
+      # adresse (Nginx et API) verraient tout le monde comme un seul voyageur, celui de Caddy.
+      - ./nginx/real-ip.server.conf:/etc/nginx/conf.d/real-ip.server.conf:ro,Z
+
+  api:
+    environment:
+      DATABASE_URL: postgresql://sira:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@postgres:5432/sira
+      CORS_ORIGIN: https://${SIRA_DOMAIN}
+      # Profilage des trajets : utile en local, inutile sur le serveur de test.
+      SIRA_JOURNEY_PROFILING: "false"
+
+  community:
+    environment:
+      COMMUNITY_DATABASE_URL: postgresql+psycopg://sira:${POSTGRES_PASSWORD}@postgres:5432/sira
+
+  postgres:
+    environment:
+      # Pris en compte à la création de la base seulement (premier démarrage, volume vide).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+volumes:
+  caddy_data:
+  caddy_config:
