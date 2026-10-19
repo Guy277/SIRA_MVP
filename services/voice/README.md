@@ -129,7 +129,7 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 | `VOICE_PRELOAD` | `1` | Whisper et Piper chargés dès le démarrage (sinon la 1re phrase attend 10 à 20 s) |
 | `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-siwis-medium.onnx` | voix de SIRA (future voix ivoirienne : remplacer ce fichier) |
 | `SIRA_API_URL` | `http://127.0.0.1:4000/api/v1` | API de calcul des trajets |
-| `VOICE_PLACE_THRESHOLD` / `VOICE_PLACE_MARGIN` | `60` / `3` | seuils du correcteur de lieux |
+| `VOICE_PLACE_THRESHOLD` / `VOICE_PLACE_MARGIN` | `90` / `3` | seuils du correcteur de lieux : en dessous de 90, SIRA demande « Tu veux dire … ? » |
 
 ## Scores mesurés (test v0.4 — phrases synthétiques jamais vues)
 

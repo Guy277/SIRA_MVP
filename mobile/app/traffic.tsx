@@ -18,7 +18,7 @@ import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
 import { notify } from '@/lib/notify';
 import { voteReport, type TrafficReport } from '@/lib/sira-api';
-import { REPORT_STATUS_LABEL, REPORT_STYLE, clientId, timeAgo, upsertReport, useLiveReports } from '@/lib/reports';
+import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, upsertReport, useLiveReports } from '@/lib/reports';
 import { formatClock } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
 
@@ -62,7 +62,7 @@ export default function TrafficScreen() {
   const vote = async (report: TrafficReport, kind: 'confirm' | 'contest') => {
     setVoting(true);
     try {
-      upsertReport(await voteReport(report.id, kind, clientId()));
+      upsertReport(await voteReport(report.id, kind));
       setSelectedId(null);
       notify('Merci', kind === 'confirm' ? 'Confirmation enregistrée.' : 'Ton avis a été enregistré.');
     } catch (error) {

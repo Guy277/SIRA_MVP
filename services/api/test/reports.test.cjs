@@ -6,7 +6,7 @@ const { TransportGraph } = require("../dist/mobility/transport-graph.js");
 
 const PLATEAU = { lat: 5.3196, lon: -4.0201 };
 const author = "author-client-01";
-const create = (service, overrides = {}) => service.add({ type: "accident", ...PLATEAU, location: "Plateau", clientId: author, ...overrides });
+const create = (service, overrides = {}) => service.add({ type: "accident", ...PLATEAU, location: "Plateau", ...overrides }, author);
 
 test("un signalement démarre à l'état SIGNALÉ avec expiration et sévérité par type", () => {
   const report = create(new ReportsService());
@@ -16,11 +16,10 @@ test("un signalement démarre à l'état SIGNALÉ avec expiration et sévérité
   assert.ok(Date.parse(report.expiresAt) > Date.parse(report.createdAt));
 });
 
-test("rejette un type inconnu, une position hors Grand Abidjan ou un client invalide", () => {
+test("rejette un type inconnu ou une position hors Grand Abidjan", () => {
   const service = new ReportsService();
   assert.throws(() => create(service, { type: "meteor" }), /Type de signalement/);
   assert.throws(() => create(service, { lat: 48.85, lon: 2.35 }), /Grand Abidjan/);
-  assert.throws(() => create(service, { clientId: "x" }), /Identifiant client/);
 });
 
 test("cycle SIGNALÉ → CONFIRMÉ → FIABLE par confirmations d'autres utilisateurs", () => {

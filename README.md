@@ -43,7 +43,7 @@ Sous Windows, on peut aussi double-cliquer sur `LANCER_SIRA_WINDOWS.bat`.
   (`SIRA_MOBILE=false` pour ne jamais la lancer).
 - L'assistant vocal démarre s'il est installé (`npm run voice:setup`, une fois).
 
-**Connexion** : numéro **Orange (07)** puis code à 4 chiffres. En développement, le code s'affiche à l'écran, sans SMS.
+**Connexion** : numéro **Orange (07)** puis code à 6 chiffres. En développement, le code s'affiche à l'écran, sans SMS.
 
 **Sur un serveur** : `podman compose -f infra/compose.yaml up -d` (voir [docs/architecture.md](docs/architecture.md)).
 

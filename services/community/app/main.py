@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .models import FareReport, OtpCode, User, get_db, init_db
-from .security import current_user, request_otp, user_payload, verify_otp
+from .security import OTP_DIGITS, current_user, request_otp, user_payload, verify_otp
 
 Role = Literal["STUDENT", "WORKER", "TRADER", "DRIVER", "TOURIST"]
 FARE_TOLERANCE_FCFA = 50
@@ -31,7 +31,7 @@ class OtpRequest(BaseModel):
 
 class OtpVerify(BaseModel):
     phone_number: str
-    code: str = Field(pattern=r"^\s*\d{4}\s*$")
+    code: str = Field(pattern=rf"^\s*\d{{{OTP_DIGITS}}}\s*$")
     full_name: str | None = Field(default=None, max_length=100)
     role: Role | None = None
 

@@ -19,6 +19,7 @@ os.environ.setdefault("VOICE_PRELOAD", "0")  # les tests n'utilisent pas les gro
 from fastapi.testclient import TestClient  # noqa: E402
 
 from services.voice.app import normalize as nz  # noqa: E402
+from services.voice.app.config import PLACE_MARGIN, PLACE_THRESHOLD  # noqa: E402
 from services.voice.app.dialog import JourneyServiceError, VoiceDialog  # noqa: E402
 from services.voice.app.knowledge import KnowledgeBase  # noqa: E402
 from services.voice.app.main import create_app  # noqa: E402
@@ -91,7 +92,7 @@ class ResolverTest(unittest.TestCase):
         # syllabe « mé » en commun) arrivait à 0,5 point : SIRA demandait « Adjamé 220 Logements ou Pharmacie la Mé ? »
         matches = self.r.resolve("adja mé vingt logement")
         self.assertEqual(matches[0].canonical, "Adjamé 220 Logements")
-        self.assertIsNone(self.r.decide(matches, 60, 3))
+        self.assertIsNone(self.r.decide(matches, PLACE_THRESHOLD, PLACE_MARGIN))
         self.assertEqual(self.top("yopougon vingt sept"), "Yopougon")  # « vingt sept » reste 27, pas « 20 sept »
 
     def test_meme_lieu_mots_dans_un_autre_ordre(self):
@@ -100,13 +101,18 @@ class ResolverTest(unittest.TestCase):
         self.assertFalse(same_name("Marché (Abobo)", "Marché (Attécoubé)"))
         a = Match("PL-00018", "Adjamé 220 Logements", "quartier", "Adjamé", 5.35174, -4.016983, 92.1)
         b = Match("PL-01234", "220 Lgts Adjamé", "stop", "Adjamé", 5.3521, -4.0172, 90.1)
-        self.assertIsNone(self.r.decide([a, b], 60, 3))
+        self.assertIsNone(self.r.decide([a, b], PLACE_THRESHOLD, PLACE_MARGIN))
 
     def test_decisions(self):
-        self.assertIsNone(self.r.decide(self.r.resolve("plato"), 60, 3))
-        self.assertEqual(self.r.decide(self.r.resolve("marché"), 60, 3), "ambiguous_place")
-        self.assertEqual(self.r.decide(self.r.resolve("orange digital center"), 60, 3), "place_without_coordinates")
-        self.assertEqual(self.r.decide([], 60, 3), "unresolvable_place")
+        self.assertIsNone(self.r.decide(self.r.resolve("plato"), PLACE_THRESHOLD, PLACE_MARGIN))
+        self.assertEqual(self.r.decide(self.r.resolve("marché"), PLACE_THRESHOLD, PLACE_MARGIN), "ambiguous_place")
+        self.assertEqual(self.r.decide(self.r.resolve("orange digital center"), PLACE_THRESHOLD, PLACE_MARGIN), "place_without_coordinates")
+        self.assertEqual(self.r.decide([], PLACE_THRESHOLD, PLACE_MARGIN), "unresolvable_place")
+        # Bug observé sur le vrai répertoire : une ville hors d'Abidjan trouvait un voisin (« Gagnoa » → Gare Nord, 69)
+        # et le trajet partait sans question.
+        matches = self.r.resolve("Gagnoa")
+        self.assertEqual(matches[0].canonical, "Gare Nord")
+        self.assertEqual(self.r.decide(matches, PLACE_THRESHOLD, PLACE_MARGIN), "low_place_confidence")
 
 
 class NormalizeTest(unittest.TestCase):
@@ -134,7 +140,7 @@ class NormalizeTest(unittest.TestCase):
 class DialogTest(unittest.TestCase):
     def setUp(self):
         self.planner = Planner()
-        self.d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), 60, 3, 0.5, self.planner)
+        self.d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5, self.planner)
 
     def test_trajet_simple_depuis_ma_position(self):
         out = self.d.ask("je vais au plato", POSITION)
@@ -178,7 +184,7 @@ class DialogTest(unittest.TestCase):
         self.assertEqual(self.planner.calls[0]["destination"]["name"], "Riviera Palmeraie")
 
     def test_moteur_arrete(self):
-        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), 60, 3, 0.5,
+        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5,
                         Planner(error=JourneyServiceError("503", "Le moteur de trajets est arrêté.")))
         out = d.ask("je vais au plato", POSITION)
         self.assertEqual(out["reply_text"], "Le moteur de trajets est arrêté.")
@@ -198,14 +204,14 @@ class DialogTest(unittest.TestCase):
                       {"id": "gbk", "label": "Option fast", "duration": 108, "price": 800, "walking_minutes": 7,
                        "legs": [{"mode": "sotra", "line_code": "52", "label": "bus 52"}, {"mode": "gbaka", "label": "gbaka : Abobo Gare ↔ Anyama"}]},
                   ]}
-        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), 60, 3, 0.5, Planner(result))
+        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5, Planner(result))
         reply = d.ask("le gbaka pour anyama ça fait combien", POSITION)["reply_text"]
         self.assertIn("environ 800 francs", reply)
         self.assertIn("le gbaka", reply)
         self.assertNotIn("9900", reply)
 
     def test_mode_demande_introuvable(self):
-        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), 60, 3, 0.5,
+        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5,
                         Planner({"recommended_id": "j2", "journeys": [FAKE_RESULT["journeys"][1]]}))
         reply = d.ask("le gbaka pour plato ça fait combien", POSITION)["reply_text"]
         self.assertTrue(reply.startswith("Je n'ai pas trouvé de trajet en gbaka."))
@@ -213,7 +219,7 @@ class DialogTest(unittest.TestCase):
 
     def test_reponse_sans_jargon(self):
         # Bugs observés : « dont 0 minutes à pied » et le libellé technique « Option fast » lu à voix haute
-        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), 60, 3, 0.5, Planner(
+        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5, Planner(
             {"recommended_id": "a", "cheapest_id": "b", "journeys": [
                 {"id": "a", "label": "Taxi / route directe", "duration": 18, "price": 1300, "walking_minutes": 0,
                  "legs": [{"mode": "taxi", "label": "Taxi compteur / partagé"}]},
@@ -229,7 +235,7 @@ class DialogTest(unittest.TestCase):
 
     def test_ligne_dite_une_fois_sans_fleche(self):
         # Bug observé : « Prends le gbaka : gbaka : Adjamé Liberté ↔ Yopougon Palais »
-        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), 60, 3, 0.5, Planner(
+        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5, Planner(
             {"recommended_id": "a", "journeys": [{"id": "a", "label": "Option cheap", "duration": 38, "price": 500, "walking_minutes": 6,
                                                   "legs": [{"mode": "gbaka", "label": "gbaka : Adjamé Liberté ↔ Yopougon Palais"}]}]}))
         reply = d.ask("je vais au plato", POSITION)["reply_text"]
@@ -249,7 +255,7 @@ class FixedNLU:
 
 class ConversationTest(unittest.TestCase):
     def dialog(self, nlu, planner=None):
-        return VoiceDialog(nlu, PlaceResolver(FIXTURES / "gazetteer_test.json"), 60, 3, 0.5, planner or Planner())
+        return VoiceDialog(nlu, PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5, planner or Planner())
 
     def test_lieu_dit_seul_est_une_destination(self):
         # Bug observé : « Cocody ! » compris comme « oui » → « C'est noté. » au lieu de partir
@@ -384,7 +390,7 @@ class FaqDialogTest(unittest.TestCase):
         planner = planner or Planner()
         live = live or FakeLive()
         trips = TripAnswers(resolver, planner, live.impact, live.reports, now=lambda: NOW)
-        return VoiceDialog(nlu, resolver, 60, 3, 0.5, planner, KNOWLEDGE, trips)
+        return VoiceDialog(nlu, resolver, PLACE_THRESHOLD, PLACE_MARGIN, 0.5, planner, KNOWLEDGE, trips)
 
     def test_question_de_faq(self):
         planner = Planner()

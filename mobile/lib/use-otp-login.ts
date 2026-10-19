@@ -1,11 +1,11 @@
-// Phone login in the Orange Max it way: phone number -> 4-digit SMS code ->
+// Phone login in the Orange Max it way: phone number -> 6-digit SMS code ->
 // session. The same flow signs in a known number or creates the account.
 import { useState } from 'react';
 import { requestOtp, verifyOtp, type LoginResult } from '@/lib/sira-api';
 import { setSession } from '@/lib/session';
 import { notify } from '@/lib/notify';
 
-export const OTP_LENGTH = 4;
+export const OTP_LENGTH = 6;
 
 export function useOtpLogin() {
   const [step, setStep] = useState<'phone' | 'code'>('phone');

@@ -24,7 +24,7 @@ export type TrafficReport = {
 
 export type CreateReportInput = {
   type?: unknown; lat?: unknown; lon?: unknown; location?: unknown;
-  description?: unknown; severity?: unknown; clientId?: unknown;
+  description?: unknown; severity?: unknown;
 };
 
 type ImpactLeg = { mode?: unknown; geometry?: unknown };
@@ -92,13 +92,13 @@ export class ReportsService {
     return this.reports.map((report) => this.refresh(report)).filter((report) => ACTIVE_STATUSES.includes(report.status)).slice(0, 100);
   }
 
-  add(input: CreateReportInput) {
+  // travellerId: the signed-in account (reports.controller.ts), never a value chosen by the caller.
+  add(input: CreateReportInput, travellerId: string) {
     if (!isReportType(input.type)) throw new BadRequestException("Type de signalement inconnu.");
     const lat = Number(input.lat); const lon = Number(input.lon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < GRAND_ABIDJAN_BOUNDS.minLat || lat > GRAND_ABIDJAN_BOUNDS.maxLat || lon < GRAND_ABIDJAN_BOUNDS.minLon || lon > GRAND_ABIDJAN_BOUNDS.maxLon) {
       throw new BadRequestException("La position du signalement doit se trouver dans le Grand Abidjan.");
     }
-    const clientId = this.clientId(input.clientId);
     const description = typeof input.description === "string" && input.description.trim() ? input.description.trim().slice(0, 280) : null;
     const location = typeof input.location === "string" && input.location.trim() ? input.location.trim().slice(0, 120) : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
     const meta = REPORT_TYPES[input.type];
@@ -112,18 +112,17 @@ export class ReportsService {
     };
     this.reports.unshift(report);
     // The author cannot confirm their own report.
-    this.voters.set(report.id, new Set([clientId]));
+    this.voters.set(report.id, new Set([travellerId]));
     if (this.reports.length > MAX_REPORTS) this.voters.delete(this.reports.pop()!.id);
     return report;
   }
 
-  vote(id: string, rawClientId: unknown, kind: "confirm" | "contest") {
+  vote(id: string, travellerId: string, kind: "confirm" | "contest") {
     const report = this.reports.find((item) => item.id === id);
     if (!report || !ACTIVE_STATUSES.includes(this.refresh(report).status)) throw new NotFoundException("Signalement introuvable ou expiré.");
-    const clientId = this.clientId(rawClientId);
     const voters = this.voters.get(id) ?? new Set<string>();
-    if (voters.has(clientId)) throw new BadRequestException("Tu as déjà donné ton avis sur ce signalement.");
-    voters.add(clientId); this.voters.set(id, voters);
+    if (voters.has(travellerId)) throw new BadRequestException("Tu as déjà donné ton avis sur ce signalement.");
+    voters.add(travellerId); this.voters.set(id, voters);
     const now = Date.now();
     if (kind === "confirm") {
       report.confirmations += 1;
@@ -180,10 +179,5 @@ export class ReportsService {
     else if (net >= 1) report.status = "confirmed";
     else report.status = "reported";
     return report;
-  }
-
-  private clientId(value: unknown) {
-    if (typeof value !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(value)) throw new BadRequestException("Identifiant client manquant ou invalide.");
-    return value;
   }
 }

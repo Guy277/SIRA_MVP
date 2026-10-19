@@ -1,8 +1,6 @@
 // Community reports shared by the traffic, report and navigation screens:
-// live list (Socket.IO + periodic reload), category mapping and the
-// anonymous device id used to prevent double votes.
+// live list (Socket.IO + periodic reload) and category mapping.
 import { useEffect, useSyncExternalStore } from 'react';
-import { Platform } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 import { apiBaseUrl, listReports, type TrafficReport } from '@/lib/sira-api';
 import type { Ionicons } from '@expo/vector-icons';
@@ -39,24 +37,6 @@ export function timeAgo(iso: string) {
   if (minutes < 1) return 'À l’instant';
   if (minutes < 60) return `Il y a ${minutes} min`;
   return `Il y a ${Math.round(minutes / 60)} h`;
-}
-
-// Anonymous id: persisted in the browser on web, per app launch on native
-// (no account yet; it only stops a device from voting twice).
-let memoryClientId: string | null = null;
-export function clientId() {
-  const make = () => `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
-  if (Platform.OS === 'web') {
-    try {
-      const stored = window.localStorage.getItem('sira-client-id');
-      if (stored) return stored;
-      const created = make();
-      window.localStorage.setItem('sira-client-id', created);
-      return created;
-    } catch { /* stockage indisponible */ }
-  }
-  memoryClientId ??= make();
-  return memoryClientId;
 }
 
 const ACTIVE: TrafficReport['status'][] = ['reported', 'confirmed', 'reliable'];

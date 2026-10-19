@@ -251,7 +251,7 @@ export default function LoginScreen() {
                     {signedIn ? (
                       <>Ton compte est déjà actif sur ce téléphone.{'\n'}<Text style={styles.subtitleBold}>Continue directement, sans code.</Text></>
                     ) : (
-                      <>Ta mobilité à Abidjan t’attend.{'\n'}<Text style={styles.subtitleBold}>Confirme ton numéro Orange : code à 4 chiffres par SMS.</Text></>
+                      <>Ta mobilité à Abidjan t’attend.{'\n'}<Text style={styles.subtitleBold}>Confirme ton numéro Orange : code à {OTP_LENGTH} chiffres par SMS.</Text></>
                     )}
                   </Animated.Text>
                 </>
@@ -266,7 +266,7 @@ export default function LoginScreen() {
                     <RotatingText phrases={WELCOME_PHRASES} style={[styles.subtitle, styles.noMargin]} />
                   </Animated.View>
                   <Animated.Text entering={enter(3)} style={[styles.subtitle, styles.subtitleBold]}>
-                    Entre ton numéro Orange (07) : code à 4 chiffres par SMS.
+                    Entre ton numéro Orange (07) : code à {OTP_LENGTH} chiffres par SMS.
                   </Animated.Text>
                 </>
               )}

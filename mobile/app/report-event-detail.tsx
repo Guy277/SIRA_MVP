@@ -19,11 +19,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
 import { notify } from '@/lib/notify';
+import { currentToken } from '@/lib/session';
 import { createReport, type Coordinates } from '@/lib/sira-api';
 import { REPORT_FAILED, REPORT_SENT, reportDetailSpeech } from '@/lib/spoken';
 import { say, useSpeech } from '@/lib/voice';
 import { locateUser, nearestPlaceLabel } from '@/lib/places';
-import { REPORT_TYPE_BY_CATEGORY, clientId, upsertReport } from '@/lib/reports';
+import { REPORT_TYPE_BY_CATEGORY, upsertReport } from '@/lib/reports';
 import { journeyStore } from '@/lib/journey-store';
 import { goBack } from '@/lib/navigation';
 
@@ -72,6 +73,14 @@ export default function ReportEventDetailScreen() {
 
   const handleSubmitReport = async () => {
     if (!position || submitting) return;
+    // A report counts for one traveller: it needs an account (« Plus tard » at login leaves none).
+    if (!currentToken()) {
+      notify('Connexion requise', 'Connecte-toi avec ton numéro Orange pour envoyer un signalement.', [
+        { text: 'Me connecter', onPress: () => router.push('/login') },
+        { text: 'Plus tard', onPress: () => {} },
+      ]);
+      return;
+    }
     setSubmitting(true);
     try {
       const report = await createReport({
@@ -80,7 +89,6 @@ export default function ReportEventDetailScreen() {
         lon: position.coordinates.longitude,
         location: locationText.trim() || nearestPlaceLabel(position.coordinates) || 'Position GPS du signalement',
         description: [descriptionText.trim(), timeText.trim() ? `Constaté : ${timeText.trim()}` : ''].filter(Boolean).join(' · ') || undefined,
-        clientId: clientId(),
       });
       upsertReport(report);
     } catch (error) {

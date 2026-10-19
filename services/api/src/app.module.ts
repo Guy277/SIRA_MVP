@@ -7,10 +7,11 @@ import { ReportsGateway } from "./reports/reports.gateway";
 import { ReportsService } from "./reports/reports.service";
 import { TransportRepository } from "./mobility/transport.repository";
 import { CommunityController } from "./community/community.controller";
+import { Travellers } from "./community/travellers";
 import { VoiceController } from "./voice/voice.controller";
 
 @Module({
   controllers: [HealthController, MobilityController, ReportsController, CommunityController, VoiceController],
-  providers: [MobilityService, TransportRepository, ReportsGateway, ReportsService],
+  providers: [MobilityService, TransportRepository, ReportsGateway, ReportsService, Travellers],
 })
 export class AppModule {}

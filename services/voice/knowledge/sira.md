@@ -69,7 +69,7 @@ Dans le détail d'un trajet, touche le cœur pour l'ajouter à tes favoris. Tu l
 ? Comment créer un compte ?
 ? Je n'ai pas reçu le code
 ? Pourquoi un numéro Orange ?
-Connecte-toi avec ton numéro Orange qui commence par 07, puis entre le code à 4 chiffres reçu par SMS. Si le code n'arrive pas, attends un peu et demande un nouveau code.
+Connecte-toi avec ton numéro Orange qui commence par 07, puis entre le code à 6 chiffres reçu par SMS. Si le code n'arrive pas, attends un peu et demande un nouveau code.
 
 ## sira.position
 ? Pourquoi tu as besoin de ma position ?

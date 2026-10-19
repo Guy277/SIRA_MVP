@@ -3,6 +3,7 @@
 //                         dans services/models/voice/ (réserve de modèles, hors Git)
 //   npm run dev:voice     lance uniquement le service vocal (port 8200)
 //   npm run test:voice    lance les tests du service vocal (sans les gros modèles)
+//   npm run voice:bench   mesure la vitesse de la voix sur cette machine (rapport dans services/voice/benchmarks/)
 import { existsSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
@@ -24,6 +25,16 @@ const canRun = (command, args) => {
   const result = spawnSync(command, args, { cwd: root, stdio: "ignore" });
   return !result.error && result.status === 0;
 };
+
+if (process.argv.includes("--bench")) {
+  // npm run voice:bench -- --beams 5,2,1 : mesure la vitesse de la voix sur cette machine (services/voice/benchmarks/)
+  if (!existsSync(venvPython)) {
+    console.error("[voix] Service non installé : lance d'abord  npm run voice:setup");
+    process.exit(1);
+  }
+  const options = process.argv.slice(process.argv.indexOf("--bench") + 1);
+  process.exit(run(venvPython, [join(voiceDir, "scripts", "benchmark_voice.py"), ...options], { allowFailure: true }));
+}
 
 if (process.argv.includes("--test")) {
   const python = existsSync(venvPython) ? [venvPython, []] : (isWindows ? ["py", ["-3"]] : ["python3", []]);

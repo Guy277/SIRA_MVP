@@ -186,10 +186,11 @@ export function fetchJourneys(query: JourneyQuery) {
 }
 
 export const listReports = () => apiJson<TrafficReport[]>('/reports');
-export const createReport = (input: { type: string; lat: number; lon: number; location: string; description?: string; clientId: string }) =>
+// Reporting and voting need a signed-in traveller: the server counts one account once.
+export const createReport = (input: { type: string; lat: number; lon: number; location: string; description?: string }) =>
   apiJson<TrafficReport>('/reports', { method: 'POST', body: JSON.stringify(input) });
-export const voteReport = (id: string, kind: 'confirm' | 'contest', clientId: string) =>
-  apiJson<TrafficReport>(`/reports/${encodeURIComponent(id)}/${kind}`, { method: 'POST', body: JSON.stringify({ clientId }) });
+export const voteReport = (id: string, kind: 'confirm' | 'contest') =>
+  apiJson<TrafficReport>(`/reports/${encodeURIComponent(id)}/${kind}`, { method: 'POST' });
 export const journeyImpact = (legs: ApiLeg[]) =>
   apiJson<ReportImpact>('/reports/impact', { method: 'POST', body: JSON.stringify({ legs: legs.map((leg) => ({ mode: leg.mode, geometry: leg.geometry })) }) });
 

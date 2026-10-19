@@ -22,10 +22,10 @@ from .models import OtpCode, User, get_db
 logger = logging.getLogger("sira.community")
 bearer = HTTPBearer(auto_error=False)
 
-# Same rules as Orange Max it: a 4-digit single-use code, asked again when
-# the session ends (every 30 days). The short life and 3 attempts offset the
-# smaller number of combinations.
-OTP_DIGITS = 4
+# A 6-digit single-use code, asked again when the session ends (every 30 days).
+# With 3 attempts per code and 3 codes per 10 minutes, 4 digits left about one
+# chance in eight per day of guessing a targeted number; 6 digits make it 1 in 800.
+OTP_DIGITS = 6
 OTP_TTL = timedelta(minutes=5)
 MAX_ATTEMPTS = 3
 MAX_REQUESTS_PER_WINDOW = 3

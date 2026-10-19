@@ -20,7 +20,7 @@ import { notify } from '@/lib/notify';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { fetchJourneys, journeyImpact, reportFare, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
 import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
-import { clientId, upsertReport, useLiveReports } from '@/lib/reports';
+import { upsertReport, useLiveReports } from '@/lib/reports';
 import { locateUser, refreshCurrentPlace } from '@/lib/places';
 import { goBack, goHome } from '@/lib/navigation';
 import { currentToken } from '@/lib/session';
@@ -133,7 +133,7 @@ export default function NavigationActiveScreen() {
   const answerStillThere = async (reportId: string, kind: 'confirm' | 'contest') => {
     question.cancel();
     setAnswered((ids) => [...ids, reportId]);
-    try { upsertReport(await voteReport(reportId, kind, clientId())); } catch { /* déjà voté ou hors ligne */ }
+    try { upsertReport(await voteReport(reportId, kind)); } catch { /* déjà voté, hors ligne ou pas connecté */ }
   };
 
   const destinationName = search?.arrival.name ?? 'ta destination';

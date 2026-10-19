@@ -201,6 +201,24 @@ class OptimisationScenarios(unittest.TestCase):
         self.assertEqual(result["fastest_id"], "fast")
         self.assertEqual(result["cheapest_id"], "cheap")
 
+    def test_35_every_returned_journey_gets_one_descriptive_label_with_known_prices(self):
+        # Known prices used to hide « directe », « accessible » and « robuste » entirely.
+        routes = [
+            candidate("direct", price=800, ride=12, walk=3, transfer=0, line="D"),
+            candidate("cheap", price=300, ride=40, walk=9, transfer=2, line="C"),
+            candidate("walk", price=500, ride=24, walk=2, transfer=2, line="W"),
+        ]
+        result = recommend(routes, budget=999999, constraints={"max_budget_fcfa": 999999})
+        tags = {journey["id"]: journey["profile_tags"] for journey in result["journeys"] if journey["profile_tags"]}
+        self.assertIn("💰 Solution économique", tags["cheap"])
+        self.assertIn("🔄 Solution directe", tags["direct"])
+        self.assertIn("🚶 Solution accessible", tags["walk"])
+        for journey_tags in tags.values():
+            descriptive = [tag for tag in journey_tags if tag != "⭐ Choix SIRA"]
+            self.assertEqual(len(descriptive), 1)
+        recommended = next(j for j in result["journeys"] if j["recommended"])
+        self.assertEqual(recommended["profile_tags"][0], "⭐ Choix SIRA")
+
 
 if __name__ == "__main__":
     unittest.main()

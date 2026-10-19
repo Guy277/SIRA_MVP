@@ -47,8 +47,8 @@ flowchart LR
 - `GET /mobility/search?q=plateau` : recherche de lieux (Photon)
 - `GET /mobility/reverse?lat=…&lon=…` : nom du lieu le plus proche
 - `POST /mobility/journeys` : calcul des trajets ; accepte `departureAt` et `avoid: [{ lat, lon, radiusM }]`
-- `GET /reports`, `POST /reports` (`type`, `lat`, `lon`, `location`, `description`, `clientId`)
-- `POST /reports/:id/confirm` et `POST /reports/:id/contest` (`clientId`)
+- `GET /reports` (ouvert à tous), `POST /reports` (`type`, `lat`, `lon`, `location`, `description`) : compte requis (`Authorization: Bearer …`)
+- `POST /reports/:id/confirm` et `POST /reports/:id/contest` : compte requis, un avis par compte
 - `POST /reports/impact` : incidents confirmés à moins de 150 m d'un trajet et retard estimé
 - `POST /auth/request-otp`, `POST /auth/verify-otp`, `GET /auth/me`, `PATCH /users/me` : comptes (relayés vers le port 8100)
 - `GET /fares?line_id=…`, `POST /fares/reports` : tarifs communautaires
@@ -111,6 +111,13 @@ Les requêtes sans en-tête `Origin` (Expo Go natif, curl, service vocal) ne son
 internes (SIRA-MORE 8000, comptes 8100, voix 8200) écoutent sur `127.0.0.1` : un téléphone ne joint que l'API (4000).
 En production, `SIRA_ENV=production` est transmis à l'API comme au service des comptes (`infra/compose.yaml`).
 
+
+**Abus**
+
+- Code SMS à 6 chiffres, 3 essais par code, 3 codes par numéro et par 10 minutes (`services/community/app/security.py`).
+- Demandes de code limitées aussi par connexion : 20 par adresse IP et par 10 minutes (`SIRA_OTP_REQUESTS_PER_IP`, `services/api/src/rate-limit.ts`). L'adresse vient de `X-Real-IP` seulement quand la requête arrive de Nginx.
+- Signaler et voter demandent un compte : l'API demande au service des comptes qui est derrière le jeton (`services/api/src/community/travellers.ts`). Un compte = un avis par signalement, 10 signalements par heure (`SIRA_REPORTS_PER_HOUR`).
+- Ces compteurs sont en mémoire : ils repartent de zéro au redémarrage et supposent une seule instance de l'API.
 
 - Aucun secret dans le dépôt : `.env` n'est pas versionné, `.env.example` ne contient que les noms de variables.
 - `COMMUNITY_JWT_SECRET` est obligatoire en production et le mode démo SMS y est refusé.

@@ -7,6 +7,7 @@ owns constraints, Pareto filtering, diversity, scoring and explanations.
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from math import isfinite
 from typing import Any
 
@@ -264,15 +265,14 @@ def categorize(frontier: list[dict[str, Any]], max_budget: int, max_per_category
     return categories
 
 
-from datetime import datetime
-
 def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preference: str = "balanced", constraints: dict[str, Any] | None = None, max_results: int = 3) -> dict[str, Any]:
     rules = {**DEFAULT_CONSTRAINTS, **(constraints or {})}
     rules["max_budget_fcfa"] = min(int(rules["max_budget_fcfa"]), int(budget)) if constraints and "max_budget_fcfa" in constraints else int(budget)
     max_budget = rules["max_budget_fcfa"]
     profile = preference if preference in WEIGHTS else "balanced"
     
-    current_hour = datetime.utcnow().hour
+    # Abidjan is on UTC all year (no daylight saving time).
+    current_hour = datetime.now(timezone.utc).hour
     is_peak_hour = (6 <= current_hour <= 9) or (16 <= current_hour <= 19)
     
     enriched = [enrich_metrics(candidate, is_peak_hour) for candidate in candidates]
@@ -299,26 +299,23 @@ def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preferenc
 
     recommended_id = diverse[0]["id"] if diverse else None
     
-    # Dynamic Labels Assignment
+    # Dynamic labels: « Choix SIRA » for the recommendation, then exactly one
+    # descriptive label per journey, by priority. Only known prices count.
+    known_prices = [(j["price"], j["duration"], j["id"]) for j in diverse if j.get("price") is not None]
+    cheapest_known_id = min(known_prices)[2] if known_prices else None
+    least_walking_m = min((j["walking_distance_m"] for j in diverse), default=None)
     for journey in diverse:
         journey["recommended"] = journey["id"] == recommended_id
-        tags = []
-        if journey["id"] == recommended_id:
-            tags.append("⭐ Choix SIRA")
-        # Economic tag: only consider known prices
-        known_prices = [(j["price"], j["id"]) for j in diverse if j.get("price") is not None]
-        if known_prices and journey.get("price") is not None:
-            min_price, min_id = min(known_prices)
-            if journey["id"] == min_id:
-                tags.append("💰 Solution économique")
+        tags = ["⭐ Choix SIRA"] if journey["recommended"] else []
+        if journey["id"] == cheapest_known_id:
+            tags.append("💰 Solution économique")
         elif journey["transfer_count"] == 0:
             tags.append("🔄 Solution directe")
-        elif journey["walking_distance_m"] == min(j["walking_distance_m"] for j in diverse):
+        elif journey["walking_distance_m"] == least_walking_m:
             tags.append("🚶 Solution accessible")
         else:
             tags.append("🛡️ Solution robuste")
-        
-        journey["profile_tags"] = tags[:2]
+        journey["profile_tags"] = tags
 
     categories = categorize(frontier, max_budget, max_per_category=max_results)
     # Every journey referenced by a category must be returned, even when the

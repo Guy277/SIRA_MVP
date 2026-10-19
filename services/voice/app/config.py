@@ -52,8 +52,11 @@ PRELOAD = os.environ.get("VOICE_PRELOAD", "1") != "0"
 SIRA_API_URL = os.environ.get("SIRA_API_URL", "http://127.0.0.1:4000/api/v1").rstrip("/")
 SIRA_API_TIMEOUT_S = _float("SIRA_API_TIMEOUT_S", 60.0)
 
-# Règles de décision (mesurées sur la validation v0.4 : ~99 % de lieux justes quand SIRA ne demande pas)
-PLACE_THRESHOLD = _float("VOICE_PLACE_THRESHOLD", 60.0)
+# Règles de décision. Le seuil de 60 avait été mesuré sur des lieux du répertoire seulement : un lieu qui n'y est
+# pas trouvait toujours un voisin au-dessus (« Bouaké » → Bouquet 86, « banane » → Anan 89, « Dakar » → MACA 67)
+# et le trajet partait sans question. Les vrais lieux mal dits restent presque tous au-dessus de 100 ; entre les
+# deux, SIRA demande « Tu veux dire … ? ».
+PLACE_THRESHOLD = _float("VOICE_PLACE_THRESHOLD", 90.0)
 PLACE_MARGIN = _float("VOICE_PLACE_MARGIN", 3.0)
 INTENT_MIN_CONFIDENCE = _float("VOICE_INTENT_MIN_CONFIDENCE", 0.5)
 

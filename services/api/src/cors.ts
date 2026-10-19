@@ -22,7 +22,7 @@ export const isDevelopment = (env: Env = process.env) => {
 export const listedOrigins = (env: Env = process.env) =>
   (env.CORS_ORIGIN ?? "").split(",").map((origin) => origin.trim().replace(/\/$/, "")).filter(Boolean);
 
-const isPrivateHost = (host: string) =>
+export const isPrivateHost = (host: string) =>
   host === "localhost"
   || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
   || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)

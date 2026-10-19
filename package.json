@@ -17,6 +17,7 @@
     "test:ai": "py -3 -m unittest discover -s services/engine/tests -v",
     "test:community": "node scripts/test-community.mjs",
     "voice:setup": "node scripts/setup-voice.mjs",
+    "voice:bench": "node scripts/setup-voice.mjs --bench",
     "dev:voice": "node scripts/setup-voice.mjs --run",
     "test:voice": "node scripts/setup-voice.mjs --test",
     "test:routing:live": "node scripts/validate-valhalla-live.mjs",
