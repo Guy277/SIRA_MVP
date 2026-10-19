@@ -5,6 +5,9 @@
 //   models                          services/models/voice, puis redémarrage de la voix
 //   data                            data/ (monté dans l'API), puis redémarrage de l'API
 //   infra                           infra/ et scripts/server/, puis relance de la stack, de Nginx et de Caddy
+//   web                             mobile/dist (appli web exportée), servie telle quelle par Nginx : rien à relancer.
+//                                   Exporter d'abord, depuis mobile/ :
+//                                   EXPO_PUBLIC_API_URL=https://<SIRA_DOMAIN>/api/v1 npx expo export -p web
 //   all                             tout ce qui précède
 //
 // Seuls les fichiers modifiés (taille ou date différente) sont envoyés, et les fichiers supprimés sur le PC
@@ -33,18 +36,21 @@ const TARGETS = {
   models: { paths: ["services/models/voice"], restart: ["voice"] },
   data: { paths: ["data"], restart: ["api"] },
   infra: { paths: ["infra", "scripts/server"], stack: true, restart: ["nginx", "caddy"] },
+  web: { paths: ["mobile/dist"] },
 };
 
-// Ni envoyés ni supprimés : dépendances et caches reconstruits sur place, bases et secrets locaux,
-// secrets du serveur.
+// Ni envoyés ni supprimés : dépendances et caches reconstruits sur place (dont le dist/ des services,
+// refait dans leur image), bases et secrets locaux, secrets du serveur.
 const EXCLUDED = [
-  /(^|\/)(node_modules|\.venv|__pycache__|\.pytest_cache|dist|\.expo)(\/|$)/,
+  /(^|\/)(node_modules|\.venv|__pycache__|\.pytest_cache|\.expo)(\/|$)/,
+  /^services\/[^/]+\/dist\//,
   /\.db$/,
   /^services\/community\/data\//,
   /^data\/abidjan-master\.zip$/,
   /^infra\/server\.env$/,
 ];
-const excluded = (path) => EXCLUDED.some((pattern) => pattern.test(path));
+// L'export web (mobile/dist) part en entier : Expo y range polices et images sous assets/node_modules/.
+const excluded = (path) => !path.startsWith("mobile/dist/") && EXCLUDED.some((pattern) => pattern.test(path));
 
 const say = (message) => console.log(`[SIRA serveur] ${message}`);
 const fail = (message) => {
@@ -171,6 +177,14 @@ async function main() {
   if (!toSend.length && !toDelete.length) return say("Le serveur est déjà à jour : rien à relancer.");
   if (dryRun) return say("--dry-run : rien n'a été envoyé ni relancé.");
 
+  // install.sh tourne en root : ce qu'il a créé (ex. la page d'attente de mobile/dist) appartient à root
+  // et ne pourrait être ni remplacé ni supprimé. On le rend à l'utilisateur SSH, sauf les secrets.
+  const list = paths.map((path) => `'${path}'`).join(" ");
+  await ssh(
+    `cd ~/${remoteDir} && for p in ${list}; do [ -e "$p" ] && sudo find "$p" ! -user "$(id -un)" ` +
+      `! -path infra/server.env -exec chown "$(id -u):$(id -g)" {} +; done; true`,
+  );
+
   if (toSend.length) {
     say("Envoi…");
     await upload(toSend);
@@ -179,12 +193,14 @@ async function main() {
   // Ce qu'il faut relancer, sans doublon : un conteneur reconstruit n'a pas besoin d'être redémarré.
   const build = [...new Set(targets.flatMap((target) => target.build ?? []))];
   const restart = [...new Set(targets.flatMap((target) => target.restart ?? []))].filter((name) => !build.includes(name));
+  const stack = targets.some((target) => target.stack);
   const steps = [`cd ~/${remoteDir}`];
   if (toDelete.length) steps.push(`xargs -r -d '\\n' rm -f --`);
-  if (targets.some((target) => target.stack)) steps.push(`${compose} up -d --remove-orphans`);
+  if (stack) steps.push(`${compose} up -d --remove-orphans`);
   if (build.length) steps.push(`${compose} up -d --build --no-deps ${build.join(" ")}`);
   if (restart.length) steps.push(`${compose} restart ${restart.join(" ")}`);
-  say(`Relance : ${[...build.map((name) => `${name} (reconstruit)`), ...restart].join(", ") || "stack"}`);
+  const relaunched = [...(stack ? ["stack"] : []), ...build.map((name) => `${name} (reconstruit)`), ...restart];
+  say(relaunched.length ? `Relance : ${relaunched.join(", ")}` : "Rien à relancer : Nginx sert les nouveaux fichiers tels quels.");
   await ssh(steps.join(" && "), { input: toDelete.length ? toDelete.join("\n") + "\n" : "", capture: false });
 
   // Vérification : l'API en HTTPS, et la voix (chargement des modèles : jusqu'à une minute) si elle a bougé.
@@ -197,8 +213,13 @@ async function main() {
       `cd ~/${remoteDir} && for i in $(seq 24); do ${compose} exec -T api wget -qO- http://voice:8200/health >/dev/null 2>&1 && echo "Voix : ok" && break; sleep 5; done`,
     );
   }
+  // Appli web : la page d'accueil doit être celle de l'export Expo, plus la page d'attente d'install.sh.
+  const webTouched = names.includes("web");
+  if (webTouched) {
+    checks.push(`curl -fsS -m 10 https://${domain}/ | grep -q '_expo/static' && echo "Appli web : ok"`);
+  }
   const result = await ssh(checks.join("; "));
-  const expected = voiceTouched ? 2 : 1;
+  const expected = 1 + (voiceTouched ? 1 : 0) + (webTouched ? 1 : 0);
   if ((result.match(/: ok/g) ?? []).length < expected) {
     fail(`le serveur ne répond pas comme prévu. Journaux : ssh -i ${key} ${host} puis cd ${remoteDir} && ${compose} logs --tail 50`);
   }

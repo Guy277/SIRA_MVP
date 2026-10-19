@@ -11,3 +11,5 @@ tokenizers>=0.20.0
 safetensors>=0.4.3
 huggingface_hub>=0.24.0
 faster-whisper>=1.1.0
+# PyAV 19 ne connaît plus av.open(metadata_errors=…), qu'utilise faster-whisper 1.2 : tout audio devient « illisible ».
+av>=11,<19

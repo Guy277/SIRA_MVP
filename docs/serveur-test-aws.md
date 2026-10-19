@@ -66,7 +66,23 @@ prend 10 à 30 minutes (Valhalla construit les tuiles de Côte d'Ivoire) ; si le
 `infra/server.env`. `SIRA_ENV=development` renvoie le code SMS dans la réponse de l'API : pratique pour une démo,
 mais n'importe qui peut alors créer un compte. Après un changement : relancer le script.
 
-## 5. Brancher l'appli mobile (sur le PC)
+## 5. Brancher l'appli mobile
+
+**Version web, hébergée sur le serveur (conseillé)** : n'importe quel téléphone ouvre `https://16-16-129-62.sslip.io`
+dans Safari ou Chrome, sans Expo Go ni PC allumé. HTTPS et même adresse que l'API : micro, GPS et signalements en
+direct marchent. Après un changement de l'appli, depuis le PC :
+
+```powershell
+cd C:\Users\user\Desktop\SIRA\mobile
+$env:EXPO_PUBLIC_API_URL = "https://16-16-129-62.sslip.io/api/v1"
+npx expo export -p web
+cd ..
+npm run server:update -- web
+```
+
+**Expo Go** (développement, le PC sert l'appli) : il faut un Expo Go qui gère le SDK du projet (57) ; celui du store
+peut être plus récent et refuser le projet. Hors du Wi-Fi du PC, `npx expo start --tunnel` ; sous Windows, Expo ne
+trouve pas `@expo/ngrok` installé globalement, ajouter `$env:NODE_PATH = "$env:APPDATA\npm"` avant.
 
 ```powershell
 cd C:\Users\user\Desktop\SIRA\mobile
@@ -94,6 +110,7 @@ Adresse **complète** avec `/api/v1` : l'appli en déduit aussi celle des signal
   | `models` | `services/models/voice` | redémarre la voix |
   | `data` | `data/` | redémarre l'API |
   | `infra` | `infra/`, `scripts/server/` | relance la stack, Nginx et Caddy |
+  | `web` | `mobile/dist` (après `npx expo export -p web`) | rien : Nginx sert les fichiers tels quels |
   | `all` | tout ce qui précède | |
 
   Exemple après un nouvel entraînement : `npm run server:update -- models`. Plusieurs cibles à la fois :
