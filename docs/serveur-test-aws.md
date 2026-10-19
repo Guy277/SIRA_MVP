@@ -30,7 +30,7 @@ Le quota du compte à Stockholm est de 5 vCPU : t3.large (2) ou t3.xlarge (4) pa
 | Nom | `sira-test` |
 | Image | Ubuntu Server 24.04 LTS, **x86 (64 bits)** (pas Arm : l'image PostGIS n'existe pas en Arm) |
 | Type | `t3.large` (`t3.xlarge` si la voix est trop lente) |
-| Paire de clés | nouvelle, format `.pem`, rangée **hors du projet** (ex. `C:\Users\<toi>\.ssh\sira-test.pem`) |
+| Paire de clés | `sira-test` : clé `ssh-keygen -t ed25519 -f $HOME\.ssh\sira-test` faite sur le PC, clé publique importée (EC2 → Paires de clés → Importer) ; la clé privée ne quitte jamais le PC |
 | Groupe de sécurité | SSH (22) depuis **Mon IP** seulement ; HTTP (80) et HTTPS (443) depuis partout |
 | Stockage | 40 Go gp3 |
 
@@ -44,8 +44,8 @@ redémarrage de l'instance, et l'adresse `…sslip.io` de l'appli avec elle.
 ```powershell
 cd C:\Users\user\Desktop\SIRA
 tar -czf ..\sira-serveur.tgz --exclude=node_modules --exclude=.git --exclude=.venv --exclude=__pycache__ --exclude=mobile/dist --exclude=data/abidjan-master.zip .
-scp -i $HOME\.ssh\sira-test.pem ..\sira-serveur.tgz ubuntu@<IP-ELASTIQUE>:~
-ssh -i $HOME\.ssh\sira-test.pem ubuntu@<IP-ELASTIQUE>
+scp -i $HOME\.ssh\sira-test ..\sira-serveur.tgz ubuntu@<IP-ELASTIQUE>:~
+ssh -i $HOME\.ssh\sira-test ubuntu@<IP-ELASTIQUE>
 ```
 
 ## 4. Installer et lancer (sur le serveur)
@@ -70,7 +70,7 @@ mais n'importe qui peut alors créer un compte. Après un changement : relancer 
 
 ```powershell
 cd C:\Users\user\Desktop\SIRA\mobile
-$env:EXPO_PUBLIC_API_URL = "https://13-51-20-30.sslip.io/api/v1"
+$env:EXPO_PUBLIC_API_URL = "https://16-16-129-62.sslip.io/api/v1"
 npx expo start
 ```
 
@@ -79,8 +79,22 @@ Adresse **complète** avec `/api/v1` : l'appli en déduit aussi celle des signal
 ## Tous les jours
 
 - **Arrêter / démarrer** : EC2 → Instances → `sira-test` → État de l'instance. La stack redémarre toute seule.
-- **Mettre à jour** : recopier l'archive (étape 3), la décompresser par-dessus, relancer le script.
-  `infra/server.env` et les données (volumes Docker) sont gardés.
+- **Mettre à jour** (depuis le PC) : `npm run server:update -- <cible>` envoie seulement les fichiers modifiés
+  et relance le bon conteneur. `--dry-run` montre d'abord ce qui partirait.
+
+  | Cible | Envoie | Puis |
+  |---|---|---|
+  | `api`, `engine`, `community`, `voice` | `services/<cible>` | reconstruit ce conteneur seul |
+  | `models` | `services/models/voice` | redémarre la voix |
+  | `data` | `data/` | redémarre l'API |
+  | `infra` | `infra/`, `scripts/server/` | relance la stack, Nginx et Caddy |
+  | `all` | tout ce qui précède | |
+
+  Exemple après un nouvel entraînement : `npm run server:update -- models`. Plusieurs cibles à la fois :
+  `npm run server:update -- api voice`. Les fichiers supprimés sur le PC le sont aussi sur le serveur (dans la
+  cible seulement) ; `infra/server.env` et les données (volumes Docker) ne sont jamais touchés. Autre serveur :
+  variables `SIRA_SERVER` (défaut `ubuntu@16.16.129.62`) et `SIRA_SERVER_KEY` (défaut `~/.ssh/sira-test`).
+  Pour tout réinstaller : recopier l'archive (étape 3) et relancer `install.sh`.
 - **Journaux** : `sudo docker compose --env-file infra/server.env -f infra/compose.yaml -f infra/compose.server.yaml logs -f api`
 
 ## Limites connues
