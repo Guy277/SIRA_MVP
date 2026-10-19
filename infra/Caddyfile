@@ -2,5 +2,25 @@
 # SIRA_DOMAIN vient de infra/server.env (ex. 13-51-20-30.sslip.io, ou test.sira.ci).
 # Caddy remplace l'en-tête X-Forwarded-For par l'adresse réelle du voyageur : Nginx peut s'y fier.
 {$SIRA_DOMAIN} {
-	reverse_proxy nginx:80
+	# Page de suivi du serveur (utilisateur « sira », mot de passe SIRA_STATUS_PASSWORD de infra/server.env).
+	# La page vient de infra/status/, ses mesures de scripts/server/status.py (cron, chaque minute).
+	redir /statut /statut/
+	handle_path /statut/* {
+		basic_auth {
+			sira {$SIRA_STATUS_HASH}
+		}
+		header Cache-Control "no-store"
+		handle_path /data/* {
+			root * /srv/statut-data
+			file_server
+		}
+		handle {
+			root * /srv/statut
+			file_server
+		}
+	}
+
+	handle {
+		reverse_proxy nginx:80
+	}
 }

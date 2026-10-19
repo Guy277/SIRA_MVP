@@ -78,6 +78,12 @@ Adresse **complète** avec `/api/v1` : l'appli en déduit aussi celle des signal
 
 ## Tous les jours
 
+- **Voir l'état du serveur** : `https://16-16-129-62.sslip.io/statut/`, utilisateur `sira`, mot de passe donné par
+  `sudo grep SIRA_STATUS_PASSWORD infra/server.env` (sur le serveur). Services, vérifications (API, PostGIS,
+  Valhalla, certificat), disque, mémoire, contenu de la base, réglages SMS. Mesures prises chaque minute par
+  `scripts/server/status.py` (`/etc/cron.d/sira-status`) ; un bandeau rouge signale ce qui ne va pas. La console
+  AWS (EC2 → `sira-test`) ne montre que la machine : allumée ou non, processeur, coût.
+
 - **Arrêter / démarrer** : EC2 → Instances → `sira-test` → État de l'instance. La stack redémarre toute seule.
 - **Mettre à jour** (depuis le PC) : `npm run server:update -- <cible>` envoie seulement les fichiers modifiés
   et relance le bon conteneur. `--dry-run` montre d'abord ce qui partirait.

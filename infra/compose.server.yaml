@@ -18,8 +18,12 @@ services:
       - "443:443/udp"
     environment:
       SIRA_DOMAIN: ${SIRA_DOMAIN:?SIRA_DOMAIN manquant dans infra/server.env}
+      # Page /statut/ : empreinte bcrypt (en base64) du mot de passe, générée par scripts/server/install.sh.
+      SIRA_STATUS_HASH: ${SIRA_STATUS_HASH:?SIRA_STATUS_HASH manquant, relancer scripts/server/install.sh}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
+      - ./status:/srv/statut:ro,Z
+      - /var/lib/sira-status:/srv/statut-data:ro
       - caddy_data:/data:Z
       - caddy_config:/config:Z
     depends_on: [nginx]

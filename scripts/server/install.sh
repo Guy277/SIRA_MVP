@@ -78,6 +78,18 @@ if [ -z "$(env_get SIRA_DOMAIN)" ]; then
 fi
 domain=$(env_get SIRA_DOMAIN)
 
+# Page de suivi /statut/ (utilisateur « sira ») : Caddy ne connaît que l'empreinte bcrypt du mot de passe,
+# en base64 (un « $ » brut serait interprété par Docker Compose).
+if [ -z "$(env_get SIRA_STATUS_PASSWORD)" ]; then
+  env_set SIRA_STATUS_PASSWORD "$(openssl rand -hex 12)"
+  env_set SIRA_STATUS_HASH ""
+  say "SIRA_STATUS_PASSWORD généré (page /statut/)"
+fi
+if [ -z "$(env_get SIRA_STATUS_HASH)" ]; then
+  env_set SIRA_STATUS_HASH "$(docker run --rm docker.io/library/caddy:2-alpine \
+    caddy hash-password --plaintext "$(env_get SIRA_STATUS_PASSWORD)" | base64 -w0)"
+fi
+
 if [ "$(env_get SIRA_ENV)" = development ]; then
   warn "SIRA_ENV=development : le code SMS est renvoyé par l'API, n'importe qui peut créer un compte."
 elif [ -z "$(env_get ORANGE_CLIENT_ID)" ]; then
@@ -107,8 +119,16 @@ fi
 # 5. Construction et démarrage. Le premier démarrage attend Valhalla (tuiles de Côte d'Ivoire) :
 # 10 à 30 minutes. Si le délai est dépassé, relancer simplement le script.
 say "Construction et démarrage de la stack (premier démarrage : 10 à 30 minutes)"
+mkdir -p /var/lib/sira-status
 "${COMPOSE[@]}" up -d --build --remove-orphans
 "${COMPOSE[@]}" ps
+
+# Mesures de la page /statut/, chaque minute.
+cat > /etc/cron.d/sira-status <<EOF
+# SIRA : mesures de la page de suivi /statut/ (scripts/server/status.py)
+* * * * * root cd $(pwd) && /usr/bin/python3 scripts/server/status.py >/dev/null 2>/var/lib/sira-status/error.log
+EOF
+python3 scripts/server/status.py || warn "première mesure de /statut/ en échec (voir /var/lib/sira-status/error.log)"
 
 say "Vérification de https://$domain/api/v1/health"
 if curl -fsS -m 30 "https://$domain/api/v1/health" >/dev/null; then

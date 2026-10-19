@@ -1,0 +1,189 @@
+<!doctype html>
+<!-- Page de suivi du serveur de test, servie par Caddy sur /statut/ (mot de passe : SIRA_STATUS_PASSWORD
+     dans infra/server.env). Elle lit data/status.json, écrit chaque minute par scripts/server/status.py. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIRA — état du serveur</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #18202a; --muted: #5d6875; --line: #e2e6eb;
+    --ok: #16794c; --ok-bg: #e3f4ea; --warn: #9a5b00; --warn-bg: #fdf0d8; --bad: #b42318; --bad-bg: #fde4e1;
+    --bar: #2f6fdb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11151a; --card: #1a2027; --text: #e7ebef; --muted: #98a3ae; --line: #2a323b;
+      --ok: #5fd39a; --ok-bg: #173826; --warn: #f2b85b; --warn-bg: #3a2c13; --bad: #ff8a80; --bad-bg: #3f1d1a;
+      --bar: #6aa0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .muted { color: var(--muted); }
+  .banner { padding: 12px 14px; border-radius: 10px; margin-bottom: 16px; font-weight: 600; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+  .wide { grid-column: 1 / -1; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: 7px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: 13px; border-top: 0; }
+  .scroll { overflow-x: auto; }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .ok { color: var(--ok); background: var(--ok-bg); }
+  .warn { color: var(--warn); background: var(--warn-bg); }
+  .bad { color: var(--bad); background: var(--bad-bg); }
+  .meter { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 4px 0 12px; }
+  .meter > span { display: block; height: 100%; background: var(--bar); }
+  .meter > span.warn { background: var(--warn); }
+  .meter > span.bad { background: var(--bad); }
+  .row { display: flex; justify-content: space-between; gap: 12px; }
+  .num { font-variant-numeric: tabular-nums; }
+  code { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>SIRA — état du serveur</h1>
+    <span class="muted" id="updated">Chargement…</span>
+  </header>
+  <div id="banner"></div>
+  <div class="grid" id="content"></div>
+</main>
+<script>
+const $ = (selector) => document.querySelector(selector);
+const esc = (value) => String(value ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const gb = (bytes) => (bytes / 1024 ** 3).toFixed(1).replace(".", ",") + " Go";
+const mb = (bytes) => Math.round(bytes / 1024 ** 2) + " Mo";
+const n = (value) => Number(value).toLocaleString("fr-FR");
+const pill = (level, text) => `<span class="pill ${level}">${esc(text)}</span>`;
+
+function ago(iso) {
+  if (!iso) return "—";
+  const seconds = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+  if (seconds < 90) return "à l'instant";
+  if (seconds < 3600) return `il y a ${Math.round(seconds / 60)} min`;
+  if (seconds < 172800) return `il y a ${Math.round(seconds / 3600)} h`;
+  return `il y a ${Math.round(seconds / 86400)} j`;
+}
+function duration(seconds) {
+  const d = Math.floor(seconds / 86400), h = Math.floor(seconds % 86400 / 3600), m = Math.floor(seconds % 3600 / 60);
+  return d ? `${d} j ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+}
+function meter(label, used, total, format) {
+  const ratio = total ? used / total : 0;
+  const level = ratio > .9 ? "bad" : ratio > .75 ? "warn" : "";
+  return `<div class="row"><span>${label}</span><span class="num">${format(used)} / ${format(total)} (${Math.round(ratio * 100)} %)</span></div>
+          <div class="meter"><span class="${level}" style="width:${Math.min(100, ratio * 100)}%"></span></div>`;
+}
+function failed(section) {
+  return section && section.error ? `<p>${pill("bad", "Erreur")} <span class="muted">${esc(section.error)}</span></p>` : "";
+}
+
+function containerLevel(c) {
+  if (c.state !== "running") return ["bad", c.state === "exited" ? "Arrêté" : c.state];
+  if (c.health === "unhealthy") return ["bad", "En panne"];
+  if (c.health === "starting") return ["warn", "Démarrage"];
+  return ["ok", "En marche"];
+}
+
+function render(s) {
+  const problems = [];
+  const age = (Date.now() - new Date(s.generated_at)) / 1000;
+  if (age > 180) problems.push(`les mesures ne se mettent plus à jour (dernière ${ago(s.generated_at)}) : la tâche cron est arrêtée`);
+  const containers = Array.isArray(s.containers) ? s.containers : [];
+  containers.filter((c) => containerLevel(c)[0] !== "ok").forEach((c) => problems.push(`conteneur ${c.service} : ${containerLevel(c)[1].toLowerCase()}`));
+  s.checks.filter((c) => !c.ok).forEach((c) => problems.push(`${c.name} ne répond pas`));
+  const h = s.host || {};
+  if (h.disk_total && h.disk_used / h.disk_total > .85) problems.push("disque presque plein");
+
+  $("#banner").innerHTML = problems.length
+    ? `<div class="banner bad">⚠ ${problems.length} problème(s) : ${problems.map(esc).join(" · ")}</div>`
+    : `<div class="banner ok">✓ Tout fonctionne</div>`;
+  $("#updated").textContent = `Mesuré ${ago(s.generated_at)} · ${new Date(s.generated_at).toLocaleTimeString("fr-FR")}`;
+
+  const containerRows = containers.map((c) => {
+    const [level, label] = containerLevel(c);
+    const restarts = c.restarts ? ` ${pill("warn", c.restarts + " redémarrage(s)")}` : "";
+    return `<tr><td><b>${esc(c.service)}</b></td><td>${pill(level, label)}${restarts}</td>
+            <td class="num">${esc(c.cpu ?? "—")}</td><td class="num">${esc((c.mem || "—").split(" / ")[0])}</td>
+            <td class="muted">${c.state === "running" ? "depuis " + ago(c.started_at).replace("il y a ", "") : ""}</td></tr>`;
+  }).join("");
+
+  const checkRows = s.checks.map((c) => `<tr><td>${esc(c.name)}</td><td>${pill(c.ok ? "ok" : "bad", c.ok ? "OK" : "Échec" + (c.code ? " " + c.code : ""))}</td>
+    <td class="num muted">${c.ms} ms</td></tr>`).join("");
+
+  const cert = s.certificate || {};
+  const certDays = cert.expires_at ? Math.round((new Date(cert.expires_at) - Date.now()) / 86400000) : null;
+  const certRow = cert.ok
+    ? `<tr><td>Certificat HTTPS</td><td>${pill(certDays < 10 ? "warn" : "ok", `${certDays} j restants`)}</td><td class="muted">renouvelé seul</td></tr>`
+    : `<tr><td>Certificat HTTPS</td><td>${pill("bad", "Erreur")}</td><td class="muted">${esc(cert.detail)}</td></tr>`;
+
+  const db = s.database || {};
+  const labels = {
+    transport_gtfs_routes: "Lignes de transport", transport_gtfs_stops: "Arrêts", transport_gtfs_stop_times: "Horaires",
+    community_users: "Comptes voyageurs", community_fare_reports: "Tarifs signalés", journey_history: "Trajets enregistrés",
+  };
+  const dbRows = db.counts ? Object.entries(labels).filter(([key]) => key in db.counts)
+    .map(([key, label]) => `<tr><td>${label}</td><td class="num">${n(db.counts[key])}</td></tr>`).join("") : "";
+  const dbWarn = db.counts && db.counts.transport_gtfs_stops === 0
+    ? `<p>${pill("warn", "Vide")} données transport non importées</p>` : "";
+
+  const cfg = s.config || {};
+  const sms = cfg.sira_env === "development"
+    ? pill("warn", "Mode démo : code renvoyé par l'API")
+    : cfg.sms_configured ? pill("ok", "SMS Orange") : pill("bad", "Pas d'identifiants Orange : connexion impossible");
+
+  const targetLabels = { api: "API", engine: "SIRA-MORE", community: "Comptes", voice: "Voix (code)", models: "Voix (modèles)", data: "Données", infra: "Infra" };
+  const deployRows = s.deployed && !s.deployed.error ? Object.entries(targetLabels)
+    .map(([key, label]) => `<tr><td>${label}</td><td class="muted">${ago(s.deployed[key])}</td></tr>`).join("") : "";
+
+  $("#content").innerHTML = `
+    <section class="card wide"><h2>Services</h2>${failed(s.containers)}
+      <div class="scroll"><table><tr><th>Service</th><th>État</th><th>Processeur</th><th>Mémoire</th><th></th></tr>${containerRows}</table></div>
+    </section>
+    <section class="card"><h2>Vérifications</h2>
+      <table>${checkRows}${certRow}</table>
+    </section>
+    <section class="card"><h2>Machine</h2>${failed(s.host)}
+      ${h.disk_total ? meter("Disque", h.disk_used, h.disk_total, gb) : ""}
+      ${h.mem_total ? meter("Mémoire", h.mem_total - h.mem_available, h.mem_total, gb) : ""}
+      ${h.swap_total ? meter("Swap", h.swap_total - h.swap_free, h.swap_total, gb) : ""}
+      ${h.load ? `<div class="row"><span>Charge (1 / 5 / 15 min)</span><span class="num">${h.load.map((v) => v.toFixed(2).replace(".", ",")).join(" / ")} sur ${h.cpus} cœurs</span></div>
+      <div class="row"><span>Allumé depuis</span><span>${duration(h.uptime_s)}</span></div>` : ""}
+    </section>
+    <section class="card"><h2>Base de données</h2>${failed(db)}${db.ok === false ? `<p>${pill("bad", "Indisponible")} ${esc(db.detail)}</p>` : ""}
+      ${dbWarn}<table>${dbRows}${db.size ? `<tr><td>Taille</td><td class="num">${mb(db.size)}</td></tr>` : ""}</table>
+    </section>
+    <section class="card"><h2>Réglages</h2>
+      <table>
+        <tr><td>Connexion par SMS</td><td>${sms}</td></tr>
+        <tr><td>Modèle Whisper</td><td><code>${esc(cfg.whisper_model)}</code></td></tr>
+        <tr><td>Adresse de l'appli</td><td><code>https://${esc(s.domain)}/api/v1</code></td></tr>
+      </table>
+    </section>
+    <section class="card"><h2>Dernière mise à jour des fichiers</h2>${failed(s.deployed)}
+      <table>${deployRows}</table>
+    </section>`;
+}
+
+async function refresh() {
+  try {
+    const response = await fetch("data/status.json?t=" + Date.now(), { cache: "no-store" });
+    if (!response.ok) throw new Error(response.status === 404 ? "aucune mesure encore (la tâche cron tourne chaque minute)" : "HTTP " + response.status);
+    render(await response.json());
+  } catch (error) {
+    $("#banner").innerHTML = `<div class="banner bad">Impossible de lire les mesures : ${esc(error.message)}</div>`;
+  }
+}
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
