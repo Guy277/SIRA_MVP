@@ -90,13 +90,13 @@ question ─► Whisper ─► CamemBERT (rapide, cas simples) ─┬─► rép
                                                                • lieux du voyageur (Mes lieux)
 ```
 
-**Modèle** : 3 à 4 milliards de paramètres, quantifié (Q4), via llama.cpp / Ollama / LM Studio (déjà installé
-sur le PC). Candidats à licence commerciale (à revérifier au moment du choix) :
-- **Qwen3-4B** (Apache 2.0) : bon français, appel d'outils ;
-- **Phi-4-mini** (MIT) ;
-- Llama 3.2 3B (licence Llama), Gemma 3 4B (conditions Gemma).
+**Modèle** : **Ministral 3 3B** (Apache 2.0, Q4_K_M, 2,1 Go), retenu après le banc d'essai du 2026-10-24 sur les
+40 phrases de test réelles : bon outil 38/46, bon lieu 30/31, aucun chiffre inventé
+(`services/voice/benchmarks/2026-10-24_llm-synthese.md`). Qwen3.5-2B est plus rapide mais appelle trop peu les outils ;
+Qwen3.5-4B n'appelle les outils qu'avec sa réflexion (120 s). Moteur : llama.cpp (`llama-server`, API compatible
+OpenAI), modèles téléchargés dans `services/models/llm/` (hors Git). Banc : `services/voice/scripts/bench_llm.py`.
 
-**Temps de réponse** : sur ce PC sans GPU, plusieurs secondes par réponse (à mesurer) ; c'est pourquoi CamemBERT
+**Temps de réponse** : 7,4 s en moyenne par réponse sur ce PC sans GPU (mesuré) ; c'est pourquoi CamemBERT
 garde les cas simples et le LLM n'intervient que quand il apporte quelque chose.
 
 **RAG** : remplacer la recherche RapidFuzz par des embeddings multilingues légers seulement si une mesure montre

@@ -1,0 +1,49 @@
+﻿modele;chargement_s;id;source;texte;outil_attendu;secondes;outil_obtenu;outil_ok;lieu_dit;lieu_ok;chiffre_invente;lisible;reponse;arguments
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T01;réelle;Je veux aller à Cocody.;calculer_trajet;6.82;;False;;;False;True;Ouais, pour aller à Cocody, dis-moi d'où tu part et tu me diras quand tu veux partir.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T02;réelle;Comment je fais pour partir à Yopougon ?;calculer_trajet;11.61;;False;;;False;True;Pour partir à Yopougon, tu dois prendre un gbaka ou un wôrô-wôrô depuis ton lieu de départ. Tu peux me donner ton point de départ pour que je te calcule le traj;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T03;réelle;Je quitte Abobo, je vais au Plateau.;calculer_trajet;5.21;;False;;;False;True;Bon, je calcule ton trajet d'Abobo au Plateau.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T04;réelle;Le gbaka pour Adjamé, c'est combien ?;calculer_trajet;10.19;;False;;;False;True;"Pour te donner le prix du gbaka vers Adjamé, il faut que je calcule le trajet.
+
+Dis-moi d'où tu pars et je te donne le prix.";{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T05;réelle;Je descends à Treichville, je prends quoi ?;calculer_trajet;6.69;;False;;;False;True;Pour savoir quel trajet tu prends pour aller à Treichville, dis-moi d'où tu viens.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T06;réelle;On peut aller à Marcory en wôrô-wôrô ?;calculer_trajet;5.19;;False;;;False;True;Oui, on peut aller à Marcory en wôrô-wôrô.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T07;réelle;Je veux prendre le bateau-bus pour le Plateau.;calculer_trajet;3.23;;False;;;False;True;Tu veux aller où ?;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T08;réelle;Montre-moi le chemin pour Koumassi.;calculer_trajet;5.72;;False;;;False;True;Bon, pour aller à Koumassi, dis-moi d'où tu partais.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T09;réelle;Je pars à Port-Bouët, mais je ne veux pas trop marcher.;calculer_trajet;7.7;;False;;;False;True;Pour éviter de trop marcher, calcule-moi un trajet vers Port-Bouët avec la préférence « peu de marche ».;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T10;réelle;C'est quel bus SOTRA pour Bingerville ?;calculer_trajet;4.76;;False;;;False;True;Je ne connais pas le numéro de ligne pour Bingerville.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T11;réelle;Je vais à Anyama avec cinq cents francs.;calculer_trajet;11.89;calculer_trajet;True;Anyama;True;False;True;;"{""destination"": ""Anyama"", ""budget_fcfa"": 500}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T12;réelle;Je quitte Yop, je veux aller à Adjamé 220 Logements.;calculer_trajet;6.67;;False;;;True;True;Bon, je calcule ton trajet de Yop à Adjamé 220 Logements.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T13;réelle;Pour aller à Riviera Palmeraie, je fais comment ?;calculer_trajet;5.13;;False;;;False;True;Je calcule les trajets pour toi vers la Riviera Palmeraie.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T14;réelle;Je suis à Adjamé, je vais à Abobo Baoulé.;calculer_trajet;5.85;;False;;;False;True;Bon, je te calcule le trajet d'Adjamé à Abobo Baoulé.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T15;réelle;Je veux aller à Siporex, j'ai deux cents francs seulement.;calculer_trajet;16.12;calculer_trajet;True;Siporex;True;False;True;Je peux calculer les trajets vers Siporex avec ton budget de 200 FCFA.;"{""destination"": ""Siporex"", ""budget_fcfa"": 200}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T16;réelle;Comment je vais à Angré depuis le Plateau ?;calculer_trajet;10.59;calculer_trajet;True;Angré;True;False;True;;"{""destination"": ""Angré"", ""depart"": ""Plateau""}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T17;réelle;Je pars à la gare de Bassam.;calculer_trajet;5.98;;False;;;False;True;Ouaï, ouais, tu pars de la gare de Bassam ? Pour où tu veux aller ?;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T18;réelle;Je dois aller au CHU de Cocody, c'est urgent.;calculer_trajet;7.68;;False;;;False;True;Je t'organise un trajet urgent vers le CHU de Cocody. Dis-moi ton lieu de départ et ton heure de départ.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T19;réelle;Je vais à Riviera 2, le coulé c'est combien ?;calculer_trajet;6.86;;False;;;True;True;Je ne connais pas le prix du coulé vers Riviera 2. Tu veux que je calcule le trajet pour toi ?;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T20;réelle;Je veux aller à Williamsville en taxi communal.;calculer_trajet;7.96;;False;;;False;True;Je peux calculer le trajet pour toi, mais je ne connais pas le prix ni la durée. Dis-moi de quelle gare ou quartier tu pars.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T21;réelle;Montre-moi un trajet pour Attécoubé.;calculer_trajet;7.84;calculer_trajet;True;Attécoubé;True;False;True;;"{""destination"": ""Attécoubé""}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T22;réelle;Je vais à la Zone 4, il y a un bus ?;calculer_trajet;5.61;;False;;;True;True;Oui, il y a des bus SOTRA qui desservent la Zone 4.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T23;réelle;Je pars à Vridi ce soir.;calculer_trajet;7.62;;False;;;False;True;Ouais, d'accord. Pour te dire où ça coûte et combien ça prend de temps, dis-moi d'où tu part exactement.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T24;réelle;Comment je fais pour aller à Gonzagueville ?;calculer_trajet;6.52;;False;;;False;True;Pour aller à Gonzagueville, dis-moi d'où tu pars et je te donne les options.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T25;réelle;Je veux aller à Niangon, mais pas en gbaka.;calculer_trajet;7.97;;False;;;False;True;Je peux t'aider pour le trajet vers Niangon sans gbaka. Dis-moi où tu es pour que je calcule les options.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T26;réelle;Je vais à l'aéroport, c'est quel chemin ?;calculer_trajet;5.49;;False;;;False;True;Je peux calculer le trajet pour toi, mais j'ai besoin de savoir où tu part.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T27;réelle;Je suis à Koumassi, je veux aller à Treichville en wôrô-wôrô.;calculer_trajet;6.4;;False;;;False;True;Je te fais le trajet de Koumassi à Treichville en wôrô-wôrô.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T28;réelle;Mon frère, je vais à Yopougon, c'est combien le gbaka ?;calculer_trajet;5.03;;False;;;False;True;Je te calcule le trajet pour Yopougon en gbaka.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T29;réelle;Je quitte Cocody pour Abobo, je veux le moins cher.;calculer_trajet;14.74;calculer_trajet;True;Abobo;True;False;True;;"{""destination"": ""Abobo"", ""depart"": ""Cocody"", ""preference"": ""moins_cher""}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T30;réelle;Je veux aller au Plateau avant huit heures.;calculer_trajet;4.88;;False;;;True;True;Je te calcule les trajets vers le Plateau avant 8h.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T31;réelle;Y a des bouchons sur mon trajet ?;trajet_en_cours;4.55;;False;;;False;True;Oui, il y a des bouchons sur ton trajet.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T32;réelle;Je descends où ?;trajet_en_cours;7.7;trajet_en_cours;True;;;False;True;;"{""sujet"": ""arret""}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T33;réelle;Ça fait combien ?;trajet_en_cours;5.15;;False;;;False;True;Pour te dire le prix, dis-moi d'où tu viens et où tu vas.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T34;réelle;J'arrive à quelle heure ?;trajet_en_cours;8.53;trajet_en_cours;True;;;False;True;;"{""sujet"": ""arrivee""}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T35;réelle;Oui, c'est ça.;;4.79;;True;;;False;True;Oui, tout à fait. Comment puis-je t'aider pour ton trajet ?;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T36;réelle;Non, c'est Riviera Palmeraie.;calculer_trajet;4.82;;False;;;False;True;D'accord, Riviera Palmeraie. Tu veux partir d'où ?;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T37;réelle;Il y a un accident sur le pont, je veux signaler.;signaler_incident;10.58;signaler_incident;True;;;False;True;;"{""type"": ""accident"", ""lieu"": ""le pont""}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T38;réelle;C'est quoi un coulé dans SIRA ?;chercher_info;11.18;;False;;;False;True;Un coulé, c'est quand un véhicule (gbaka, wôrô, sotra, bateau) s'arrête brutalement sans raison apparente. Tu veux savoir où ça arrive ou combien ça coûte ?;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T39;réelle;Le bateau-bus marche le dimanche ?;chercher_info;11.47;chercher_info;True;;;False;True;;"{""question"": ""Le bateau-bus marche le dimanche ?""}"
+Qwen3.5-4B-Q4_K_M.gguf;14.6;T40;réelle;Je veux aller à Marcory, mais je ne veux pas prendre le bateau.;calculer_trajet;9.26;;False;;;False;True;Je te fais les trajets vers Marcory sans bateau. Dis-moi où tu es et si tu as un budget.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;P01;écrite pour le banc;Je rentre à la maison.;calculer_trajet;6.32;;False;;;False;True;Ouais, où tu veux aller exactement ? Dis-moi le nom du quartier ou de la gare.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;P02;écrite pour le banc;Emmène-moi au boulot.;calculer_trajet;7.57;;False;;;False;True;Ouais, pour aller au boulot à l'Orange Digital Center, dis-moi d'où tu part et quand tu veux partir.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;P03;écrite pour le banc;Je vais chez Tantie.;calculer_trajet;4.63;;False;;;False;True;Bon, je te fais le trajet chez Tantie à Niangon sud.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;P04;écrite pour le banc;Le wôrô-wôrô de Cocody à Adjamé coûte combien ?;calculer_trajet;9.87;;False;;;False;True;Je ne peux pas te donner le prix du wôrô-wôrô de Cocody à Adjamé. Pour connaître le tarif exact, il faut que tu fasses un trajet.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;P05;écrite pour le banc;Il va pleuvoir demain à Paris ?;;4.57;;True;;;False;True;Je ne t'occupe que des trajets à Abidjan.;{}
+Qwen3.5-4B-Q4_K_M.gguf;14.6;P06;écrite pour le banc;Raconte-moi une blague.;;11.01;;True;;;False;True;Je suis SIRA, ton assistant de mobilité à Abidjan, je ne raconte pas de blagues, mais je peux t'aider à trouver le trajet le plus rapide ou le moins cher vers t;{}
