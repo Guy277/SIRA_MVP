@@ -307,7 +307,7 @@ export default function RouteDetailScreen() {
                   </View>
                 ))}
               </View>
-              <Text style={styles.summaryNote}>Estimation à partir des lignes open data 2021.</Text>
+              <Text style={styles.summaryNote}>Estimation à partir des lignes de transport OpenStreetMap.</Text>
               <View style={styles.summaryActions}>
                 <TouchableOpacity style={styles.summaryAction} onPress={handleToggleFavorite} activeOpacity={0.7} accessibilityRole="button">
                   <Ionicons name={isFavorite ? 'bookmark' : 'bookmark-outline'} size={18} color={isFavorite ? '#F26522' : '#111111'} />

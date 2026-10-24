@@ -1,8 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const inputPath = path.resolve('data/raw/abidjantransport_lignes.geojson');
+// Options (facultatives) pour une autre source, ex. l'extraction OpenStreetMap de scripts/build-transport-osm.mjs :
+//   --input <geojson> --source <texte> --date <AAAA-MM-JJ> --license <texte>
+const argValue = (name, fallback) => {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : fallback;
+};
+const inputPath = path.resolve(argValue('--input', 'data/raw/abidjantransport_lignes.geojson'));
 const outputPath = path.resolve('data/processed/transport-lines-normalized.geojson');
+const source = argValue('--source', 'data.gouv.ci / DigitalTransport4Africa');
+const dataDate = argValue('--date', '2021-10-12');
+const license = argValue('--license', 'Licence Ouverte 2.0');
 
 function normalizeFeature(feature) {
   const props = feature.properties ?? {};
@@ -57,13 +66,13 @@ function runNormalization() {
   const output = {
     type: 'FeatureCollection',
     metadata: {
-      source: 'data.gouv.ci / DigitalTransport4Africa',
-      data_date: '2021-10-12',
+      source,
+      data_date: dataDate,
       processed_at: new Date().toISOString(),
       is_historical: true,
       is_official_transport_data: false,
       normalization_version: 'phase1-v1',
-      license: 'Licence Ouverte 2.0',
+      license,
       note: 'The normalized form is derived from the original raw file and never modifies it directly.'
     },
     features,

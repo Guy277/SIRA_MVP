@@ -1503,5 +1503,26 @@ test("liste les autres lignes qui font le même tronçon", () => {
   assert.ok(!alternatives.includes(route.legs[0].lineId));
   assert.ok(!alternatives.includes("L99"), "une ligne qui ne va pas au même arrêt n'est pas une alternative");
   assert.equal(alternatives.length, 2);
-  assert.equal(route.legs[0].alternatives[alternatives.length - 1].mode, "gbaka", "le même mode passe en premier");
+  // Le gbaka à 55 m peut maintenant être pris dès le départ : quel que soit le mode choisi, les alternatives du
+  // même mode passent avant les autres.
+  const modes = route.legs[0].alternatives.map((line) => line.mode);
+  const firstOther = modes.findIndex((mode) => mode !== route.legs[0].mode);
+  assert.ok(firstOther === -1 || modes.slice(firstOther).every((mode) => mode !== route.legs[0].mode), "le même mode passe en premier");
+});
+
+test("une ligne directe à quelques centaines de mètres est prise dès le départ", () => {
+  // Avant : seule la ligne passant au point le plus proche pouvait être prise au départ. Une ligne directe à 400 m
+  // était hors d'atteinte (au-delà des 350 m d'une correspondance à pied) et le trajet enchaînait les détours.
+  const feature = (lineId, coordinates) => ({
+    properties: { line_id: lineId, code: lineId, name: `bus ${lineId}`, operator: "test", network: "test", sira_mode: "SOTRA_BUS", frequency: "10" },
+    geometry: { type: "LineString", coordinates },
+  });
+  const graph = new TransportGraph([
+    feature("PRES", [[-4, 5], [-4, 5.03]]), // passe au départ mais part dans la mauvaise direction
+    feature("DIRECT", [[-4.0036, 5], [-4.06, 5]]), // à 400 m du départ, va droit à destination
+  ]);
+  const route = graph.route({ lon: -4, lat: 5 }, { lon: -4.06, lat: 5 }, "fast", { serviceDate: new Date("2026-09-01T12:00:00Z") });
+  assert.ok(route);
+  assert.deepEqual(route.legs.map((leg) => leg.lineId), ["DIRECT"]);
+  assert.ok(route.access.distanceKm > 0.35 && route.access.distanceKm < 0.45, "la marche jusqu'à la ligne est comptée");
 });

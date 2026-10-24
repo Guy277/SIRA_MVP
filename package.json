@@ -28,6 +28,7 @@
     "data:pilot": "node scripts/generate-pilot-corridors.mjs",
     "data:import": "node scripts/import-transport-postgis.mjs",
     "data:import:postgis": "node scripts/import-transport-postgis-db.mjs",
+    "data:osm": "node scripts/build-transport-osm.mjs",
     "data:audit:postgis": "node scripts/audit-transport-postgis.mjs"
   },
   "dependencies": {

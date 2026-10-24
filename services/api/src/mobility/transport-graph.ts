@@ -147,10 +147,31 @@ export class TransportGraph {
     for (const key of avoided) egressCandidates.delete(key);
     if (!egressCandidates.size) return null;
 
+    // Access candidates mirror the egress ones: the nearest node of every line within
+    // walking reach, each starting with its own walk. With only the single nearest node,
+    // a dense area left a direct line 400 m away unreachable behind a closer one.
+    // Lines are boarded within a realistic walk (600 m, about 8 minutes); starting from every
+    // line up to the 1.5 km fallback radius multiplied the search until it gave up.
+    const accessCandidates = new Map<string, number>(); // key → distanceKm from origin
+    const nearestPerLine = new Map<string, { key: string; distanceKm: number }>();
+    const boardingRadiusKm = Math.min(maxAccessKm, 0.6);
+    for (const [key, coord] of this.coordinates) {
+      if (avoided.has(key)) continue;
+      const d = distanceKm(coord, originCoordinate);
+      if (d > boardingRadiusKm) continue;
+      for (const lineId of this.nodeLines.get(key) ?? []) {
+        const best = nearestPerLine.get(lineId);
+        if (!best || d < best.distanceKm) nearestPerLine.set(lineId, { key, distanceKm: d });
+      }
+    }
+    for (const { key, distanceKm: d } of nearestPerLine.values()) accessCandidates.set(key, d);
+    if (!accessCandidates.size) accessCandidates.set(start.key, start.distanceKm);
+
     const maxTransfers = options.maxTransfers ?? 3;
     const serviceDate = options.serviceDate ?? new Date();
-    const startState = stateOf(start.key, "__start__", 0);
-    const distances = new Map<string, number>([[startState, 0]]); const previous = new Map<string, Previous>(); const heap = new MinHeap(); const visited = new Set<string>();
+    const accessCost = (d: number) => { const walk = estimateWalkingDuration(d).value; return walk + (strategy === "min_walking" ? walk * 8 : 0); };
+    const startStates = new Map([...accessCandidates].map(([key, d]) => [stateOf(key, "__start__", 0), accessCost(d)]));
+    const distances = new Map<string, number>(startStates); const previous = new Map<string, Previous>(); const heap = new MinHeap(); const visited = new Set<string>();
     // Opening hours, waits and fares depend only on the line for a given search;
     // parsing them once per line instead of once per explored edge keeps A* fast.
     const openByLine = new Map<string, boolean>(); const waitByLine = new Map<string, number>(); const fareByLine = new Map<string, number>();
@@ -170,7 +191,7 @@ export class TransportGraph {
       return penalty;
     };
     const heuristic = (nodeKey: string) => distanceKm(this.coordinates.get(nodeKey)!, destinationCoordinate) / 24 * 60;
-    heap.push([heuristic(start.key), startState]);
+    for (const [state, cost] of startStates) heap.push([cost + heuristic(splitState(state).node), state]);
     let finishState: string | null = null; let bestEgressDistKm = Number.POSITIVE_INFINITY; let bestTotal = Number.POSITIVE_INFINITY; let explored = 0;
     while (heap.size && explored < 180_000) {
       const [priority, currentState] = heap.pop()!;
@@ -230,8 +251,10 @@ export class TransportGraph {
     this.lastExploredStates = explored;
     if (!finishState) return null;
     const path: Previous[] = []; let current = finishState;
-    while (current !== startState) { const step = previous.get(current); if (!step) return null; path.push(step); current = step.state; }
+    while (!startStates.has(current)) { const step = previous.get(current); if (!step) return null; path.push(step); current = step.state; }
     path.reverse();
+    const accessNodeKey = splitState(current).node;
+    const accessDistKm = accessCandidates.get(accessNodeKey) ?? start.distanceKm;
 
     const legs: NetworkLeg[] = []; const transfers: NetworkTransfer[] = []; let pendingWalk: WalkPrevious | null = null;
     for (const step of path) {
@@ -257,7 +280,7 @@ export class TransportGraph {
       leg.alternatives = this.sameStretchLines(leg, serviceDate);
     }
 
-    const accessWalk = estimateWalkingDuration(start.distanceKm);
+    const accessWalk = estimateWalkingDuration(accessDistKm);
     // Determine actual egress node from the finishState (may differ from finish.key)
     const egressNodeKey = splitState(finishState).node;
     const egressDistKm = egressCandidates.get(egressNodeKey) ?? bestEgressDistKm;
@@ -268,10 +291,10 @@ export class TransportGraph {
     const transitP90 = legs.reduce((sum, leg) => sum + leg.durationP90 + leg.waitP90, 0);
     const rideGeometry = legs.flatMap((leg, index) => index === 0 ? leg.coordinates : leg.coordinates.slice(1));
     return {
-      access: { distanceKm: Number(start.distanceKm.toFixed(3)), durationMinutes: accessWalk.value, coordinates: [originCoordinate, this.coordinates.get(start.key)!] },
+      access: { distanceKm: Number(accessDistKm.toFixed(3)), durationMinutes: accessWalk.value, coordinates: [originCoordinate, this.coordinates.get(accessNodeKey)!] },
       egress: { distanceKm: Number(egressDistKm.toFixed(3)), durationMinutes: egressWalk.value, coordinates: [this.coordinates.get(egressNodeKey)!, destinationCoordinate] },
       legs, transfers, transferMinutes,
-      distanceKm: Number((start.distanceKm + egressDistKm + legs.reduce((sum, leg) => sum + leg.distanceKm, 0) + transfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)).toFixed(2)),
+      distanceKm: Number((accessDistKm + egressDistKm + legs.reduce((sum, leg) => sum + leg.distanceKm, 0) + transfers.reduce((sum, transfer) => sum + transfer.distanceKm, 0)).toFixed(2)),
       durationMinutes: accessWalk.value + egressWalk.value + transferMinutes + transitMinutes,
       durationP90: accessWalk.p90 + egressWalk.p90 + transferP90 + transitP90,
       price: legs.reduce((sum, leg) => sum + leg.price, 0), priceP90: legs.reduce((sum, leg) => sum + leg.priceP90, 0), geometry: rideGeometry,

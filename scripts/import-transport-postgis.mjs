@@ -129,16 +129,23 @@ function parseArgs() {
     gtfsPath: path.resolve(valueAfter("--gtfs", defaultGtfsPath)),
     linesPath: path.resolve(valueAfter("--lines", defaultLinesPath)),
     outputPath: path.resolve(valueAfter("--output", outputPath)),
+    // Autre source (ex. extraction OpenStreetMap) : date des données et licence écrites dans le fichier produit.
+    sourceDate: valueAfter("--source-date", "2021-10-12"),
+    license: valueAfter("--license", "ODbL / Licence Ouverte 2.0 selon la source"),
   };
 }
 
-function importTransportData({ gtfsPath, linesPath, outputPath: destination }) {
+function importTransportData({ gtfsPath, linesPath, outputPath: destination, sourceDate = "2021-10-12",
+  license = "ODbL / Licence Ouverte 2.0 selon la source" }) {
   if (!fs.existsSync(gtfsPath)) throw new Error(`Archive GTFS introuvable: ${gtfsPath}`);
   if (!fs.existsSync(linesPath)) throw new Error(`Export des lignes introuvable: ${linesPath}`);
 
   const gtfs = requiredEntries(gtfsPath);
   const lineRows = parseCsv(fs.readFileSync(linesPath, "utf8"));
   const linesByCode = new Map(lineRows.filter((line) => line.code).map((line) => [line.code.trim(), line]));
+  // Export OpenStreetMap : une colonne route_id relie chaque ligne sans ambiguïté (plusieurs lignes ont le même code).
+  const linesByRoute = new Map(lineRows.filter((line) => line.route_id).map((line) => [line.route_id.trim(), line]));
+  const relative = (file) => path.relative(root, file).replaceAll(path.sep, "/");
   const agenciesById = new Map(gtfs.agency.map((agency) => [agency.agency_id, agency]));
   const shapesById = new Map();
   for (const point of gtfs.shapes) {
@@ -157,7 +164,7 @@ function importTransportData({ gtfsPath, linesPath, outputPath: destination }) {
 
   const routes = gtfs.routes.map((route) => {
     const agency = agenciesById.get(route.agency_id);
-    const sourceLine = linesByCode.get(route.route_short_name?.trim());
+    const sourceLine = linesByRoute.get(route.route_id) ?? linesByCode.get(route.route_short_name?.trim());
     const trip = tripsByRoute.get(route.route_id)?.[0];
     const fare = fareFromCsv(sourceLine?.["osm:charge"]);
     return {
@@ -180,9 +187,9 @@ function importTransportData({ gtfsPath, linesPath, outputPath: destination }) {
       fare_status: fare === null ? "unknown" : "historical",
       validation_status: "pending",
       source: {
-        gtfs: "data/abidjan-master/abidjan-master/Données/abidjan.zip",
-        line_metadata: sourceLine ? "data/abidjan-master/abidjan-master/Données/abidjantransport_lignes.csv" : null,
-        data_date: "2021-10-12",
+        gtfs: relative(gtfsPath),
+        line_metadata: sourceLine ? relative(linesPath) : null,
+        data_date: sourceDate,
       },
     };
   });
@@ -198,8 +205,8 @@ function importTransportData({ gtfsPath, linesPath, outputPath: destination }) {
     metadata: {
       data_status: "historical",
       validation_status: "pending",
-      source_date: "2021-10-12",
-      license: "ODbL / Licence Ouverte 2.0 selon la source",
+      source_date: sourceDate,
+      license,
       fare_note: "Les tarifs issus de osm:charge sont historiques et non validés par SIRA.",
       missing_gtfs_fare_files: ["fare_attributes.txt", "fare_rules.txt"],
     },

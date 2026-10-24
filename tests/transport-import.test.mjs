@@ -38,7 +38,9 @@ test("audite la coherence du reseau unifie avant PostGIS", () => {
     outputPath: path.join(temporaryDirectory, "transport-network-audit.json"),
   });
 
-  assert.equal(report.summary.routes, 398);
+  // Le réseau change à chaque extraction OpenStreetMap : on vérifie que les lignes tracées et le GTFS concordent.
+  assert.ok(report.summary.routes > 0);
+  assert.equal(report.summary.normalized_geojson_features, report.summary.routes);
   assert.equal(report.summary.routes_without_stops, 0);
   assert.equal(report.summary.routes_without_stop_times, 0);
   assert.equal(report.summary.routes_without_geometry, 0);

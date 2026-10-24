@@ -220,6 +220,7 @@ export class MobilityService implements OnModuleInit {
   private readonly profileJourneys = process.env.SIRA_JOURNEY_PROFILING === "true";
   private readonly dataRoot = process.env.SIRA_DATA_ROOT ?? join(process.cwd(), "data");
   private transportGraph?: TransportGraph;
+  private sourceLabel?: string;
   // Named stops of the network (where to get on and off, landmarks for walking); null if the file is missing.
   private stopIndex?: StopIndex | null;
   // Off-thread graph search keeps the API responsive during a search.
@@ -1116,6 +1117,20 @@ if (!deduplicatedCandidates.length) {
     return existsSync(rawPath) ? rawPath : fallbackPath;
   }
 
+  // « source, données du JJ/MM/AAAA » du fichier de lignes : dit aux voyageurs d'où viennent les tracés, sans date en dur.
+  private transportSourceLabel(): string {
+    if (this.sourceLabel === undefined) {
+      try {
+        const meta = (JSON.parse(readFileSync(this.transportDatasetPath(), "utf8")) as { metadata?: { source?: string; data_date?: string } }).metadata ?? {};
+        const date = meta.data_date?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        this.sourceLabel = [meta.source, date && `données du ${date[3]}/${date[2]}/${date[1]}`].filter(Boolean).join(", ") || "source non renseignée";
+      } catch {
+        this.sourceLabel = "source non renseignée";
+      }
+    }
+    return this.sourceLabel;
+  }
+
   private readTransportDataset(): { type: "FeatureCollection"; features: TransportFeature[] } {
     return JSON.parse(readFileSync(this.transportDatasetPath(), "utf8"));
   }
@@ -1264,7 +1279,7 @@ if (!deduplicatedCandidates.length) {
       const stops = rideStops[index];
       legs.push({
         id: `${id}-wait-${index}`, mode: "wait", label: `Attente estimée — ${leg.mode}`, at_stop: mention(stops?.board),
-        detail: `${leg.waitMinutes} min (P90 ${leg.waitP90} min) · ${leg.waitMethod.startsWith("historical_") ? "fréquence déclarée 2021" : "valeur-type à calibrer"}`,
+        detail: `${leg.waitMinutes} min (P90 ${leg.waitP90} min) · ${leg.waitMethod.startsWith("historical_") ? "fréquence déclarée (OpenStreetMap)" : "valeur-type à calibrer"}`,
         duration: leg.waitMinutes, duration_p90: leg.waitP90, price: 0, geometry: [], dataStatus: "estimated_mvp",
         estimate_method: leg.waitMethod, confidence: leg.waitConfidence,
       });
@@ -1321,7 +1336,7 @@ if (!deduplicatedCandidates.length) {
       transfer_count: route.transfers.length, comfort, reliability, confidence, uncertainty: Number((1 - confidence).toFixed(2)),
       incident_risk: Number(((100 - reliability) / 100).toFixed(2)), modes: [...new Set(["walk", ...route.legs.map((leg) => leg.mode), "walk"])],
       line_ids: route.legs.map((leg) => leg.lineId), geometry, legs,
-      data_notice: "Tracés de transport historiques data.gouv.ci (2021). Accès, sorties et correspondances calculés sur le réseau piéton OpenStreetMap/Valhalla. Attentes, temps en véhicule et tarifs restent des estimations avec P90 et confiance.",
+      data_notice: `Tracés de transport : ${this.transportSourceLabel()}. Accès, sorties et correspondances calculés sur le réseau piéton OpenStreetMap/Valhalla. Attentes, temps en véhicule et tarifs restent des estimations avec P90 et confiance.`,
     };
   }
 

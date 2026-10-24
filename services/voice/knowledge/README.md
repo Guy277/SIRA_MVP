@@ -16,8 +16,8 @@ Le gbaka est un minibus…            ← la réponse lue par SIRA : 2 phrases m
 - `action: trip_eta` à la place d'une réponse : la réponse est calculée sur le trajet en cours
   (SIRA-MORE, signalements des voyageurs), jamais écrite à la main. Actions : `trip_summary`, `trip_eta`,
   `trip_price`, `trip_stops`, `trip_transfer`, `trip_incidents`.
-- Aucun prix, horaire ou durée inventé : les chiffres viennent du moteur. Les informations tirées des données
-  de 2021 le disent (« d'après les données de 2021 »).
+- Aucun prix, horaire ou durée inventé : les chiffres viennent du moteur. Les informations tirées du réseau le
+  disent (« d'après OpenStreetMap ») et sont à relire à chaque nouvelle extraction (`npm run data:osm`).
 - Les lignes qui commencent par `#` (titres) ou `<!--` sont ignorées.
 
 | Fichier | Contenu |
@@ -25,6 +25,6 @@ Le gbaka est un minibus…            ← la réponse lue par SIRA : 2 phrases m
 | `sira.md` | utiliser l'application, compte, voix, confidentialité |
 | `modes.md` | gbaka, wôrô-wôrô, bus SOTRA, bateau-bus, taxi ; Coulé / Debout / Suspendu |
 | `lexique.md` | mots d'Abidjan compris par SIRA (lexique fr-CI v0.4, onglet 04_Lexique) |
-| `reseau.md` | bateau-bus et réseau (données data.gouv.ci 2021, à valider) |
+| `reseau.md` | bateau-bus, réseau, métro (OpenStreetMap, octobre 2026, à valider) |
 | `trajet.md` | questions sur le trajet en cours (réponses calculées) |
 | `echanges.md` | bonjour, merci, au revoir |
