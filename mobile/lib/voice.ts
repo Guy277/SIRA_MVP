@@ -22,6 +22,9 @@ const MODES: VoiceMode[] = ['on', 'alerts', 'off'];
 export const VOICE_MODE_LABELS: Record<VoiceMode, string> = { on: 'Voix activée', alerts: 'Alertes seulement', off: 'Voix coupée' };
 
 export type VoiceGender = 'homme' | 'femme';
+// The woman's voice is kept but hidden: SIRA speaks with the man's voice that goes with the
+// character (choice of the project, 2026-10). true shows « Voix de SIRA » in Apparence again.
+export const VOICE_CHOICE_ENABLED = false;
 const GENDER_KEY = 'sira-voice-gender';
 export const VOICE_GENDER_LABELS: Record<VoiceGender, string> = { homme: 'Homme', femme: 'Femme' };
 
@@ -41,7 +44,8 @@ export async function loadVoiceMode() {
   try {
     const saved = await readSetting(KEY);
     if (saved && (MODES as string[]).includes(saved)) { mode = saved as VoiceMode; listeners.forEach((l) => l()); }
-    const savedGender = await readSetting(GENDER_KEY);
+    // Choice hidden: a « femme » saved before is not used, SIRA keeps the man's voice.
+    const savedGender = VOICE_CHOICE_ENABLED ? await readSetting(GENDER_KEY) : null;
     if (savedGender === 'homme' || savedGender === 'femme') { gender = savedGender; listeners.forEach((l) => l()); }
   } catch { /* réglage illisible : voix activée, voix d'homme */ }
 }

@@ -13,7 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { goBack } from '@/lib/navigation';
-import { setVoiceGender, useVoiceGender, VOICE_GENDER_LABELS, type VoiceGender } from '@/lib/voice';
+import { setVoiceGender, useVoiceGender, VOICE_CHOICE_ENABLED, VOICE_GENDER_LABELS, type VoiceGender } from '@/lib/voice';
 
 type ModalType = 'voice' | 'theme' | 'textSize' | 'mapStyle' | null;
 const VOICE_OPTIONS = Object.values(VOICE_GENDER_LABELS);
@@ -111,8 +111,8 @@ export default function AppearanceSettingsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Voix de SIRA : homme (comme le personnage) ou femme */}
-          <TouchableOpacity
+          {/* Voix de SIRA : homme (comme le personnage) ou femme. Masqué tant que VOICE_CHOICE_ENABLED est false. */}
+          {VOICE_CHOICE_ENABLED && <TouchableOpacity
             style={styles.settingCard}
             onPress={() => setActiveModal('voice')}
             activeOpacity={0.8}
@@ -127,7 +127,7 @@ export default function AppearanceSettingsScreen() {
             <View style={styles.orangeChevronCircle}>
               <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity>}
 
           {/* Card 1: Thème de l'application */}
           <TouchableOpacity
