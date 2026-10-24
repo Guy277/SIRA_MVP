@@ -279,6 +279,17 @@ class VoiceDialog:
         return None
 
     def _plan(self, u: Understanding, request: dict, prefix: str = "") -> dict:
+        # Grand-Bassam, Dabou… : dans le Grand Abidjan mais hors du réseau de SIRA. On va jusqu'à la gare de départ
+        # quand elle est connue, en le disant ; sinon on le dit sans inventer de trajet.
+        far = self.resolver.outside_network((request.get("destination") or {}).get("name"))
+        if far:
+            name, depart = far["place"]["canonical"], far["depart"]
+            if not depart or depart.get("lat") is None:
+                return self._reply(u, prefix + f"{name} fait partie du Grand Abidjan, mais ses transports ne sont pas encore "
+                                   "dans SIRA : je ne peux pas encore calculer ce trajet.", request=request, sources=["lieux"])
+            request = dict(request, destination={"lat": depart["lat"], "lon": depart["lon"], "name": depart["canonical"]})
+            prefix += (f"{name} n'est pas encore dans le réseau de SIRA : je t'emmène à {depart['canonical']}, "
+                       f"d'où partent les véhicules pour {name}. ")
         if self.plan_journeys is None:
             return self._reply(u, prefix + "J'ai compris ta demande, mais le calcul des trajets n'est pas branché.", request=request)
         api_request = {k: v for k, v in request.items() if k != "preferredModes"}

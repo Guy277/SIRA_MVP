@@ -54,7 +54,7 @@ def build_state(app: FastAPI, nlu=None, planner=None, live=None):
     et de faux signalements (live)."""
     state = app.state
     state.errors = {}
-    state.resolver = PlaceResolver(config.GAZETTEER_PATH)
+    state.resolver = PlaceResolver(config.GAZETTEER_PATH, config.LIEUX_COMPLEMENTS)
     state.knowledge = KnowledgeBase.load(config.KNOWLEDGE_DIR)
     if nlu is None:
         try:

@@ -257,7 +257,7 @@ def resolve_whisper(name: str) -> tuple[str, str]:
 def whisper_prompt() -> str:
     try:
         from services.voice.app.resolver import PlaceResolver
-        names = PlaceResolver(config.GAZETTEER_PATH).place_names(kinds=("commune",))
+        names = PlaceResolver(config.GAZETTEER_PATH, config.LIEUX_COMPLEMENTS).place_names(kinds=("commune",))
     except Exception:
         names = []
     return f"Trajet à Abidjan en gbaka, wôrô-wôrô, bus SOTRA ou bateau-bus : {', '.join(names[:15])}."
@@ -270,7 +270,7 @@ def load_understanding():
         from services.voice.app.resolver import PlaceResolver
         started = time.perf_counter()
         nlu = CamembertNLU(config.INTENT_MODEL_DIR, config.NER_MODEL_DIR)
-        resolver = PlaceResolver(config.GAZETTEER_PATH)
+        resolver = PlaceResolver(config.GAZETTEER_PATH, config.LIEUX_COMPLEMENTS)
         nlu.predict("Je veux aller au Plateau")  # première prédiction, toujours plus lente
         return nlu, resolver, time.perf_counter() - started
     except Exception as error:

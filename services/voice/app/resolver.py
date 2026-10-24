@@ -50,6 +50,25 @@ def same_name(a: str, b: str) -> bool:
     return sorted(norm(a).split()) == sorted(norm(b).split())
 
 
+# « Terminus Williamsville », « Gare Gesco », « Arrêt Anador » : l'arrêt qui porte le nom du quartier.
+STOP_PREFIX = re.compile(r"^(terminus|gare|arret|arrets)\s+")
+SAME_PLACE_M = 1500
+
+
+def same_place(a: "Match", b: "Match") -> bool:
+    """« Williamsville » et « Terminus Williamsville » à moins de 1,5 km : le même endroit, pas un choix à poser.
+    Sans cette règle, SIRA demandait « Williamsville ou Terminus Williamsville ? » pour les lieux les plus demandés."""
+    if same_name(a.canonical, b.canonical):
+        return True
+    if None in (a.lat, a.lon, b.lat, b.lon):
+        return False
+    # « Akouédo (Cocody) » : la commune entre parenthèses ne change pas le nom ; la distance tranche ensuite.
+    bare = lambda m: STOP_PREFIX.sub("", norm(re.sub(r"\s*\([^)]*\)$", "", m.canonical)))  # noqa: E731
+    if bare(a) != bare(b):
+        return False
+    return 111_320 * math.hypot(a.lat - b.lat, (a.lon - b.lon) * math.cos(math.radians(a.lat))) <= SAME_PLACE_M
+
+
 def phon(text: str) -> str:
     s = norm(text)
     for pattern, replacement in PHON:
@@ -72,10 +91,32 @@ class Match:
                 "lat": self.lat, "lon": self.lon, "score": round(self.score, 1)}
 
 
+def apply_complements(places: list[dict], complements_path: Path | None) -> list[dict]:
+    """Ajoute à la liste du notebook les corrections tenues dans Git (knowledge/lieux_complements.json) :
+    lieux ajoutés, coordonnées manquantes, variantes d'orthographe, commune exacte (frontières OpenStreetMap)."""
+    if not complements_path or not Path(complements_path).exists():
+        return places
+    extra = json.loads(Path(complements_path).read_text(encoding="utf-8"))
+    added = extra.get("ajouts", []) + extra.get("arrets_osm", [])
+    places = [dict(p) for p in places] + [dict(p, aliases=list(p.get("aliases", []))) for p in added]
+    by_id = {p["place_id"]: p for p in places}
+    for pid, point in extra.get("coordonnees", {}).items():
+        if pid in by_id:
+            by_id[pid]["lat"], by_id[pid]["lon"] = point["lat"], point["lon"]
+    for pid, aliases in extra.get("alias", {}).items():
+        if pid in by_id:
+            by_id[pid]["aliases"] = [*by_id[pid].get("aliases", []), *aliases]
+    for pid, commune in extra.get("communes", {}).items():
+        if pid in by_id:
+            by_id[pid]["commune"], by_id[pid]["needs_review"] = commune, False
+    return places
+
+
 class PlaceResolver:
-    def __init__(self, gazetteer_path: Path):
-        places = json.loads(Path(gazetteer_path).read_text(encoding="utf-8"))
+    def __init__(self, gazetteer_path: Path, complements_path: Path | None = None):
+        places = apply_complements(json.loads(Path(gazetteer_path).read_text(encoding="utf-8")), complements_path)
         self.places = {p["place_id"]: p for p in places}
+        self._outside = {p["canonical"]: p for p in places if "hors_reseau" in p}
         self._txt, self._ph, self._pl = [], [], []
         for p in places:
             for alias in {p["canonical"], *p.get("aliases", [])}:
@@ -88,6 +129,14 @@ class PlaceResolver:
 
     def __len__(self) -> int:
         return len(self.places)
+
+    def outside_network(self, name: str | None) -> dict | None:
+        """Lieu du Grand Abidjan hors du réseau de transport de SIRA (Grand-Bassam, Dabou…) :
+        {"place": le lieu, "depart": sa gare de départ dans le réseau si elle est attestée, sinon None}."""
+        place = self._outside.get(name or "")
+        if place is None:
+            return None
+        return {"place": place, "depart": self.places.get(place["hors_reseau"].get("depart") or "")}
 
     def resolve(self, text: str, k: int = 5) -> list[Match]:
         q, qp = norm(text), phon(text)
@@ -123,7 +172,7 @@ class PlaceResolver:
             return "low_place_confidence"
         if top.lat is None or top.lon is None:
             return "place_without_coordinates"
-        if len(matches) > 1 and top.score - matches[1].score < margin and not same_name(matches[1].canonical, top.canonical):
+        if len(matches) > 1 and top.score - matches[1].score < margin and not same_place(top, matches[1]):
             return "ambiguous_place"
         return None
 

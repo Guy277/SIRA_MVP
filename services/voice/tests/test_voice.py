@@ -2,6 +2,7 @@
 
 Lancer : npm run test:voice   (ou  python -m unittest discover -s services/voice/tests -v)
 """
+import json
 import os
 import re
 import sys
@@ -69,6 +70,83 @@ class Planner:
 POSITION = {"lat": 5.3467, "lon": -3.9951, "name": "Cocody Danga"}
 
 
+class LieuxComplementsTest(unittest.TestCase):
+    """knowledge/lieux_complements.json : lieux ajoutés, coordonnées, variantes et communes exactes."""
+
+    @classmethod
+    def setUpClass(cls):
+        from services.voice.app.config import LIEUX_COMPLEMENTS
+        cls.path = LIEUX_COMPLEMENTS
+        cls.data = json.loads(LIEUX_COMPLEMENTS.read_text(encoding="utf-8"))
+        cls.r = PlaceResolver(FIXTURES / "gazetteer_test.json", LIEUX_COMPLEMENTS)
+
+    def test_fichier_coherent(self):
+        communes = {"Abobo", "Adjamé", "Anyama", "Attécoubé", "Bingerville", "Cocody", "Koumassi", "Marcory", "Plateau",
+                    "Port-Bouët", "Songon", "Treichville", "Yopougon"}
+        ids = [p["place_id"] for p in self.data["ajouts"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(pid.startswith("PL-C") for pid in ids))  # jamais un identifiant du notebook
+        for place in self.data["ajouts"]:  # Grand Abidjan : 13 communes du District + Dabou, Bonoua, Alépé…
+            self.assertTrue(-4.5 < place["lon"] < -3.5 and 5.1 < place["lat"] < 5.75, place["canonical"])
+            # noms recopiés d'OSM : pas d'espace insécable, sinon elle part dans la réponse de l'app et la voix
+            self.assertFalse(any("\xa0" in name for name in [place["canonical"], *place["aliases"]]), place["canonical"])
+        self.assertTrue(set(self.data["communes"].values()) <= communes)
+
+    def test_lieux_ajoutes_trouves_avec_coordonnees(self):
+        for said, expected in [("black market", "Black Market"), ("huitième tranche", "Angré 8e Tranche"),
+                               ("treichville arras", "Treichville Arras"), ("stade houphouët-boigny", "Stade Félix Houphouët-Boigny")]:
+            top = self.r.resolve(said)[0]
+            self.assertEqual(top.canonical, expected, said)
+            self.assertIsNotNone(top.lat)
+
+    def test_commune_exacte_appliquee(self):
+        siporex = self.r.places["PL-00053"]
+        self.assertEqual(siporex["commune"], self.data["communes"]["PL-00053"])
+        self.assertFalse(siporex["needs_review"])
+
+    def test_sans_fichier_rien_ne_change(self):
+        plain = PlaceResolver(FIXTURES / "gazetteer_test.json", FIXTURES / "absent.json")
+        self.assertEqual(len(plain), 18)
+
+
+class HorsReseauTest(unittest.TestCase):
+    """Communes périphériques du Grand Abidjan (Grand-Bassam, Dabou…) : hors du réseau de transport de SIRA."""
+
+    def setUp(self):
+        import tempfile
+        from services.voice.app.config import LIEUX_COMPLEMENTS
+        data = json.loads(LIEUX_COMPLEMENTS.read_text(encoding="utf-8"))
+        # Aucune gare de départ n'est attestée pour Bonoua : le test en simule une (le Plateau du répertoire de test).
+        for place in data["ajouts"]:
+            if place["canonical"] == "Bonoua":
+                place["hors_reseau"]["depart"] = "PL-00009"
+        self.tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(data, self.tmp, ensure_ascii=False)
+        self.tmp.close()
+        self.planner = Planner()
+        resolver = PlaceResolver(FIXTURES / "gazetteer_test.json", Path(self.tmp.name))
+        self.d = VoiceDialog(FakeNLU(), resolver, PLACE_THRESHOLD, PLACE_MARGIN, 0.5, self.planner)
+
+    def tearDown(self):
+        os.unlink(self.tmp.name)
+
+    def test_gare_de_depart_connue(self):
+        out = self.d.ask("je vais à bonoua", POSITION)
+        self.assertEqual(self.planner.calls[0]["destination"]["name"], "Plateau")  # la gare de départ, pas Bonoua
+        self.assertTrue(out["reply_text"].startswith("Bonoua n'est pas encore dans le réseau de SIRA"))
+        self.assertIn("400 francs", out["reply_text"])  # le trajet jusqu'à la gare, chiffres du moteur
+
+    def test_sans_gare_connue_rien_n_est_invente(self):
+        out = self.d.ask("je vais à dabou", POSITION)
+        self.assertEqual(self.planner.calls, [])
+        self.assertIn("pas encore dans SIRA", out["reply_text"])
+
+    def test_trajet_dans_le_reseau_inchange(self):
+        out = self.d.ask("je vais au plato", POSITION)
+        self.assertEqual(self.planner.calls[0]["destination"]["name"], "Plateau")
+        self.assertNotIn("réseau de SIRA", out["reply_text"])
+
+
 class ResolverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -94,6 +172,18 @@ class ResolverTest(unittest.TestCase):
         self.assertEqual(matches[0].canonical, "Adjamé 220 Logements")
         self.assertIsNone(self.r.decide(matches, PLACE_THRESHOLD, PLACE_MARGIN))
         self.assertEqual(self.top("yopougon vingt sept"), "Yopougon")  # « vingt sept » reste 27, pas « 20 sept »
+
+    def test_le_terminus_du_quartier_est_le_meme_endroit(self):
+        # Bug observé : « Tu veux dire Williamsville ou Terminus Williamsville ? » pour les lieux les plus demandés.
+        from services.voice.app.resolver import same_place
+        quartier = Match("Q", "Williamsville", "quartier", "Adjamé", 5.3600, -4.0200, 102)
+        self.assertTrue(same_place(quartier, Match("S", "Terminus Williamsville", "stop", "Adjamé", 5.3640, -4.0200, 100)))  # 450 m
+        self.assertTrue(same_place(Match("A", "Akouédo", "quartier", "Cocody", 5.35, -3.94, 102),
+                                   Match("B", "Akouédo (Cocody)", "stop", "Cocody", 5.355, -3.94, 100)))
+        # Même nom mais loin (deux Sicogi), ou autre nom : la question reste.
+        self.assertFalse(same_place(Match("K", "Sicogi (Koumassi)", "stop", "Koumassi", 5.29, -3.95, 100),
+                                    Match("Y", "Sicogi (Yopougon)", "stop", "Yopougon", 5.34, -4.08, 100)))
+        self.assertFalse(same_place(quartier, Match("S", "Terminus Gesco", "stop", "Yopougon", 5.3600, -4.0210, 100)))
 
     def test_meme_lieu_mots_dans_un_autre_ordre(self):
         # Bug observé en audio : « Tu veux dire Adjamé 220 Logements ou 220 Lgts Adjamé ? » (deux noms du même lieu)

@@ -1,0 +1,276 @@
+fichier;texte;lieu
+E001;Emmène-moi à Angré.;Angré
+E002;Je veux aller à Angré sans trop marcher.;Angré
+E003;C'est quel bus pour Angré ?;Angré
+E004;Je pars au CHU de Cocody, je prends quoi ?;CHU de Cocody
+E005;Je quitte Port-Bouët, je vais au CHU de Cocody.;CHU de Cocody
+E006;Je vais au CHU de Cocody.;CHU de Cocody
+E007;Comment je fais pour aller à la Zone 4 ?;Zone 4
+E008;Je suis à Songon, je veux aller à la Zone 4.;Zone 4
+E009;Le gbaka pour la Zone 4, c'est combien ?;Zone 4
+E010;Pour l'aéroport, on passe par où ?;Aéroport
+E011;Je veux aller à l'aéroport sans trop marcher.;Aéroport
+E012;Je veux béou à l'aéroport.;Aéroport
+E013;Je veux aller à la Gare Nord sans trop marcher.;Gare Nord
+E014;Pardon, pour aller à la Gare Nord je fais comment ?;Gare Nord
+E015;Je pars à la Gare Nord, je prends quoi ?;Gare Nord
+E016;Montre-moi le chemin pour la Gare Sud.;Gare Sud
+E017;Pardon, pour aller à la Gare Sud je fais comment ?;Gare Sud
+E018;Je suis à Attécoubé, je veux aller à la Gare Sud.;Gare Sud
+E019;Pour Adjamé Liberté, on passe par où ?;Adjamé Liberté
+E020;Pardon, pour aller à Adjamé Liberté je fais comment ?;Adjamé Liberté
+E021;Montre-moi le chemin pour Adjamé Liberté.;Adjamé Liberté
+E022;Je veux descendre à Adjamé 220 Logements.;Adjamé 220 Logements
+E023;Il y a un wôrô-wôrô pour Adjamé 220 Logements ?;Adjamé 220 Logements
+E024;Je vais à Adjamé 220 Logements.;Adjamé 220 Logements
+E025;Comment je fais pour aller à la Cité Administrative ?;Cité Administrative
+E026;Le gbaka pour la Cité Administrative, c'est combien ?;Cité Administrative
+E027;Emmène-moi à la Cité Administrative.;Cité Administrative
+E028;Emmène-moi à la Gare de Bassam.;Gare de Bassam
+E029;Je quitte Bingerville, je vais à la Gare de Bassam.;Gare de Bassam
+E030;Montre-moi le chemin pour la Gare de Bassam.;Gare de Bassam
+E031;Pour Abobo Gare, on passe par où ?;Abobo Gare
+E032;Montre-moi le chemin pour Abobo Gare.;Abobo Gare
+E033;Je veux aller à Abobo Gare sans trop marcher.;Abobo Gare
+E034;Pardon, pour aller à Grand-Bassam je fais comment ?;Grand-Bassam
+E035;Emmène-moi à Grand-Bassam.;Grand-Bassam
+E036;Je quitte Abobo, je vais à Grand-Bassam.;Grand-Bassam
+E037;C'est quel bus pour Abobo ?;Abobo
+E038;Je cherche un transport pour Abobo.;Abobo
+E039;Je veux aller à Abobo sans trop marcher.;Abobo
+E040;Je vais à Adjamé.;Adjamé
+E041;Comment je fais pour aller à Adjamé ?;Adjamé
+E042;Montre-moi le chemin pour Adjamé.;Adjamé
+E043;Il y a un wôrô-wôrô pour Anyama ?;Anyama
+E044;C'est quel bus pour Anyama ?;Anyama
+E045;Je veux descendre à Anyama.;Anyama
+E046;Emmène-moi à Attécoubé.;Attécoubé
+E047;Le gbaka pour Attécoubé, c'est combien ?;Attécoubé
+E048;Comment je fais pour aller à Attécoubé ?;Attécoubé
+E049;Je veux aller à Bingerville sans trop marcher.;Bingerville
+E050;Je quitte Cocody, je vais à Bingerville.;Bingerville
+E051;Pour Bingerville, on passe par où ?;Bingerville
+E052;Je quitte le Plateau, je vais à Cocody.;Cocody
+E053;Je suis à Bingerville, je veux aller à Cocody.;Cocody
+E054;Je veux béou à Cocody.;Cocody
+E055;Je veux béou à Koumassi.;Koumassi
+E056;Pardon, pour aller à Koumassi je fais comment ?;Koumassi
+E057;Comment je fais pour aller à Koumassi ?;Koumassi
+E058;Je quitte Attécoubé, je vais à Marcory.;Marcory
+E059;Il y a un wôrô-wôrô pour Marcory ?;Marcory
+E060;Je suis à Treichville, je veux aller à Marcory.;Marcory
+E061;Je veux descendre au Plateau.;Plateau
+E062;Je pars au Plateau, je prends quoi ?;Plateau
+E063;C'est quel bus pour le Plateau ?;Plateau
+E064;Je vais à Port-Bouët.;Port-Bouët
+E065;Le gbaka pour Port-Bouët, c'est combien ?;Port-Bouët
+E066;Je pars à Port-Bouët, je prends quoi ?;Port-Bouët
+E067;Je pars à Songon, je prends quoi ?;Songon
+E068;Je veux aller à Songon sans trop marcher.;Songon
+E069;Comment je fais pour aller à Songon ?;Songon
+E070;Comment je fais pour aller à Treichville ?;Treichville
+E071;Montre-moi le chemin pour Treichville.;Treichville
+E072;Je veux béou à Treichville.;Treichville
+E073;Pardon, pour aller à Yopougon je fais comment ?;Yopougon
+E074;Je cherche un transport pour Yopougon.;Yopougon
+E075;Je pars à Yopougon, je prends quoi ?;Yopougon
+E076;Comment je fais pour aller à Akouédo ?;Akouédo
+E077;Il y a un wôrô-wôrô pour Akouédo ?;Akouédo
+E078;Le gbaka pour Akouédo, c'est combien ?;Akouédo
+E079;Je veux béou à Anoumabo.;Anoumabo
+E080;Il y a un wôrô-wôrô pour Anoumabo ?;Anoumabo
+E081;Je cherche un transport pour Anoumabo.;Anoumabo
+E082;Pardon, pour aller à Andokoi je fais comment ?;Andokoi
+E083;Pour Andokoi, on passe par où ?;Andokoi
+E084;Je veux aller à Andokoi sans trop marcher.;Andokoi
+E085;Il y a un wôrô-wôrô pour Wassakara ?;Wassakara
+E086;Montre-moi le chemin pour Wassakara.;Wassakara
+E087;Je vais à Wassakara.;Wassakara
+E088;Je veux aller à Koweït sans trop marcher.;Koweït
+E089;Je vais à Koweït.;Koweït
+E090;Pardon, pour aller à Koweït je fais comment ?;Koweït
+E091;Je veux aller à N'dotré sans trop marcher.;N'dotré
+E092;Je veux béou à N'dotré.;N'dotré
+E093;Je cherche un transport pour N'dotré.;N'dotré
+E094;Il y a un wôrô-wôrô pour Samaké ?;Samaké
+E095;Je cherche un transport pour Samaké.;Samaké
+E096;Je veux béou à Samaké.;Samaké
+E097;Il y a un wôrô-wôrô pour Agban ?;Agban
+E098;Je vais à Agban.;Agban
+E099;Emmène-moi à Agban.;Agban
+E100;Je veux aller à Gesco sans trop marcher.;Gesco
+E101;Pardon, pour aller à Gesco je fais comment ?;Gesco
+E102;Je suis à Cocody, je veux aller à Gesco.;Gesco
+E103;Je cherche un transport pour Micao.;Micao
+E104;Je veux aller à Micao sans trop marcher.;Micao
+E105;Je suis à Treichville, je veux aller à Micao.;Micao
+E106;Comment je fais pour aller à Selmer ?;Selmer
+E107;Je cherche un transport pour Selmer.;Selmer
+E108;Je veux descendre à Selmer.;Selmer
+E109;Je veux aller à Biétry sans trop marcher.;Biétry
+E110;Je suis à Adjamé, je veux aller à Biétry.;Biétry
+E111;Je veux descendre à Biétry.;Biétry
+E112;Montre-moi le chemin pour Abatta.;Abatta
+E113;Il y a un wôrô-wôrô pour Abatta ?;Abatta
+E114;Je veux aller à Abatta sans trop marcher.;Abatta
+E115;Pour Niangon, on passe par où ?;Niangon
+E116;Je quitte Attécoubé, je vais à Niangon.;Niangon
+E117;Emmène-moi à Niangon.;Niangon
+E118;Pardon, pour aller à Siporex je fais comment ?;Siporex
+E119;Je quitte Cocody, je vais à Siporex.;Siporex
+E120;Je pars à Siporex, je prends quoi ?;Siporex
+E121;Je cherche un transport pour Yopougon Kouté.;Yopougon Kouté
+E122;Emmène-moi à Yopougon Kouté.;Yopougon Kouté
+E123;Je veux béou à Yopougon Kouté.;Yopougon Kouté
+E124;Je veux aller à Gonzagueville sans trop marcher.;Gonzagueville
+E125;Je veux descendre à Gonzagueville.;Gonzagueville
+E126;Je suis à Port-Bouët, je veux aller à Gonzagueville.;Gonzagueville
+E127;Pardon, pour aller à Williamsville je fais comment ?;Williamsville
+E128;Je pars à Williamsville, je prends quoi ?;Williamsville
+E129;Je veux descendre à Williamsville.;Williamsville
+E130;Pour Vridi, on passe par où ?;Vridi
+E131;Je veux aller à Vridi sans trop marcher.;Vridi
+E132;C'est quel bus pour Vridi ?;Vridi
+E133;Le gbaka pour Faya, c'est combien ?;Faya
+E134;Montre-moi le chemin pour Faya.;Faya
+E135;Je cherche un transport pour Faya.;Faya
+E136;Je veux béou à Blockhaus.;Blockhaus
+E137;Je vais à Blockhaus.;Blockhaus
+E138;Je suis à Abobo, je veux aller à Blockhaus.;Blockhaus
+E139;Pour Remblais, on passe par où ?;Remblais
+E140;C'est quel bus pour Remblais ?;Remblais
+E141;Le gbaka pour Remblais, c'est combien ?;Remblais
+E142;Je cherche un transport pour Toit Rouge.;Toit Rouge
+E143;Montre-moi le chemin pour Toit Rouge.;Toit Rouge
+E144;Je vais à Toit Rouge.;Toit Rouge
+E145;Je vais au PK 18.;PK 18
+E146;Pardon, pour aller au PK 18 je fais comment ?;PK 18
+E147;Je veux descendre au PK 18.;PK 18
+E148;Le gbaka pour Abobo Doumé, c'est combien ?;Abobo Doumé
+E149;Comment je fais pour aller à Abobo Doumé ?;Abobo Doumé
+E150;Je quitte Anyama, je vais à Abobo Doumé.;Abobo Doumé
+E151;C'est quel bus pour Abobo Baoulé ?;Abobo Baoulé
+E152;Le gbaka pour Abobo Baoulé, c'est combien ?;Abobo Baoulé
+E153;Pour Abobo Baoulé, on passe par où ?;Abobo Baoulé
+E154;Emmène-moi à Riviera Palmeraie.;Riviera Palmeraie
+E155;Je cherche un transport pour Riviera Palmeraie.;Riviera Palmeraie
+E156;Pour Riviera Palmeraie, on passe par où ?;Riviera Palmeraie
+E157;Je vais aux Deux-Plateaux.;Deux-Plateaux
+E158;Je veux descendre aux Deux-Plateaux.;Deux-Plateaux
+E159;Le gbaka pour les Deux-Plateaux, c'est combien ?;Deux-Plateaux
+E160;Le gbaka pour Saint Jean, c'est combien ?;Saint Jean
+E161;Je veux béou à Saint Jean.;Saint Jean
+E162;Je cherche un transport pour Saint Jean.;Saint Jean
+E163;Je cherche un transport pour Mermoz.;Mermoz
+E164;Je veux aller à Mermoz sans trop marcher.;Mermoz
+E165;Emmène-moi à Mermoz.;Mermoz
+E166;C'est quel bus pour le Vieux Cocody ?;Vieux Cocody
+E167;Je veux béou au Vieux Cocody.;Vieux Cocody
+E168;Je pars au Vieux Cocody, je prends quoi ?;Vieux Cocody
+E169;Pardon, pour aller à M'Badon je fais comment ?;M’Badon
+E170;Il y a un wôrô-wôrô pour M'Badon ?;M’Badon
+E171;Je veux béou à M'Badon.;M’Badon
+E172;Le gbaka pour Bonoumin, c'est combien ?;Bonoumin
+E173;Je pars à Bonoumin, je prends quoi ?;Bonoumin
+E174;Pardon, pour aller à Bonoumin je fais comment ?;Bonoumin
+E175;C'est quel bus pour Adiopodoumé ?;Adiopodoumé
+E176;Je pars à Adiopodoumé, je prends quoi ?;Adiopodoumé
+E177;Emmène-moi à Adiopodoumé.;Adiopodoumé
+E178;Comment je fais pour aller à Avocatier ?;Avocatier
+E179;Je suis à Yopougon, je veux aller à Avocatier.;Avocatier
+E180;Je quitte le Plateau, je vais à Avocatier.;Avocatier
+E181;Je pars à Danga, je prends quoi ?;Danga
+E182;Je vais à Danga.;Danga
+E183;C'est quel bus pour Danga ?;Danga
+E184;Je quitte Anyama, je vais à Indénié.;Indénié
+E185;Pardon, pour aller à Indénié je fais comment ?;Indénié
+E186;C'est quel bus pour Indénié ?;Indénié
+E187;C'est quel bus pour Marcory Résidentiel ?;Marcory Résidentiel
+E188;Je quitte le Plateau, je vais à Marcory Résidentiel.;Marcory Résidentiel
+E189;Je veux aller à Marcory Résidentiel sans trop marcher.;Marcory Résidentiel
+E190;Le gbaka pour Treichville Arras, c'est combien ?;Treichville Arras
+E191;Je quitte Yopougon, je vais à Treichville Arras.;Treichville Arras
+E192;Pour Treichville Arras, on passe par où ?;Treichville Arras
+E193;Je quitte Abobo, je vais à Riviera 2.;Riviera 2
+E194;Je veux descendre à Riviera 2.;Riviera 2
+E195;C'est quel bus pour Riviera 2 ?;Riviera 2
+E196;Montre-moi le chemin pour Riviera 3.;Riviera 3
+E197;Je pars à Riviera 3, je prends quoi ?;Riviera 3
+E198;C'est quel bus pour Riviera 3 ?;Riviera 3
+E199;Je quitte le Plateau, je vais à Kennedy.;Kennedy
+E200;Emmène-moi à Kennedy.;Kennedy
+E201;Je suis à Adjamé, je veux aller à Kennedy.;Kennedy
+E202;Le gbaka pour Locodjro, c'est combien ?;Locodjro
+E203;Je vais à Locodjro.;Locodjro
+E204;Je pars à Locodjro, je prends quoi ?;Locodjro
+E205;Je veux aller à Biafra sans trop marcher.;Biafra
+E206;C'est quel bus pour Biafra ?;Biafra
+E207;Comment je fais pour aller à Biafra ?;Biafra
+E208;Le gbaka passe où ?;
+E209;Je préfère le gbaka.;
+E210;Pas de gbaka, je veux le bus.;
+E211;Le gbaka est plein.;
+E212;Le wôrô-wôrô coûte combien ?;
+E213;Je prends le wôrô-wôrô.;
+E214;Il y a un wôrô-wôrô ici ?;
+E215;Le bus SOTRA passe à quelle heure ?;
+E216;Je veux le bus SOTRA.;
+E217;La SOTRA va jusqu'où ?;
+E218;Le Monbus s'arrête où ?;
+E219;Le Wibus passe par ici ?;
+E220;Je prends l'Express.;
+E221;La navette part d'où ?;
+E222;Le bateau-bus part à quelle heure ?;
+E223;Je veux prendre le bateau-bus.;
+E224;Le bateau-bus coûte combien ?;
+E225;Je prends un taxi communal.;
+E226;Le taxi communal, c'est combien ?;
+E227;Pas de taxi, c'est trop cher.;
+E228;Montre-moi le trajet coulé.;
+E229;Je veux l'option debout.;
+E230;Le trajet suspendu, c'est quoi ?;
+E231;Le coulé, ça fait combien ?;
+E232;Donne-moi le debout.;
+E233;SIRA, aide-moi.;
+E234;SIRA, je vais où ?;
+E235;Merci SIRA.;
+E236;SIRA, répète s'il te plaît.;
+E237;Je change où ?;
+E238;La correspondance est où ?;
+E239;Je descends au terminus ?;
+E240;C'est le terminus ?;
+E241;Je suis au carrefour, après la pharmacie.;
+E242;Je suis au feu, devant la SGBCI.;
+E243;Je suis en bas du pont.;
+E244;Je descends après le pont.;
+E245;C'est au rond-point de la SODECI.;
+E246;Je suis devant la CIE.;
+E247;Arrête-moi niveau carrefour.;
+E248;Je suis à côté du marché, en face de la mosquée.;
+E249;J'ai deux cents francs.;
+E250;J'ai cinq cents francs seulement.;
+E251;J'ai une barre.;
+E252;J'ai deux barres.;
+E253;Mon djê ne suffit pas.;
+E254;Ça fait trois cents francs ?;
+E255;Je veux payer moins de mille francs.;
+E256;Ya foye.;
+E257;Y'a drap sur la route.;
+E258;Ça bouche à Adjamé.;
+E259;Ça roule bien ce matin.;
+E260;Je suis à Babi depuis hier.;
+E261;Je suis à Yop, côté Siporex.;
+E262;Pardon, aide-moi.;
+E263;Je veux béou, c'est urgent.;
+E264;Y'a bouchon sur le pont ?;
+E265;Côté Plateau, ça roule ?;
+E266;Il y a un accident devant.;
+E267;La route est barrée.;
+E268;La route est remplie d'eau.;
+E269;Il y a un contrôle de police.;
+E270;Oui.;
+E271;Non.;
+E272;Non, pas ça.;
+E273;D'accord.;
+E274;Ya foye, on y va.;
+E275;Non merci.;

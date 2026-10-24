@@ -1,0 +1,1351 @@
+<!doctype html>
+<!-- Enregistreur simple : une phrase, un bouton. Appuyer = enregistrer, appuyer encore = terminer et passer à la
+     suivante. Trois listes, au choix en haut de la page :
+       - Examen (40, phrases_test_voix.csv) : mesurer Whisper ; plusieurs personnes ;
+       - Entraînement (275, phrases_entrainement_voix.csv) : entraîner Whisper ; d'autres personnes ;
+       - Voix de SIRA (628, script_voix.csv) : entraîner Piper ; UNE seule personne, au calme.
+     Les listes sont recopiées ici par generer_phrases_entrainement.py. Le ZIP se range avec  npm run voice:import
+     (dossier a_ranger du projet ou Téléchargements) ; --bench mesure Whisper sur l'examen. Le ZIP de la voix de SIRA
+     (wavs/ + metadata.csv) se prépare ensuite avec  piper_dataset.py preparer. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enregistreur SIRA</title>
+<style>
+  :root { --bg: #f5f3ef; --text: #1b1b1b; --muted: #8a8a8a; --red: #d92d20; --orange: #f26522; --green: #16794c; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151515; --text: #f1f1f1; --muted: #8f8f8f; --green: #5fd39a; } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 18px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; height: 100%; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column;
+         align-items: center; justify-content: space-between; text-align: center; }
+  #count { color: var(--muted); font-size: 16px; font-weight: 600; }
+  #phrase { font-size: clamp(26px, 6.5vw, 40px); font-weight: 650; line-height: 1.3; margin: 0; }
+  #record { width: 150px; height: 150px; border-radius: 50%; border: 0; background: var(--red); color: #fff;
+            font: 700 19px system-ui, sans-serif; cursor: pointer; box-shadow: 0 8px 24px rgb(217 45 32 / .3);
+            transition: transform .1s; }
+  #record:active { transform: scale(.96); }
+  #record.on { animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(217 45 32 / .5); } 50% { box-shadow: 0 0 0 22px rgb(217 45 32 / 0); } }
+  #record.download { background: var(--orange); box-shadow: 0 8px 24px rgb(242 101 34 / .3); }
+  #status { min-height: 26px; color: var(--muted); margin-top: 14px; }
+  #status.ok { color: var(--green); font-weight: 600; }
+  .center { display: flex; flex-direction: column; align-items: center; }
+  #name { font: inherit; font-size: 17px; text-align: center; padding: 12px 16px; margin-bottom: 22px; width: min(280px, 100%);
+          border: 1px solid var(--muted); border-radius: 12px; background: transparent; color: var(--text); }
+  #tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  #note { color: var(--orange); font-size: 15px; font-weight: 600; margin-top: 6px; min-height: 0; }
+  #tabs button { font: 600 15px system-ui, sans-serif; padding: 8px 14px; border-radius: 99px; cursor: pointer;
+                 border: 1px solid var(--muted); background: transparent; color: var(--muted); }
+  #tabs button.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+  footer { min-height: 24px; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; font-size: 15px; }
+  footer a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+<main>
+  <div class="center">
+    <div id="tabs"><button data-list="test"></button><button data-list="entrainement"></button><button data-list="piper"></button></div>
+    <div id="count" style="margin-top: 10px"></div>
+    <div id="note"></div>
+  </div>
+  <p id="phrase"></p>
+  <div class="center">
+    <input id="name" placeholder="Ton prénom (facultatif)" autocomplete="given-name" hidden>
+    <button id="record"></button>
+    <div id="status"></div>
+  </div>
+  <footer>
+    <a id="before" hidden>‹ Avant</a>
+    <a id="back" hidden>↺ Refaire une phrase</a>
+    <a id="after" hidden>Après ›</a>
+    <a id="reset" hidden>Recommencer à zéro</a>
+  </footer>
+</main>
+
+<script>
+const parse = (text) => text.trim().split("\n").filter(Boolean).map((line) => { const [id, texte, lieu = ""] = line.split(";"); return { id, texte, lieu }; });
+// Phrases d'examen (services/voice/outils/phrases_test_voix.csv) : id;texte;lieu attendu. Elles servent à mesurer, jamais à entraîner.
+const EXAMEN = `T01;Je veux aller à Cocody.;Cocody
+T02;Comment je fais pour partir à Yopougon ?;Yopougon
+T03;Je quitte Abobo, je vais au Plateau.;Plateau
+T04;Le gbaka pour Adjamé, c'est combien ?;Adjamé
+T05;Je descends à Treichville, je prends quoi ?;Treichville
+T06;On peut aller à Marcory en wôrô-wôrô ?;Marcory
+T07;Je veux prendre le bateau-bus pour le Plateau.;Plateau
+T08;Montre-moi le chemin pour Koumassi.;Koumassi
+T09;Je pars à Port-Bouët, mais je ne veux pas trop marcher.;Port-Bouët
+T10;C'est quel bus SOTRA pour Bingerville ?;Bingerville
+T11;Je vais à Anyama avec cinq cents francs.;Anyama
+T12;Je quitte Yop, je veux aller à Adjamé 220 Logements.;Adjamé 220 Logements
+T13;Pour aller à Riviera Palmeraie, je fais comment ?;Riviera Palmeraie
+T14;Je suis à Adjamé, je vais à Abobo Baoulé.;Abobo Baoulé
+T15;Je veux aller à Siporex, j'ai deux cents francs seulement.;Siporex
+T16;Comment je vais à Angré depuis le Plateau ?;Angré
+T17;Je pars à la gare de Bassam.;Gare de Bassam
+T18;Je dois aller au CHU de Cocody, c'est urgent.;CHU de Cocody
+T19;Je vais à Riviera 2, le coulé c'est combien ?;Riviera 2
+T20;Je veux aller à Williamsville en taxi communal.;Williamsville
+T21;Montre-moi un trajet pour Attécoubé.;Attécoubé
+T22;Je vais à la Zone 4, il y a un bus ?;Zone 4
+T23;Je pars à Vridi ce soir.;Vridi
+T24;Comment je fais pour aller à Gonzagueville ?;Gonzagueville
+T25;Je veux aller à Niangon, mais pas en gbaka.;Niangon
+T26;Je vais à l'aéroport, c'est quel chemin ?;Aéroport
+T27;Je suis à Koumassi, je veux aller à Treichville en wôrô-wôrô.;Treichville
+T28;Mon frère, je vais à Yopougon, c'est combien le gbaka ?;Yopougon
+T29;Je quitte Cocody pour Abobo, je veux le moins cher.;Abobo
+T30;Je veux aller au Plateau avant huit heures.;Plateau
+T31;Y a des bouchons sur mon trajet ?;
+T32;Je descends où ?;
+T33;Ça fait combien ?;
+T34;J'arrive à quelle heure ?;
+T35;Oui, c'est ça.;
+T36;Non, c'est Riviera Palmeraie.;Riviera Palmeraie
+T37;Il y a un accident sur le pont, je veux signaler.;
+T38;C'est quoi un coulé dans SIRA ?;
+T39;Le bateau-bus marche le dimanche ?;
+T40;Je veux aller à Marcory, mais je ne veux pas prendre le bateau.;Marcory`;
+// ENTRAINEMENT:DEBUT (écrit par generer_phrases_entrainement.py, ne pas modifier à la main)
+const ENTRAINEMENT = `E001;Emmène-moi à Angré.;Angré
+E002;Je veux aller à Angré sans trop marcher.;Angré
+E003;C'est quel bus pour Angré ?;Angré
+E004;Je pars au CHU de Cocody, je prends quoi ?;CHU de Cocody
+E005;Je quitte Port-Bouët, je vais au CHU de Cocody.;CHU de Cocody
+E006;Je vais au CHU de Cocody.;CHU de Cocody
+E007;Comment je fais pour aller à la Zone 4 ?;Zone 4
+E008;Je suis à Songon, je veux aller à la Zone 4.;Zone 4
+E009;Le gbaka pour la Zone 4, c'est combien ?;Zone 4
+E010;Pour l'aéroport, on passe par où ?;Aéroport
+E011;Je veux aller à l'aéroport sans trop marcher.;Aéroport
+E012;Je veux béou à l'aéroport.;Aéroport
+E013;Je veux aller à la Gare Nord sans trop marcher.;Gare Nord
+E014;Pardon, pour aller à la Gare Nord je fais comment ?;Gare Nord
+E015;Je pars à la Gare Nord, je prends quoi ?;Gare Nord
+E016;Montre-moi le chemin pour la Gare Sud.;Gare Sud
+E017;Pardon, pour aller à la Gare Sud je fais comment ?;Gare Sud
+E018;Je suis à Attécoubé, je veux aller à la Gare Sud.;Gare Sud
+E019;Pour Adjamé Liberté, on passe par où ?;Adjamé Liberté
+E020;Pardon, pour aller à Adjamé Liberté je fais comment ?;Adjamé Liberté
+E021;Montre-moi le chemin pour Adjamé Liberté.;Adjamé Liberté
+E022;Je veux descendre à Adjamé 220 Logements.;Adjamé 220 Logements
+E023;Il y a un wôrô-wôrô pour Adjamé 220 Logements ?;Adjamé 220 Logements
+E024;Je vais à Adjamé 220 Logements.;Adjamé 220 Logements
+E025;Comment je fais pour aller à la Cité Administrative ?;Cité Administrative
+E026;Le gbaka pour la Cité Administrative, c'est combien ?;Cité Administrative
+E027;Emmène-moi à la Cité Administrative.;Cité Administrative
+E028;Emmène-moi à la Gare de Bassam.;Gare de Bassam
+E029;Je quitte Bingerville, je vais à la Gare de Bassam.;Gare de Bassam
+E030;Montre-moi le chemin pour la Gare de Bassam.;Gare de Bassam
+E031;Pour Abobo Gare, on passe par où ?;Abobo Gare
+E032;Montre-moi le chemin pour Abobo Gare.;Abobo Gare
+E033;Je veux aller à Abobo Gare sans trop marcher.;Abobo Gare
+E034;Pardon, pour aller à Grand-Bassam je fais comment ?;Grand-Bassam
+E035;Emmène-moi à Grand-Bassam.;Grand-Bassam
+E036;Je quitte Abobo, je vais à Grand-Bassam.;Grand-Bassam
+E037;C'est quel bus pour Abobo ?;Abobo
+E038;Je cherche un transport pour Abobo.;Abobo
+E039;Je veux aller à Abobo sans trop marcher.;Abobo
+E040;Je vais à Adjamé.;Adjamé
+E041;Comment je fais pour aller à Adjamé ?;Adjamé
+E042;Montre-moi le chemin pour Adjamé.;Adjamé
+E043;Il y a un wôrô-wôrô pour Anyama ?;Anyama
+E044;C'est quel bus pour Anyama ?;Anyama
+E045;Je veux descendre à Anyama.;Anyama
+E046;Emmène-moi à Attécoubé.;Attécoubé
+E047;Le gbaka pour Attécoubé, c'est combien ?;Attécoubé
+E048;Comment je fais pour aller à Attécoubé ?;Attécoubé
+E049;Je veux aller à Bingerville sans trop marcher.;Bingerville
+E050;Je quitte Cocody, je vais à Bingerville.;Bingerville
+E051;Pour Bingerville, on passe par où ?;Bingerville
+E052;Je quitte le Plateau, je vais à Cocody.;Cocody
+E053;Je suis à Bingerville, je veux aller à Cocody.;Cocody
+E054;Je veux béou à Cocody.;Cocody
+E055;Je veux béou à Koumassi.;Koumassi
+E056;Pardon, pour aller à Koumassi je fais comment ?;Koumassi
+E057;Comment je fais pour aller à Koumassi ?;Koumassi
+E058;Je quitte Attécoubé, je vais à Marcory.;Marcory
+E059;Il y a un wôrô-wôrô pour Marcory ?;Marcory
+E060;Je suis à Treichville, je veux aller à Marcory.;Marcory
+E061;Je veux descendre au Plateau.;Plateau
+E062;Je pars au Plateau, je prends quoi ?;Plateau
+E063;C'est quel bus pour le Plateau ?;Plateau
+E064;Je vais à Port-Bouët.;Port-Bouët
+E065;Le gbaka pour Port-Bouët, c'est combien ?;Port-Bouët
+E066;Je pars à Port-Bouët, je prends quoi ?;Port-Bouët
+E067;Je pars à Songon, je prends quoi ?;Songon
+E068;Je veux aller à Songon sans trop marcher.;Songon
+E069;Comment je fais pour aller à Songon ?;Songon
+E070;Comment je fais pour aller à Treichville ?;Treichville
+E071;Montre-moi le chemin pour Treichville.;Treichville
+E072;Je veux béou à Treichville.;Treichville
+E073;Pardon, pour aller à Yopougon je fais comment ?;Yopougon
+E074;Je cherche un transport pour Yopougon.;Yopougon
+E075;Je pars à Yopougon, je prends quoi ?;Yopougon
+E076;Comment je fais pour aller à Akouédo ?;Akouédo
+E077;Il y a un wôrô-wôrô pour Akouédo ?;Akouédo
+E078;Le gbaka pour Akouédo, c'est combien ?;Akouédo
+E079;Je veux béou à Anoumabo.;Anoumabo
+E080;Il y a un wôrô-wôrô pour Anoumabo ?;Anoumabo
+E081;Je cherche un transport pour Anoumabo.;Anoumabo
+E082;Pardon, pour aller à Andokoi je fais comment ?;Andokoi
+E083;Pour Andokoi, on passe par où ?;Andokoi
+E084;Je veux aller à Andokoi sans trop marcher.;Andokoi
+E085;Il y a un wôrô-wôrô pour Wassakara ?;Wassakara
+E086;Montre-moi le chemin pour Wassakara.;Wassakara
+E087;Je vais à Wassakara.;Wassakara
+E088;Je veux aller à Koweït sans trop marcher.;Koweït
+E089;Je vais à Koweït.;Koweït
+E090;Pardon, pour aller à Koweït je fais comment ?;Koweït
+E091;Je veux aller à N'dotré sans trop marcher.;N'dotré
+E092;Je veux béou à N'dotré.;N'dotré
+E093;Je cherche un transport pour N'dotré.;N'dotré
+E094;Il y a un wôrô-wôrô pour Samaké ?;Samaké
+E095;Je cherche un transport pour Samaké.;Samaké
+E096;Je veux béou à Samaké.;Samaké
+E097;Il y a un wôrô-wôrô pour Agban ?;Agban
+E098;Je vais à Agban.;Agban
+E099;Emmène-moi à Agban.;Agban
+E100;Je veux aller à Gesco sans trop marcher.;Gesco
+E101;Pardon, pour aller à Gesco je fais comment ?;Gesco
+E102;Je suis à Cocody, je veux aller à Gesco.;Gesco
+E103;Je cherche un transport pour Micao.;Micao
+E104;Je veux aller à Micao sans trop marcher.;Micao
+E105;Je suis à Treichville, je veux aller à Micao.;Micao
+E106;Comment je fais pour aller à Selmer ?;Selmer
+E107;Je cherche un transport pour Selmer.;Selmer
+E108;Je veux descendre à Selmer.;Selmer
+E109;Je veux aller à Biétry sans trop marcher.;Biétry
+E110;Je suis à Adjamé, je veux aller à Biétry.;Biétry
+E111;Je veux descendre à Biétry.;Biétry
+E112;Montre-moi le chemin pour Abatta.;Abatta
+E113;Il y a un wôrô-wôrô pour Abatta ?;Abatta
+E114;Je veux aller à Abatta sans trop marcher.;Abatta
+E115;Pour Niangon, on passe par où ?;Niangon
+E116;Je quitte Attécoubé, je vais à Niangon.;Niangon
+E117;Emmène-moi à Niangon.;Niangon
+E118;Pardon, pour aller à Siporex je fais comment ?;Siporex
+E119;Je quitte Cocody, je vais à Siporex.;Siporex
+E120;Je pars à Siporex, je prends quoi ?;Siporex
+E121;Je cherche un transport pour Yopougon Kouté.;Yopougon Kouté
+E122;Emmène-moi à Yopougon Kouté.;Yopougon Kouté
+E123;Je veux béou à Yopougon Kouté.;Yopougon Kouté
+E124;Je veux aller à Gonzagueville sans trop marcher.;Gonzagueville
+E125;Je veux descendre à Gonzagueville.;Gonzagueville
+E126;Je suis à Port-Bouët, je veux aller à Gonzagueville.;Gonzagueville
+E127;Pardon, pour aller à Williamsville je fais comment ?;Williamsville
+E128;Je pars à Williamsville, je prends quoi ?;Williamsville
+E129;Je veux descendre à Williamsville.;Williamsville
+E130;Pour Vridi, on passe par où ?;Vridi
+E131;Je veux aller à Vridi sans trop marcher.;Vridi
+E132;C'est quel bus pour Vridi ?;Vridi
+E133;Le gbaka pour Faya, c'est combien ?;Faya
+E134;Montre-moi le chemin pour Faya.;Faya
+E135;Je cherche un transport pour Faya.;Faya
+E136;Je veux béou à Blockhaus.;Blockhaus
+E137;Je vais à Blockhaus.;Blockhaus
+E138;Je suis à Abobo, je veux aller à Blockhaus.;Blockhaus
+E139;Pour Remblais, on passe par où ?;Remblais
+E140;C'est quel bus pour Remblais ?;Remblais
+E141;Le gbaka pour Remblais, c'est combien ?;Remblais
+E142;Je cherche un transport pour Toit Rouge.;Toit Rouge
+E143;Montre-moi le chemin pour Toit Rouge.;Toit Rouge
+E144;Je vais à Toit Rouge.;Toit Rouge
+E145;Je vais au PK 18.;PK 18
+E146;Pardon, pour aller au PK 18 je fais comment ?;PK 18
+E147;Je veux descendre au PK 18.;PK 18
+E148;Le gbaka pour Abobo Doumé, c'est combien ?;Abobo Doumé
+E149;Comment je fais pour aller à Abobo Doumé ?;Abobo Doumé
+E150;Je quitte Anyama, je vais à Abobo Doumé.;Abobo Doumé
+E151;C'est quel bus pour Abobo Baoulé ?;Abobo Baoulé
+E152;Le gbaka pour Abobo Baoulé, c'est combien ?;Abobo Baoulé
+E153;Pour Abobo Baoulé, on passe par où ?;Abobo Baoulé
+E154;Emmène-moi à Riviera Palmeraie.;Riviera Palmeraie
+E155;Je cherche un transport pour Riviera Palmeraie.;Riviera Palmeraie
+E156;Pour Riviera Palmeraie, on passe par où ?;Riviera Palmeraie
+E157;Je vais aux Deux-Plateaux.;Deux-Plateaux
+E158;Je veux descendre aux Deux-Plateaux.;Deux-Plateaux
+E159;Le gbaka pour les Deux-Plateaux, c'est combien ?;Deux-Plateaux
+E160;Le gbaka pour Saint Jean, c'est combien ?;Saint Jean
+E161;Je veux béou à Saint Jean.;Saint Jean
+E162;Je cherche un transport pour Saint Jean.;Saint Jean
+E163;Je cherche un transport pour Mermoz.;Mermoz
+E164;Je veux aller à Mermoz sans trop marcher.;Mermoz
+E165;Emmène-moi à Mermoz.;Mermoz
+E166;C'est quel bus pour le Vieux Cocody ?;Vieux Cocody
+E167;Je veux béou au Vieux Cocody.;Vieux Cocody
+E168;Je pars au Vieux Cocody, je prends quoi ?;Vieux Cocody
+E169;Pardon, pour aller à M'Badon je fais comment ?;M’Badon
+E170;Il y a un wôrô-wôrô pour M'Badon ?;M’Badon
+E171;Je veux béou à M'Badon.;M’Badon
+E172;Le gbaka pour Bonoumin, c'est combien ?;Bonoumin
+E173;Je pars à Bonoumin, je prends quoi ?;Bonoumin
+E174;Pardon, pour aller à Bonoumin je fais comment ?;Bonoumin
+E175;C'est quel bus pour Adiopodoumé ?;Adiopodoumé
+E176;Je pars à Adiopodoumé, je prends quoi ?;Adiopodoumé
+E177;Emmène-moi à Adiopodoumé.;Adiopodoumé
+E178;Comment je fais pour aller à Avocatier ?;Avocatier
+E179;Je suis à Yopougon, je veux aller à Avocatier.;Avocatier
+E180;Je quitte le Plateau, je vais à Avocatier.;Avocatier
+E181;Je pars à Danga, je prends quoi ?;Danga
+E182;Je vais à Danga.;Danga
+E183;C'est quel bus pour Danga ?;Danga
+E184;Je quitte Anyama, je vais à Indénié.;Indénié
+E185;Pardon, pour aller à Indénié je fais comment ?;Indénié
+E186;C'est quel bus pour Indénié ?;Indénié
+E187;C'est quel bus pour Marcory Résidentiel ?;Marcory Résidentiel
+E188;Je quitte le Plateau, je vais à Marcory Résidentiel.;Marcory Résidentiel
+E189;Je veux aller à Marcory Résidentiel sans trop marcher.;Marcory Résidentiel
+E190;Le gbaka pour Treichville Arras, c'est combien ?;Treichville Arras
+E191;Je quitte Yopougon, je vais à Treichville Arras.;Treichville Arras
+E192;Pour Treichville Arras, on passe par où ?;Treichville Arras
+E193;Je quitte Abobo, je vais à Riviera 2.;Riviera 2
+E194;Je veux descendre à Riviera 2.;Riviera 2
+E195;C'est quel bus pour Riviera 2 ?;Riviera 2
+E196;Montre-moi le chemin pour Riviera 3.;Riviera 3
+E197;Je pars à Riviera 3, je prends quoi ?;Riviera 3
+E198;C'est quel bus pour Riviera 3 ?;Riviera 3
+E199;Je quitte le Plateau, je vais à Kennedy.;Kennedy
+E200;Emmène-moi à Kennedy.;Kennedy
+E201;Je suis à Adjamé, je veux aller à Kennedy.;Kennedy
+E202;Le gbaka pour Locodjro, c'est combien ?;Locodjro
+E203;Je vais à Locodjro.;Locodjro
+E204;Je pars à Locodjro, je prends quoi ?;Locodjro
+E205;Je veux aller à Biafra sans trop marcher.;Biafra
+E206;C'est quel bus pour Biafra ?;Biafra
+E207;Comment je fais pour aller à Biafra ?;Biafra
+E208;Le gbaka passe où ?;
+E209;Je préfère le gbaka.;
+E210;Pas de gbaka, je veux le bus.;
+E211;Le gbaka est plein.;
+E212;Le wôrô-wôrô coûte combien ?;
+E213;Je prends le wôrô-wôrô.;
+E214;Il y a un wôrô-wôrô ici ?;
+E215;Le bus SOTRA passe à quelle heure ?;
+E216;Je veux le bus SOTRA.;
+E217;La SOTRA va jusqu'où ?;
+E218;Le Monbus s'arrête où ?;
+E219;Le Wibus passe par ici ?;
+E220;Je prends l'Express.;
+E221;La navette part d'où ?;
+E222;Le bateau-bus part à quelle heure ?;
+E223;Je veux prendre le bateau-bus.;
+E224;Le bateau-bus coûte combien ?;
+E225;Je prends un taxi communal.;
+E226;Le taxi communal, c'est combien ?;
+E227;Pas de taxi, c'est trop cher.;
+E228;Montre-moi le trajet coulé.;
+E229;Je veux l'option debout.;
+E230;Le trajet suspendu, c'est quoi ?;
+E231;Le coulé, ça fait combien ?;
+E232;Donne-moi le debout.;
+E233;SIRA, aide-moi.;
+E234;SIRA, je vais où ?;
+E235;Merci SIRA.;
+E236;SIRA, répète s'il te plaît.;
+E237;Je change où ?;
+E238;La correspondance est où ?;
+E239;Je descends au terminus ?;
+E240;C'est le terminus ?;
+E241;Je suis au carrefour, après la pharmacie.;
+E242;Je suis au feu, devant la SGBCI.;
+E243;Je suis en bas du pont.;
+E244;Je descends après le pont.;
+E245;C'est au rond-point de la SODECI.;
+E246;Je suis devant la CIE.;
+E247;Arrête-moi niveau carrefour.;
+E248;Je suis à côté du marché, en face de la mosquée.;
+E249;J'ai deux cents francs.;
+E250;J'ai cinq cents francs seulement.;
+E251;J'ai une barre.;
+E252;J'ai deux barres.;
+E253;Mon djê ne suffit pas.;
+E254;Ça fait trois cents francs ?;
+E255;Je veux payer moins de mille francs.;
+E256;Ya foye.;
+E257;Y'a drap sur la route.;
+E258;Ça bouche à Adjamé.;
+E259;Ça roule bien ce matin.;
+E260;Je suis à Babi depuis hier.;
+E261;Je suis à Yop, côté Siporex.;
+E262;Pardon, aide-moi.;
+E263;Je veux béou, c'est urgent.;
+E264;Y'a bouchon sur le pont ?;
+E265;Côté Plateau, ça roule ?;
+E266;Il y a un accident devant.;
+E267;La route est barrée.;
+E268;La route est remplie d'eau.;
+E269;Il y a un contrôle de police.;
+E270;Oui.;
+E271;Non.;
+E272;Non, pas ça.;
+E273;D'accord.;
+E274;Ya foye, on y va.;
+E275;Non merci.;`;
+// ENTRAINEMENT:FIN
+// PIPER:DEBUT (script_voix.csv recopié par generer_phrases_entrainement.py, ne pas modifier à la main)
+const PIPER = `SIRA_0001;Option Debout : le gbaka, sept cents francs, vingt-cinq minutes.
+SIRA_0002;Tu marches cinq minutes jusqu'à l'arrêt, puis le gbaka jusqu'à Port-Bouët 2.
+SIRA_0003;J'ai trouvé trois trajets pour Abobo Baoulé. Le coulé coûte deux cents francs.
+SIRA_0004;Pour aller à Treichville, prends le bateau-bus. Ça fait deux cents francs, environ dix-huit minutes.
+SIRA_0005;Option Debout : le bateau-bus, cinq cents francs, dix-huit minutes.
+SIRA_0006;Pour aller à Arras, prends le bus SOTRA. Ça fait deux cents francs, environ trente minutes.
+SIRA_0007;Pour aller au Plateau, prends le bateau-bus. Ça fait deux cents francs, environ soixante minutes.
+SIRA_0008;Option Debout : le bus SOTRA, deux cents francs, trente-cinq minutes.
+SIRA_0009;Le moins cher : le bateau-bus jusqu'à Blockhaus, deux cents francs.
+SIRA_0010;Option Debout : le wôrô-wôrô, deux cent cinquante francs, vingt-cinq minutes.
+SIRA_0011;Pour aller à Marcory Remblais, prends le wôrô-wôrô. Ça fait trois cents francs, environ trente-cinq minutes.
+SIRA_0012;Option Debout : le gbaka, deux cents francs, soixante minutes.
+SIRA_0013;Le plus rapide aujourd'hui, c'est le bus SOTRA. Tu seras à la gare d'Adjamé dans douze minutes.
+SIRA_0014;Tu marches cinq minutes jusqu'à l'arrêt, puis le bateau-bus jusqu'à Blockhaus.
+SIRA_0015;Option Debout : le wôrô-wôrô, trois cents francs, quarante minutes.
+SIRA_0016;Option Suspendu : plus confortable, sept cents francs, vingt minutes.
+SIRA_0017;Le plus rapide aujourd'hui, c'est le bus SOTRA. Tu seras à Songon dans trente-cinq minutes.
+SIRA_0018;Le moins cher : le gbaka jusqu'à Danga, trois cents francs.
+SIRA_0019;Départ de Marcory Remblais, arrivée à Saint-Jean. Compte trois cents francs et cinquante minutes.
+SIRA_0020;Départ de Selmer, arrivée à Treichville. Compte cinq cents francs et quarante-cinq minutes.
+SIRA_0021;Tu marches cinq minutes jusqu'à l'arrêt, puis le bus SOTRA jusqu'à Blockhaus.
+SIRA_0022;Départ de la gare de Bassam, arrivée à Abobo Baoulé. Compte deux cents francs et vingt-cinq minutes.
+SIRA_0023;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras à Treichville dans douze minutes.
+SIRA_0024;Le moins cher : le bateau-bus jusqu'à Abobo-Doumé, trois cents francs.
+SIRA_0025;Départ de Vridi, arrivée à Treichville. Compte deux cents francs et quinze minutes.
+SIRA_0026;Pour aller au Palais des sports, prends le gbaka. Ça fait sept cents francs, environ quinze minutes.
+SIRA_0027;Tu marches cinq minutes jusqu'à l'arrêt, puis le wôrô-wôrô jusqu'à Abobo Baoulé.
+SIRA_0028;Le moins cher : le bateau-bus jusqu'à Yopougon, deux cents francs.
+SIRA_0029;Départ de Bingerville, arrivée à Orange Digital Center. Compte trois cent cinquante francs et vingt-cinq minutes.
+SIRA_0030;J'ai trouvé trois trajets pour Niangon. Le coulé coûte trois cents francs.
+SIRA_0031;Pour aller au pont De Gaulle, prends le wôrô-wôrô. Ça fait quatre cents francs, environ vingt minutes.
+SIRA_0032;Option Debout : le bus SOTRA, deux cents francs, cinquante-cinq minutes.
+SIRA_0033;Option Debout : le bateau-bus, cinq cents francs, trente minutes.
+SIRA_0034;Le moins cher : le wôrô-wôrô jusqu'à Vridi, deux cents francs.
+SIRA_0035;Départ d'Angré Château, arrivée au CHU de Cocody. Compte trois cents francs et vingt minutes.
+SIRA_0036;Option Suspendu : plus confortable, huit cents francs, quinze minutes.
+SIRA_0037;Le plus rapide aujourd'hui, c'est le wôrô-wôrô. Tu seras à Andokoi dans cinquante minutes.
+SIRA_0038;Option Suspendu : plus confortable, huit cents francs, trente-cinq minutes.
+SIRA_0039;Départ de Marcory Remblais, arrivée à Anador. Compte trois cents francs et trente minutes.
+SIRA_0040;Option Debout : le bateau-bus, trois cents francs, cinquante-cinq minutes.
+SIRA_0041;Le moins cher : le bateau-bus jusqu'à la gare Sud, deux cents francs.
+SIRA_0042;Départ de Mermoz, arrivée à la gare d'Abobo. Compte trois cents francs et quinze minutes.
+SIRA_0043;Pour aller à Koumassi Remblais, prends le bus SOTRA. Ça fait trois cents francs, environ quinze minutes.
+SIRA_0044;Départ du pont De Gaulle, arrivée à Angré huitième tranche. Compte cinq cents francs et quarante minutes.
+SIRA_0045;Départ d'Anoumabo, arrivée au Plateau. Compte cinq cents francs et trente-cinq minutes.
+SIRA_0046;Pour aller au Plateau, prends le bateau-bus. Ça fait trois cents francs, environ quinze minutes.
+SIRA_0047;Tu marches cinq minutes jusqu'à l'arrêt, puis le gbaka jusqu'à la gare Sud.
+SIRA_0048;J'ai trouvé trois trajets pour Gesco. Le coulé coûte cinq cents francs.
+SIRA_0049;Départ de Mermoz, arrivée à Bingerville. Compte deux cent cinquante francs et douze minutes.
+SIRA_0050;Tu marches cinq minutes jusqu'à l'arrêt, puis le wôrô-wôrô jusqu'au CHU de Cocody.
+SIRA_0051;J'ai trouvé trois trajets pour Saint-Jean. Le coulé coûte trois cents francs.
+SIRA_0052;Départ de la gare d'Abobo, arrivée au stade Félix Houphouët-Boigny. Compte trois cent cinquante francs et dix-huit minutes.
+SIRA_0053;J'ai trouvé trois trajets pour Kouté. Le coulé coûte sept cents francs.
+SIRA_0054;Le moins cher : le gbaka jusqu'à Locodjro, deux cent cinquante francs.
+SIRA_0055;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras à Treichville dans quarante minutes.
+SIRA_0056;Départ de Riviera Palmeraie, arrivée à Treichville. Compte cinq cents francs et cinquante-cinq minutes.
+SIRA_0057;Tu marches cinq minutes jusqu'à l'arrêt, puis le bus SOTRA jusqu'à l'université Félix Houphouët-Boigny.
+SIRA_0058;Départ de Belleville, arrivée à Deux Plateaux. Compte deux cents francs et quarante minutes.
+SIRA_0059;Départ de la Cité administrative, arrivée à Danga. Compte deux cent cinquante francs et vingt-cinq minutes.
+SIRA_0060;Départ d'Anoumabo, arrivée à Blockhaus. Compte deux cents francs et quarante-cinq minutes.
+SIRA_0061;Option Suspendu : plus confortable, sept cent cinquante francs, douze minutes.
+SIRA_0062;Départ de Riviera Palmeraie, arrivée à Songon. Compte deux cents francs et vingt-cinq minutes.
+SIRA_0063;Départ de N'Dotré, arrivée à Andokoi. Compte quatre cents francs et cinquante minutes.
+SIRA_0064;Tu marches cinq minutes jusqu'à l'arrêt, puis le wôrô-wôrô jusqu'à Belleville.
+SIRA_0065;J'ai trouvé trois trajets pour Avocatier. Le coulé coûte deux cents francs.
+SIRA_0066;Pour aller à Adjamé Liberté, prends le gbaka. Ça fait trois cent cinquante francs, environ vingt-cinq minutes.
+SIRA_0067;Option Suspendu : plus confortable, huit cent cinquante francs, douze minutes.
+SIRA_0068;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras au Plateau dans cinquante-cinq minutes.
+SIRA_0069;Tu marches cinq minutes jusqu'à l'arrêt, puis le bateau-bus jusqu'à Yopougon.
+SIRA_0070;J'ai trouvé trois trajets pour l'aéroport. Le coulé coûte quatre cents francs.
+SIRA_0071;Option Debout : le bus SOTRA, cinq cents francs, vingt minutes.
+SIRA_0072;Option Debout : le gbaka, six cents francs, dix-huit minutes.
+SIRA_0073;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras à Abobo-Doumé dans quarante minutes.
+SIRA_0074;Option Debout : le gbaka, trois cents francs, cinquante-cinq minutes.
+SIRA_0075;Option Debout : le wôrô-wôrô, deux cents francs, quinze minutes.
+SIRA_0076;Option Suspendu : plus confortable, sept cents francs, douze minutes.
+SIRA_0077;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras au Plateau dans cinquante minutes.
+SIRA_0078;Départ de Riviera 3, arrivée à Gonzagueville. Compte trois cent cinquante francs et dix-huit minutes.
+SIRA_0079;Le moins cher : le wôrô-wôrô jusqu'à Gonzagueville, trois cent cinquante francs.
+SIRA_0080;Pour aller à Danga, prends le wôrô-wôrô. Ça fait deux cents francs, environ quarante-cinq minutes.
+SIRA_0081;Tu marches cinq minutes jusqu'à l'arrêt, puis le bateau-bus jusqu'à Abobo-Doumé.
+SIRA_0082;J'ai trouvé trois trajets pour Zone 4. Le coulé coûte trois cent cinquante francs.
+SIRA_0083;Option Suspendu : plus confortable, huit cents francs, dix-huit minutes.
+SIRA_0084;Option Debout : le gbaka, trois cents francs, trente minutes.
+SIRA_0085;Pour aller à Abobo-Doumé, prends le bateau-bus. Ça fait cinq cents francs, environ cinquante-cinq minutes.
+SIRA_0086;Le moins cher : le gbaka jusqu'à Abobo Baoulé, cinq cents francs.
+SIRA_0087;Le plus rapide aujourd'hui, c'est le wôrô-wôrô. Tu seras à la gare Sud dans vingt-cinq minutes.
+SIRA_0088;Le plus rapide aujourd'hui, c'est le bus SOTRA. Tu seras à Kouté dans vingt-cinq minutes.
+SIRA_0089;Option Suspendu : plus confortable, huit cents francs, quarante-cinq minutes.
+SIRA_0090;Pour aller à Vallon, prends le wôrô-wôrô. Ça fait trois cents francs, environ trente minutes.
+SIRA_0091;J'ai trouvé trois trajets pour la gare Sud. Le coulé coûte cinq cents francs.
+SIRA_0092;Pour aller à Bracodi, prends le bus SOTRA. Ça fait deux cents francs, environ quarante-cinq minutes.
+SIRA_0093;Option Debout : le gbaka, quatre cents francs, quarante-cinq minutes.
+SIRA_0094;J'ai trouvé trois trajets pour Blockhaus. Le coulé coûte cinq cents francs.
+SIRA_0095;Pour aller à la gare Sud, prends le bateau-bus. Ça fait deux cents francs, environ cinquante minutes.
+SIRA_0096;J'ai trouvé trois trajets pour le Palais des sports. Le coulé coûte trois cents francs.
+SIRA_0097;Option Suspendu : plus confortable, sept cents francs, dix-huit minutes.
+SIRA_0098;J'ai trouvé trois trajets pour Gesco. Le coulé coûte deux cents francs.
+SIRA_0099;Option Suspendu : plus confortable, huit cents francs, cinquante minutes.
+SIRA_0100;Le plus rapide aujourd'hui, c'est le gbaka. Tu seras à la gare d'Adjamé dans soixante minutes.
+SIRA_0101;Tu marches cinq minutes jusqu'à l'arrêt, puis le gbaka jusqu'à Samaké.
+SIRA_0102;J'ai trouvé trois trajets pour Vallon. Le coulé coûte deux cents francs.
+SIRA_0103;Pour aller à la gare Sud, prends le bateau-bus. Ça fait deux cents francs, environ douze minutes.
+SIRA_0104;Pour aller à la gare Sud, prends le bateau-bus. Ça fait deux cents francs, environ dix-huit minutes.
+SIRA_0105;Départ d'Avocatier, arrivée à Niangon. Compte deux cent cinquante francs et trente-cinq minutes.
+SIRA_0106;Pour aller à Bingerville, prends le gbaka. Ça fait sept cents francs, environ soixante minutes.
+SIRA_0107;Option Suspendu : plus confortable, mille francs, cinquante-cinq minutes.
+SIRA_0108;Pour aller à Riviera 3, prends le gbaka. Ça fait quatre cents francs, environ vingt minutes.
+SIRA_0109;Tu marches cinq minutes jusqu'à l'arrêt, puis le bus SOTRA jusqu'à Marcory Résidentiel.
+SIRA_0110;Départ d'Attécoubé Santé, arrivée au Palais des sports. Compte trois cents francs et cinquante-cinq minutes.
+SIRA_0111;Départ de la gare d'Abobo, arrivée au CHU de Treichville. Compte trois cents francs et vingt-cinq minutes.
+SIRA_0112;J'ai trouvé trois trajets pour Williamsville. Le coulé coûte deux cents francs.
+SIRA_0113;Pour aller à Treichville, prends le bateau-bus. Ça fait cinq cents francs, environ soixante minutes.
+SIRA_0114;Départ de Toits Rouges, arrivée à Attécoubé Santé. Compte quatre cents francs et vingt-cinq minutes.
+SIRA_0115;Pour aller à Port-Bouët 2, prends le wôrô-wôrô. Ça fait deux cent cinquante francs, environ douze minutes.
+SIRA_0116;Pour aller à Avocatier, prends le wôrô-wôrô. Ça fait trois cents francs, environ dix-huit minutes.
+SIRA_0117;Pour aller à Gesco, prends le wôrô-wôrô. Ça fait cinq cents francs, environ cinquante-cinq minutes.
+SIRA_0118;Le moins cher : le gbaka jusqu'à Gesco, cinq cents francs.
+SIRA_0119;Le moins cher : le wôrô-wôrô jusqu'à Avocatier, deux cent cinquante francs.
+SIRA_0120;Le plus rapide aujourd'hui, c'est le bus SOTRA. Tu seras à PK18 dans quinze minutes.
+SIRA_0121;Option Debout : le bus SOTRA, trois cents francs, trente minutes.
+SIRA_0122;Pour aller à Selmer, prends le bus SOTRA. Ça fait trois cents francs, environ vingt-cinq minutes.
+SIRA_0123;Pour aller à Blockhaus, prends le bateau-bus. Ça fait cinq cents francs, environ soixante minutes.
+SIRA_0124;Option Suspendu : plus confortable, sept cents francs, trente minutes.
+SIRA_0125;Option Debout : le gbaka, quatre cents francs, dix-huit minutes.
+SIRA_0126;Pour aller à Orange Digital Center, prends le wôrô-wôrô. Ça fait trois cents francs, environ douze minutes.
+SIRA_0127;Le plus rapide aujourd'hui, c'est le gbaka. Tu seras au carrefour Siporex dans soixante minutes.
+SIRA_0128;Tu marches cinq minutes jusqu'à l'arrêt, puis le bus SOTRA jusqu'à Koumassi Campement.
+SIRA_0129;Option Debout : le bus SOTRA, trois cents francs, quinze minutes.
+SIRA_0130;Départ de Vridi, arrivée à Yopougon. Compte deux cents francs et trente minutes.
+SIRA_0131;Pour aller à Grand-Bassam, prends le wôrô-wôrô. Ça fait quatre cents francs, environ cinquante minutes.
+SIRA_0132;J'ai trouvé trois trajets pour Anoumabo. Le coulé coûte trois cent cinquante francs.
+SIRA_0133;Départ de Bracodi, arrivée à Yopougon. Compte trois cents francs et cinquante minutes.
+SIRA_0134;Départ d'Abobo Baoulé, arrivée à Yopougon. Compte cinq cents francs et vingt minutes.
+SIRA_0135;Départ de Blockhaus, arrivée à Bingerville. Compte cinq cents francs et dix-huit minutes.
+SIRA_0136;J'ai trouvé trois trajets pour le Palais des sports. Le coulé coûte deux cents francs.
+SIRA_0137;Le moins cher : le gbaka jusqu'à Vallon, trois cents francs.
+SIRA_0138;Tu marches cinq minutes jusqu'à l'arrêt, puis le wôrô-wôrô jusqu'au marché de Treichville.
+SIRA_0139;Le moins cher : le wôrô-wôrô jusqu'à Mermoz, deux cents francs.
+SIRA_0140;Option Debout : le bateau-bus, deux cents francs, douze minutes.
+SIRA_0141;Le plus rapide aujourd'hui, c'est le bus SOTRA. Tu seras à Riviera 3 dans douze minutes.
+SIRA_0142;Option Debout : le gbaka, trois cent cinquante francs, trente-cinq minutes.
+SIRA_0143;J'ai trouvé trois trajets pour la Cité administrative. Le coulé coûte sept cents francs.
+SIRA_0144;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras à la gare Sud dans soixante minutes.
+SIRA_0145;Option Debout : le bateau-bus, deux cents francs, cinquante minutes.
+SIRA_0146;Option Suspendu : plus confortable, sept cents francs, trente-cinq minutes.
+SIRA_0147;Le plus rapide aujourd'hui, c'est le bus SOTRA. Tu seras à Sideci dans vingt minutes.
+SIRA_0148;Option Suspendu : plus confortable, sept cents francs, cinquante minutes.
+SIRA_0149;J'ai trouvé trois trajets pour le pont De Gaulle. Le coulé coûte cinq cents francs.
+SIRA_0150;Option Debout : le wôrô-wôrô, cinq cents francs, dix-huit minutes.
+SIRA_0151;Tu marches cinq minutes jusqu'à l'arrêt, puis le bus SOTRA jusqu'à N'Dotré.
+SIRA_0152;Option Debout : le bateau-bus, deux cents francs, quinze minutes.
+SIRA_0153;Tu marches cinq minutes jusqu'à l'arrêt, puis le bus SOTRA jusqu'à Koumassi Remblais.
+SIRA_0154;Départ de Gonzagueville, arrivée à Orange Digital Center. Compte trois cent cinquante francs et quarante minutes.
+SIRA_0155;Départ de Bracodi, arrivée à Abobo Baoulé. Compte trois cent cinquante francs et quarante minutes.
+SIRA_0156;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras à Treichville dans quarante-cinq minutes.
+SIRA_0157;Option Debout : le wôrô-wôrô, trois cents francs, soixante minutes.
+SIRA_0158;Tu marches cinq minutes jusqu'à l'arrêt, puis le wôrô-wôrô jusqu'à Locodjro.
+SIRA_0159;Option Suspendu : plus confortable, huit cents francs, quarante minutes.
+SIRA_0160;Option Debout : le bus SOTRA, deux cents francs, vingt-cinq minutes.
+SIRA_0161;J'ai trouvé trois trajets pour la gare d'Abobo. Le coulé coûte deux cents francs.
+SIRA_0162;Le moins cher : le gbaka jusqu'à Angré Château, quatre cents francs.
+SIRA_0163;Le plus rapide aujourd'hui, c'est le wôrô-wôrô. Tu seras à Riviera Palmeraie dans trente minutes.
+SIRA_0164;Le moins cher : le wôrô-wôrô jusqu'à Gonzagueville, quatre cents francs.
+SIRA_0165;Départ d'Anyama, arrivée à Anador. Compte quatre cents francs et trente-cinq minutes.
+SIRA_0166;Option Suspendu : plus confortable, sept cents francs, quarante minutes.
+SIRA_0167;Pour aller au carrefour Siporex, prends le wôrô-wôrô. Ça fait trois cent cinquante francs, environ dix-huit minutes.
+SIRA_0168;Le plus rapide aujourd'hui, c'est le bateau-bus. Tu seras à Treichville dans quinze minutes.
+SIRA_0169;J'ai trouvé trois trajets pour Toits Rouges. Le coulé coûte deux cents francs.
+SIRA_0170;Départ de Samaké, arrivée à Treichville. Compte deux cents francs et douze minutes.
+SIRA_0171;J'ai trouvé trois trajets pour le pont De Gaulle. Le coulé coûte trois cents francs.
+SIRA_0172;J'ai trouvé trois trajets pour Deux Plateaux. Le coulé coûte quatre cents francs.
+SIRA_0173;J'ai trouvé trois trajets pour Gonzagueville. Le coulé coûte cinq cents francs.
+SIRA_0174;J'ai trouvé trois trajets pour le CHU de Cocody. Le coulé coûte cinq cents francs.
+SIRA_0175;Option Debout : le gbaka, deux cents francs, trente-cinq minutes.
+SIRA_0176;Pour aller à Gonzagueville, prends le bus SOTRA. Ça fait deux cents francs, environ douze minutes.
+SIRA_0177;Le plus rapide aujourd'hui, c'est le gbaka. Tu seras au pont De Gaulle dans cinquante minutes.
+SIRA_0178;Le plus rapide aujourd'hui, c'est le gbaka. Tu seras à Riviera 2 dans cinquante-cinq minutes.
+SIRA_0179;Pour aller à la Cité administrative, prends le gbaka. Ça fait six cents francs, environ quinze minutes.
+SIRA_0180;Tu marches cinq minutes jusqu'à l'arrêt, puis le bus SOTRA jusqu'à la gare d'Adjamé.
+SIRA_0181;Option Debout : le bateau-bus, trois cents francs, douze minutes.
+SIRA_0182;Option Debout : le gbaka, deux cent cinquante francs, trente-cinq minutes.
+SIRA_0183;Le plus rapide aujourd'hui, c'est le gbaka. Tu seras à Kouté dans cinquante minutes.
+SIRA_0184;Option Suspendu : plus confortable, sept cent cinquante francs, cinquante-cinq minutes.
+SIRA_0185;Pour aller à Adjamé 220 Logements, prends le gbaka. Ça fait six cents francs, environ douze minutes.
+SIRA_0186;Le plus rapide aujourd'hui, c'est le wôrô-wôrô. Tu seras à Mermoz dans soixante minutes.
+SIRA_0187;Tu marches cinq minutes jusqu'à l'arrêt, puis le wôrô-wôrô jusqu'à la gare de Bassam.
+SIRA_0188;Pour aller à Grand-Bassam, prends le bus SOTRA. Ça fait deux cents francs, environ soixante minutes.
+SIRA_0189;Tu marches cinq minutes jusqu'à l'arrêt, puis le gbaka jusqu'à Wassakara.
+SIRA_0190;J'ai trouvé trois trajets pour Abobo-Doumé. Le coulé coûte deux cents francs.
+SIRA_0191;J'ai trouvé trois trajets pour le pont De Gaulle. Le coulé coûte deux cent cinquante francs.
+SIRA_0192;J'ai trouvé trois trajets pour Treichville. Le coulé coûte trois cents francs.
+SIRA_0193;Pour aller à Mermoz, prends le gbaka. Ça fait cinq cents francs, environ cinquante minutes.
+SIRA_0194;Option Debout : le bateau-bus, trois cents francs, trente-cinq minutes.
+SIRA_0195;J'ai trouvé trois trajets pour Songon. Le coulé coûte cinq cents francs.
+SIRA_0196;Tu marches cinq minutes jusqu'à l'arrêt, puis le bateau-bus jusqu'à la gare Sud.
+SIRA_0197;Option Suspendu : plus confortable, mille francs, quinze minutes.
+SIRA_0198;Pour aller à Angré huitième tranche, prends le wôrô-wôrô. Ça fait trois cents francs, environ cinquante minutes.
+SIRA_0199;Pour aller au pont HKB, prends le wôrô-wôrô. Ça fait trois cents francs, environ cinquante minutes.
+SIRA_0200;Départ du marché de Treichville, arrivée à Grand-Bassam. Compte cinq cents francs et quinze minutes.
+SIRA_0201;Tu pars d'où ?
+SIRA_0202;Tu vas où exactement ?
+SIRA_0203;Tu as combien sur toi ?
+SIRA_0204;Tu veux partir maintenant ou plus tard ?
+SIRA_0205;Tu préfères le moins cher ou le plus rapide ?
+SIRA_0206;Tu veux dire Riviera 2 ou Riviera 3 ?
+SIRA_0207;C'est bien Yopougon Siporex ?
+SIRA_0208;Je n'ai pas bien entendu. Tu peux répéter un peu plus fort ?
+SIRA_0209;D'accord, je lance le trajet.
+SIRA_0210;C'est noté.
+SIRA_0211;Pas de souci, je cherche un autre chemin.
+SIRA_0212;Tu veux éviter un endroit en particulier ?
+SIRA_0213;Tu veux que je te prévienne avant ton arrêt ?
+SIRA_0214;On y va ?
+SIRA_0215;Je confirme : départ d'Abobo, arrivée au Plateau.
+SIRA_0216;Tu veux partager ton trajet avec un proche ?
+SIRA_0217;Tu as payé combien finalement ?
+SIRA_0218;Merci, ça aide les autres voyageurs.
+SIRA_0219;Je n'ai pas trouvé ce lieu. Tu peux me donner un repère ?
+SIRA_0220;Tu peux l'écrire ou le montrer sur la carte.
+SIRA_0221;Tu es sûr ? Je change la destination.
+SIRA_0222;Très bien, je garde ce trajet.
+SIRA_0223;Tu veux le prix ou la durée ?
+SIRA_0224;Tu veux que je relance la recherche ?
+SIRA_0225;Je t'écoute.
+SIRA_0226;Vas-y, parle.
+SIRA_0227;Dis-moi où tu veux aller.
+SIRA_0228;C'est parti.
+SIRA_0229;On est ensemble.
+SIRA_0230;Ya pas drap, je m'en occupe.
+SIRA_0231;Akwaba, je suis SIRA.
+SIRA_0232;Bonjour ! On trace où aujourd'hui ?
+SIRA_0233;Bonsoir, tu rentres à la maison ?
+SIRA_0234;Prends ton temps, je suis là.
+SIRA_0235;Assia, je n'ai pas compris. On recommence ?
+SIRA_0236;Pardon, le service est un peu lent. Patiente un instant.
+SIRA_0237;Je ne peux pas répondre à ça, mais je peux t'aider pour tes trajets.
+SIRA_0238;Ton ticket est prêt.
+SIRA_0239;Ton numéro dans la file, c'est le quatorze.
+SIRA_0240;C'est ton tour, présente ton ticket.
+SIRA_0241;Encore trois arrêts avant le Palais des sports.
+SIRA_0242;Reste dans le gbaka jusqu'à Anoumabo.
+SIRA_0243;Change de véhicule au CHU de Treichville. Prends le gbaka pour Angré huitième tranche.
+SIRA_0244;Tu es arrivé à la gare Sud. Bonne journée !
+SIRA_0245;Tu passes à la Cité administrative, tout va bien.
+SIRA_0246;Ton prochain véhicule part de Koumassi Remblais dans cinq minutes.
+SIRA_0247;Prépare-toi, tu descends au prochain arrêt : Danga.
+SIRA_0248;Tu es arrivé à Belleville. Bonne journée !
+SIRA_0249;Tu es arrivé au pont HKB. Bonne journée !
+SIRA_0250;Tourne à gauche après le carrefour, l'arrêt est juste là.
+SIRA_0251;Encore trois arrêts avant Koumassi Campement.
+SIRA_0252;Tu es arrivé à Selmer. Bonne journée !
+SIRA_0253;Encore trois arrêts avant Riviera 2.
+SIRA_0254;Tu es arrivé à Locodjro. Bonne journée !
+SIRA_0255;Encore trois arrêts avant Abobo Baoulé.
+SIRA_0256;Change de véhicule à Sideci. Prends le gbaka pour le grand marché de Koumassi.
+SIRA_0257;Tu es arrivé à Arras. Bonne journée !
+SIRA_0258;Prépare-toi, tu descends au prochain arrêt : Andokoi.
+SIRA_0259;Reste dans le gbaka jusqu'à Grand-Bassam.
+SIRA_0260;Tu es arrivé à Vridi. Bonne journée !
+SIRA_0261;Tu passes à PK18, tout va bien.
+SIRA_0262;Ton prochain véhicule part de Riviera Palmeraie dans cinq minutes.
+SIRA_0263;Reste dans le gbaka jusqu'à la Cité administrative.
+SIRA_0264;Change de véhicule à Williamsville. Prends le gbaka pour Belleville.
+SIRA_0265;Prépare-toi, tu descends au prochain arrêt : le Plateau.
+SIRA_0266;Prépare-toi, tu descends au prochain arrêt : Koumassi Remblais.
+SIRA_0267;Encore trois arrêts avant Andokoi.
+SIRA_0268;Prépare-toi, tu descends au prochain arrêt : le carrefour La Vie.
+SIRA_0269;Tu passes à Samaké, tout va bien.
+SIRA_0270;Encore trois arrêts avant Angré huitième tranche.
+SIRA_0271;Reste dans le gbaka jusqu'à Avocatier.
+SIRA_0272;Encore trois arrêts avant Belleville.
+SIRA_0273;Tu passes au marché de Treichville, tout va bien.
+SIRA_0274;Descends ici et marche deux minutes vers Arras.
+SIRA_0275;Descends ici et marche deux minutes vers Saint-Jean.
+SIRA_0276;Change de véhicule à Niangon. Prends le gbaka pour le pont HKB.
+SIRA_0277;Change de véhicule à Sideci. Prends le gbaka pour Williamsville.
+SIRA_0278;Descends ici et marche deux minutes vers Belleville.
+SIRA_0279;Traverse la route et attends le wôrô en face.
+SIRA_0280;Reste dans le gbaka jusqu'à Port-Bouët 2.
+SIRA_0281;Change de véhicule au grand marché de Koumassi. Prends le gbaka pour Anoumabo.
+SIRA_0282;Tu passes au carrefour La Vie, tout va bien.
+SIRA_0283;Change de véhicule à Adjamé Liberté. Prends le gbaka pour Marcory Résidentiel.
+SIRA_0284;Descends ici et marche deux minutes vers Anyama.
+SIRA_0285;Prépare-toi, tu descends au prochain arrêt : Adjamé 220 Logements.
+SIRA_0286;Tu passes à Blockhaus, tout va bien.
+SIRA_0287;Reste dans le gbaka jusqu'à Vallon.
+SIRA_0288;Reste dans le gbaka jusqu'à Marcory Remblais.
+SIRA_0289;Descends ici et marche deux minutes vers Anador.
+SIRA_0290;Change de véhicule au stade Félix Houphouët-Boigny. Prends le gbaka pour Wassakara.
+SIRA_0291;Tu es arrivé à Faya. Bonne journée !
+SIRA_0292;Tu passes à Deux Plateaux, tout va bien.
+SIRA_0293;Change de véhicule à Attécoubé Santé. Prends le gbaka pour Vallon.
+SIRA_0294;Descends ici et marche deux minutes vers l'aéroport.
+SIRA_0295;Descends ici et marche deux minutes vers l'université Félix Houphouët-Boigny.
+SIRA_0296;Ton prochain véhicule part de Selmer dans cinq minutes.
+SIRA_0297;Descends ici et marche deux minutes vers le stade Félix Houphouët-Boigny.
+SIRA_0298;Ton prochain véhicule part d'Anyama dans cinq minutes.
+SIRA_0299;Tu passes à Faya, tout va bien.
+SIRA_0300;Descends ici et marche deux minutes vers la gare d'Adjamé.
+SIRA_0301;Descends ici et marche deux minutes vers Riviera Palmeraie.
+SIRA_0302;Tu es arrivé à la gare d'Abobo. Bonne journée !
+SIRA_0303;Descends ici et marche deux minutes vers Mermoz.
+SIRA_0304;Change de véhicule à la gare Sud. Prends le gbaka pour Zone 4.
+SIRA_0305;Ton prochain véhicule part de Niangon dans cinq minutes.
+SIRA_0306;Ton prochain véhicule part d'Adjouffou dans cinq minutes.
+SIRA_0307;Encore trois arrêts avant Marcory Résidentiel.
+SIRA_0308;Prépare-toi, tu descends au prochain arrêt : PK18.
+SIRA_0309;Descends ici et marche deux minutes vers le carrefour La Vie.
+SIRA_0310;Descends ici et marche deux minutes vers Danga.
+SIRA_0311;Descends ici et marche deux minutes vers Sideci.
+SIRA_0312;Tu passes à Belleville, tout va bien.
+SIRA_0313;Ton prochain véhicule part du Palais des sports dans cinq minutes.
+SIRA_0314;Tu passes à Port-Bouët 2, tout va bien.
+SIRA_0315;Tu es arrivé à l'université Félix Houphouët-Boigny. Bonne journée !
+SIRA_0316;Ton prochain véhicule part du CHU de Cocody dans cinq minutes.
+SIRA_0317;Ton prochain véhicule part de Toits Rouges dans cinq minutes.
+SIRA_0318;Change de véhicule à la gare d'Adjamé. Prends le gbaka pour Selmer.
+SIRA_0319;Tu es arrivé à Bracodi. Bonne journée !
+SIRA_0320;Ton prochain véhicule part de Zone 4 dans cinq minutes.
+SIRA_0321;Bouchon à Toits Rouges depuis vingt minutes. Passe plutôt par Selmer.
+SIRA_0322;Attention, accident signalé à la gare Sud. Je te propose un autre chemin.
+SIRA_0323;La route du pont HKB est inondée. Prends le bateau-bus si tu peux.
+SIRA_0324;Grève des gbaka à Anyama ce matin. Prévois un autre transport.
+SIRA_0325;Attention, accident signalé à Samaké. Je te propose un autre chemin.
+SIRA_0326;Tout est normal ce matin. Quarante-deux minutes comme d'habitude.
+SIRA_0327;Travaux au CHU de Cocody : l'arrêt est déplacé un peu plus loin.
+SIRA_0328;Bouchon à Anador depuis vingt minutes. Passe plutôt par N'Dotré.
+SIRA_0329;Il y a du monde à Gonzagueville : environ quinze minutes d'attente.
+SIRA_0330;Sous la pluie, le wôrô peut coûter plus cher que d'habitude.
+SIRA_0331;Forte pluie annoncée vers dix-sept heures. La route du pont HKB inonde souvent.
+SIRA_0332;Match au stade ce soir : le Plateau sera saturé après vingt heures.
+SIRA_0333;Grève des gbaka à Andokoi ce matin. Prévois un autre transport.
+SIRA_0334;Grève des gbaka à Gonzagueville ce matin. Prévois un autre transport.
+SIRA_0335;Il y a du monde à Andokoi : environ quinze minutes d'attente.
+SIRA_0336;La route d'Adjamé Liberté est inondée. Prends le bateau-bus si tu peux.
+SIRA_0337;Grève des gbaka à Locodjro ce matin. Prévois un autre transport.
+SIRA_0338;Forte pluie annoncée vers dix-sept heures. La route d'Avocatier inonde souvent.
+SIRA_0339;Attention, accident signalé à Angré huitième tranche. Je te propose un autre chemin.
+SIRA_0340;Attention, accident signalé à Vridi. Je te propose un autre chemin.
+SIRA_0341;Bouchon à Samaké depuis vingt minutes. Passe plutôt par Deux Plateaux.
+SIRA_0342;Travaux à Saint-Jean : l'arrêt est déplacé un peu plus loin.
+SIRA_0343;Grève des gbaka à Anador ce matin. Prévois un autre transport.
+SIRA_0344;Attention, accident signalé à Bracodi. Je te propose un autre chemin.
+SIRA_0345;Bouchon au stade Félix Houphouët-Boigny depuis vingt minutes. Passe plutôt par Blockhaus.
+SIRA_0346;Forte pluie annoncée vers dix-sept heures. La route de N'Dotré inonde souvent.
+SIRA_0347;La route de Faya est inondée. Prends le bateau-bus si tu peux.
+SIRA_0348;La route de Riviera 3 est inondée. Prends le bateau-bus si tu peux.
+SIRA_0349;Il y a du monde à la gare de Bassam : environ quinze minutes d'attente.
+SIRA_0350;La route de Zone 4 est inondée. Prends le bateau-bus si tu peux.
+SIRA_0351;La route de Marcory Résidentiel est inondée. Prends le bateau-bus si tu peux.
+SIRA_0352;Grève des gbaka à Vridi ce matin. Prévois un autre transport.
+SIRA_0353;Grève des gbaka à Williamsville ce matin. Prévois un autre transport.
+SIRA_0354;Travaux à Anoumabo : l'arrêt est déplacé un peu plus loin.
+SIRA_0355;Travaux à Faya : l'arrêt est déplacé un peu plus loin.
+SIRA_0356;Forte pluie annoncée vers dix-sept heures. La route de Wassakara inonde souvent.
+SIRA_0357;Bouchon à Anyama depuis vingt minutes. Passe plutôt par Koumassi Remblais.
+SIRA_0358;Forte pluie annoncée vers dix-sept heures. La route du Palais des sports inonde souvent.
+SIRA_0359;Grève des gbaka à l'aéroport ce matin. Prévois un autre transport.
+SIRA_0360;Bouchon à Mermoz depuis vingt minutes. Passe plutôt par le Palais des sports.
+SIRA_0361;Forte pluie annoncée vers dix-sept heures. La route du pont De Gaulle inonde souvent.
+SIRA_0362;Attention, accident signalé à Adjouffou. Je te propose un autre chemin.
+SIRA_0363;Travaux à Songon : l'arrêt est déplacé un peu plus loin.
+SIRA_0364;Grève des gbaka à Koumassi Remblais ce matin. Prévois un autre transport.
+SIRA_0365;Il y a du monde à Vridi : environ quinze minutes d'attente.
+SIRA_0366;Attention, accident signalé au marché de Treichville. Je te propose un autre chemin.
+SIRA_0367;Il y a du monde à Bingerville : environ quinze minutes d'attente.
+SIRA_0368;Bouchon à Arras depuis vingt minutes. Passe plutôt par Riviera Palmeraie.
+SIRA_0369;La route de Danga est inondée. Prends le bateau-bus si tu peux.
+SIRA_0370;Attention, accident signalé à Locodjro. Je te propose un autre chemin.
+SIRA_0371;Il y a du monde au CHU de Cocody : environ quinze minutes d'attente.
+SIRA_0372;Il y a du monde à Zone 4 : environ quinze minutes d'attente.
+SIRA_0373;Attention, accident signalé au pont HKB. Je te propose un autre chemin.
+SIRA_0374;Attention, accident signalé à Koumassi Campement. Je te propose un autre chemin.
+SIRA_0375;La route de Kouté est inondée. Prends le bateau-bus si tu peux.
+SIRA_0376;Grève des gbaka à Samaké ce matin. Prévois un autre transport.
+SIRA_0377;Il y a du monde au CHU de Treichville : environ quinze minutes d'attente.
+SIRA_0378;Bouchon au grand marché de Koumassi depuis vingt minutes. Passe plutôt par Orange Digital Center.
+SIRA_0379;Grève des gbaka à Bracodi ce matin. Prévois un autre transport.
+SIRA_0380;Travaux à la gare de Bassam : l'arrêt est déplacé un peu plus loin.
+SIRA_0381;Ça fait cinquante francs.
+SIRA_0382;Ça fait cent francs.
+SIRA_0383;Ça fait cent cinquante francs.
+SIRA_0384;Ça fait deux cents francs.
+SIRA_0385;Ça fait deux cent cinquante francs.
+SIRA_0386;Ça fait trois cents francs.
+SIRA_0387;Ça fait trois cent cinquante francs.
+SIRA_0388;Ça fait quatre cents francs.
+SIRA_0389;Ça fait quatre cent cinquante francs.
+SIRA_0390;Ça fait cinq cents francs.
+SIRA_0391;Ça fait cinq cent cinquante francs.
+SIRA_0392;Ça fait six cents francs.
+SIRA_0393;Ça fait six cent cinquante francs.
+SIRA_0394;Ça fait sept cents francs.
+SIRA_0395;Ça fait sept cent cinquante francs.
+SIRA_0396;Ça fait huit cents francs.
+SIRA_0397;Ça fait neuf cents francs.
+SIRA_0398;Ça fait mille francs.
+SIRA_0399;Ça fait mille cent francs.
+SIRA_0400;Ça fait mille deux cents francs.
+SIRA_0401;Ça fait mille deux cent cinquante francs.
+SIRA_0402;Ça fait mille cinq cents francs.
+SIRA_0403;Ça fait mille sept cent cinquante francs.
+SIRA_0404;Ça fait deux mille francs.
+SIRA_0405;Ça fait deux mille cinq cents francs.
+SIRA_0406;Ça fait trois mille francs.
+SIRA_0407;Ça fait trois mille cinq cents francs.
+SIRA_0408;Ça fait quatre mille francs.
+SIRA_0409;Ça fait cinq mille francs.
+SIRA_0410;Ça fait dix mille francs.
+SIRA_0411;Départ à cinq heures.
+SIRA_0412;Départ à cinq heures et demie.
+SIRA_0413;Départ à six heures.
+SIRA_0414;Départ à six heures et quart.
+SIRA_0415;Départ à six heures quarante-cinq.
+SIRA_0416;Départ à sept heures.
+SIRA_0417;Départ à sept heures dix.
+SIRA_0418;Départ à sept heures et demie.
+SIRA_0419;Départ à huit heures.
+SIRA_0420;Départ à huit heures vingt.
+SIRA_0421;Départ à neuf heures.
+SIRA_0422;Départ à onze heures et demie.
+SIRA_0423;Départ à douze heures.
+SIRA_0424;Départ à treize heures et quart.
+SIRA_0425;Départ à quinze heures.
+SIRA_0426;Départ à seize heures et demie.
+SIRA_0427;Départ à dix-sept heures.
+SIRA_0428;Départ à dix-sept heures quarante-cinq.
+SIRA_0429;Départ à dix-huit heures.
+SIRA_0430;Départ à dix-huit heures et demie.
+SIRA_0431;Départ à dix-neuf heures.
+SIRA_0432;Départ à vingt heures.
+SIRA_0433;Départ à vingt-et-un heures et quart.
+SIRA_0434;Départ à vingt-deux heures.
+SIRA_0435;Départ à vingt-trois heures et demie.
+SIRA_0436;Ligne un.
+SIRA_0437;Ligne deux.
+SIRA_0438;Ligne trois.
+SIRA_0439;Ligne quatre.
+SIRA_0440;Ligne cinq.
+SIRA_0441;Ligne sept.
+SIRA_0442;Ligne huit.
+SIRA_0443;Ligne dix.
+SIRA_0444;Ligne onze.
+SIRA_0445;Ligne douze.
+SIRA_0446;Ligne treize.
+SIRA_0447;Ligne quatorze.
+SIRA_0448;Ligne quinze.
+SIRA_0449;Ligne seize.
+SIRA_0450;Ligne dix-sept.
+SIRA_0451;Ligne dix-neuf.
+SIRA_0452;Ligne vingt.
+SIRA_0453;Ligne vingt-et-un.
+SIRA_0454;Ligne trente.
+SIRA_0455;Ligne quarante-cinq.
+SIRA_0456;Ligne soixante.
+SIRA_0457;Ligne soixante-dix.
+SIRA_0458;Ligne quatre-vingts.
+SIRA_0459;Ligne quatre-vingt-dix.
+SIRA_0460;Ligne quatre-vingt-dix-neuf.
+SIRA_0461;Prochain arrêt : Siporex.
+SIRA_0462;Prochain arrêt : Niangon.
+SIRA_0463;Prochain arrêt : Selmer.
+SIRA_0464;Prochain arrêt : Toits Rouges.
+SIRA_0465;Prochain arrêt : Sideci.
+SIRA_0466;Prochain arrêt : Gesco.
+SIRA_0467;Prochain arrêt : Andokoi.
+SIRA_0468;Prochain arrêt : Wassakara.
+SIRA_0469;Prochain arrêt : Kouté.
+SIRA_0470;Prochain arrêt : Port-Bouët 2.
+SIRA_0471;Prochain arrêt : la gare d'Abobo.
+SIRA_0472;Prochain arrêt : PK18.
+SIRA_0473;Prochain arrêt : Samaké.
+SIRA_0474;Prochain arrêt : Avocatier.
+SIRA_0475;Prochain arrêt : Anador.
+SIRA_0476;Prochain arrêt : N'Dotré.
+SIRA_0477;Prochain arrêt : Abobo Baoulé.
+SIRA_0478;Prochain arrêt : la gare d'Adjamé.
+SIRA_0479;Prochain arrêt : Adjamé Liberté.
+SIRA_0480;Prochain arrêt : Adjamé 220 Logements.
+SIRA_0481;Prochain arrêt : Williamsville.
+SIRA_0482;Prochain arrêt : Bracodi.
+SIRA_0483;Prochain arrêt : le Plateau.
+SIRA_0484;Prochain arrêt : la Cité administrative.
+SIRA_0485;Prochain arrêt : la gare Sud.
+SIRA_0486;Prochain arrêt : Angré huitième tranche.
+SIRA_0487;Prochain arrêt : Angré Château.
+SIRA_0488;Prochain arrêt : Riviera 2.
+SIRA_0489;Prochain arrêt : Riviera 3.
+SIRA_0490;Prochain arrêt : Riviera Palmeraie.
+SIRA_0491;Prochain arrêt : Saint-Jean.
+SIRA_0492;Prochain arrêt : Danga.
+SIRA_0493;Prochain arrêt : Deux Plateaux.
+SIRA_0494;Prochain arrêt : Vallon.
+SIRA_0495;Prochain arrêt : Blockhaus.
+SIRA_0496;Prochain arrêt : Mermoz.
+SIRA_0497;Prochain arrêt : Faya.
+SIRA_0498;Prochain arrêt : l'université Félix Houphouët-Boigny.
+SIRA_0499;Prochain arrêt : Bingerville.
+SIRA_0500;Prochain arrêt : Zone 4.
+SIRA_0501;Prochain arrêt : Marcory Remblais.
+SIRA_0502;Prochain arrêt : Anoumabo.
+SIRA_0503;Prochain arrêt : Marcory Résidentiel.
+SIRA_0504;Prochain arrêt : le grand marché de Koumassi.
+SIRA_0505;Prochain arrêt : Koumassi Campement.
+SIRA_0506;Prochain arrêt : Koumassi Remblais.
+SIRA_0507;Prochain arrêt : la gare de Bassam.
+SIRA_0508;Prochain arrêt : Belleville.
+SIRA_0509;Prochain arrêt : Arras.
+SIRA_0510;Prochain arrêt : le marché de Treichville.
+SIRA_0511;Prochain arrêt : Vridi.
+SIRA_0512;Prochain arrêt : Gonzagueville.
+SIRA_0513;Prochain arrêt : Adjouffou.
+SIRA_0514;Prochain arrêt : l'aéroport.
+SIRA_0515;Prochain arrêt : Locodjro.
+SIRA_0516;Prochain arrêt : Attécoubé Santé.
+SIRA_0517;Prochain arrêt : Anyama.
+SIRA_0518;Prochain arrêt : Songon.
+SIRA_0519;Prochain arrêt : Grand-Bassam.
+SIRA_0520;Prochain arrêt : le pont HKB.
+SIRA_0521;Prochain arrêt : le pont De Gaulle.
+SIRA_0522;Prochain arrêt : le carrefour La Vie.
+SIRA_0523;Prochain arrêt : le carrefour Siporex.
+SIRA_0524;Prochain arrêt : le CHU de Cocody.
+SIRA_0525;Prochain arrêt : le CHU de Treichville.
+SIRA_0526;Prochain arrêt : le stade Félix Houphouët-Boigny.
+SIRA_0527;Prochain arrêt : le Palais des sports.
+SIRA_0528;Prochain arrêt : Orange Digital Center.
+SIRA_0529;On dit quoi ? Je suis là pour t'aider.
+SIRA_0530;Courage pour la journée, on est ensemble.
+SIRA_0531;Ça va aller, je te trouve un bon chemin.
+SIRA_0532;Faut pas t'inquiéter, on va arriver.
+SIRA_0533;Bon retour à la maison !
+SIRA_0534;Bonne arrivée !
+SIRA_0535;Doucement, le chemin est long.
+SIRA_0536;Merci beaucoup, à la prochaine.
+SIRA_0537;Tu as bien fait de prévenir.
+SIRA_0538;Bravo, tu es maintenant un éclaireur de SIRA.
+SIRA_0539;Tu as gagné des points, continue comme ça.
+SIRA_0540;Ce matin, ça roule bien, profites-en.
+SIRA_0541;Il fait chaud dêh, pense à prendre de l'eau.
+SIRA_0542;Avec la pluie, sois prudent sur la route.
+SIRA_0543;Si tu veux, je peux te réveiller avant ton arrêt.
+SIRA_0544;Je n'oublie pas : tu descends à Siporex.
+SIRA_0545;Pas de monnaie ? Paie avec ton ticket SIRA.
+SIRA_0546;Ton gbaka se remplit, approche-toi du quai.
+SIRA_0547;Tu as trois minutes pour te présenter.
+SIRA_0548;Je garde ta place dans la file.
+SIRA_0549;Ya foye, c'est parti.
+SIRA_0550;C'est comment ? Tout va bien ?
+SIRA_0551;On trace sans stress.
+SIRA_0552;Avec SIRA, tu arrives à l'heure.
+SIRA_0553;Dis-moi seulement où tu vas, je m'occupe du reste.
+SIRA_0554;Je connais même les petits coins d'Abidjan.
+SIRA_0555;Le coulé, c'est le moins cher.
+SIRA_0556;Le Debout, c'est le juste milieu.
+SIRA_0557;Le Suspendu, c'est le plus confortable.
+SIRA_0558;Tu veux que je te lise les trois options ?
+SIRA_0559;Je te préviens dès qu'il y a du nouveau.
+SIRA_0560;Je n'ai rien entendu. Approche le téléphone de ta bouche.
+SIRA_0561;Dernière chance : tu veux toujours y aller ?
+SIRA_0562;Bonne route et à demain.
+SIRA_0563;Bienvenue à bord.
+SIRA_0564;Merci de rouler avec SIRA.
+SIRA_0565;Tu as économisé deux cents francs aujourd'hui.
+SIRA_0566;Ta famille peut suivre ton trajet en direct.
+SIRA_0567;Si tu as un problème, appuie sur le bouton d'alerte.
+SIRA_0568;Je suis SIRA, ton compagnon de route.
+SIRA_0569;Le soleil se lève tôt sur la lagune Ébrié.
+SIRA_0570;Les enfants jouent au ballon devant la maison.
+SIRA_0571;Ma grand-mère prépare l'attiéké avec du poisson braisé.
+SIRA_0572;Le marché ouvre ses portes à six heures du matin.
+SIRA_0573;Il faut fermer la fenêtre avant l'orage.
+SIRA_0574;Le chauffeur a garé la voiture près du kiosque.
+SIRA_0575;Nous avons acheté des mangues et des bananes plantains.
+SIRA_0576;La réunion commence dans une demi-heure.
+SIRA_0577;Mon cousin travaille dans une boutique de téléphones.
+SIRA_0578;Le vent souffle fort ce soir sur la plage de Bassam.
+SIRA_0579;Elle lit un journal assise sur un banc.
+SIRA_0580;Les élèves révisent leurs leçons à la bibliothèque.
+SIRA_0581;Le pharmacien conseille de bien suivre le traitement.
+SIRA_0582;On entend la musique du maquis jusqu'à minuit.
+SIRA_0583;Le facteur apporte une lettre recommandée.
+SIRA_0584;Il pleut des cordes depuis ce matin.
+SIRA_0585;J'ai oublié mon parapluie dans le taxi.
+SIRA_0586;Le boulanger sort le pain chaud du four.
+SIRA_0587;Ils ont repeint la façade en jaune et en vert.
+SIRA_0588;La couturière prend les mesures pour la robe.
+SIRA_0589;Chaque jour, des milliers de personnes traversent le pont.
+SIRA_0590;Le bébé dort paisiblement dans son berceau.
+SIRA_0591;Nous fêterons l'anniversaire de papa dimanche.
+SIRA_0592;Le guide montre aux visiteurs la vieille ville.
+SIRA_0593;Les pêcheurs reviennent avec leurs filets pleins.
+SIRA_0594;Je préfère le jus de gingembre bien frais.
+SIRA_0595;Le professeur explique la leçon avec patience.
+SIRA_0596;Les feux tricolores ne fonctionnent plus depuis hier.
+SIRA_0597;Il a perdu ses clés quelque part dans le quartier.
+SIRA_0598;La télévision annonce de fortes pluies pour demain.
+SIRA_0599;Une voiture rouge klaxonne au carrefour.
+SIRA_0600;Le vendeur ambulant propose des arachides grillées.
+SIRA_0601;Les ouvriers construisent un nouvel immeuble.
+SIRA_0602;Je t'appelle dès que j'arrive.
+SIRA_0603;Le gardien ouvre le portail chaque matin.
+SIRA_0604;Elle chante doucement en faisant la vaisselle.
+SIRA_0605;Les supporters crient de joie après le but.
+SIRA_0606;Le médecin reçoit les patients jusqu'à midi.
+SIRA_0607;Il y a beaucoup de monde à la banque aujourd'hui.
+SIRA_0608;Mon téléphone n'a presque plus de batterie.
+SIRA_0609;Le chat saute sur le mur du voisin.
+SIRA_0610;Nous avons rendez-vous devant la pharmacie.
+SIRA_0611;La rivière déborde après les grosses pluies.
+SIRA_0612;Le train de marchandises passe lentement.
+SIRA_0613;On a mangé du foutou sauce graine à midi.
+SIRA_0614;Le vieux raconte des histoires aux enfants.
+SIRA_0615;Ce quartier est calme la nuit.
+SIRA_0616;Les prix ont augmenté au marché cette semaine.
+SIRA_0617;Il faut payer la facture avant la fin du mois.
+SIRA_0618;Le photographe prend la photo de mariage.
+SIRA_0619;Je cherche un appartement près de mon travail.
+SIRA_0620;La fête du quartier attire beaucoup de jeunes.
+SIRA_0621;Le jardinier arrose les fleurs tous les soirs.
+SIRA_0622;Le bureau ferme à dix-sept heures trente.
+SIRA_0623;Ils parlent fort au téléphone dans le bus.
+SIRA_0624;La mer est agitée, les pirogues restent au bord.
+SIRA_0625;Ce livre m'a appris beaucoup de choses.
+SIRA_0626;Le mécanicien répare le moteur du gbaka.
+SIRA_0627;Elle porte un pagne aux couleurs vives.
+SIRA_0628;Demain, je partirai très tôt pour éviter les embouteillages.`;
+// PIPER:FIN
+// Examen et entraînement : pour Whisper, plusieurs personnes. Voix de SIRA : pour Piper, une seule personne, au calme ;
+// son ZIP a le format de piper_dataset.py (wavs/SIRA_0001.wav + metadata.csv « id|texte »).
+const LISTS = {
+  test: { label: "Examen", zip: "SIRA_test_voix", phrases: parse(EXAMEN) },
+  entrainement: { label: "Entraînement", zip: "SIRA_entrainement_voix", phrases: parse(ENTRAINEMENT) },
+  piper: { label: "Voix de SIRA", zip: "SIRA_piper_voix", phrases: parse(PIPER), piper: true,
+           note: "Une seule personne, au calme, toujours le même micro et la même distance." },
+};
+const LIST_KEY = "sira-enregistreur-liste";
+let listName = (() => { try { return LISTS[localStorage.getItem(LIST_KEY)] ? localStorage.getItem(LIST_KEY) : "test"; } catch { return "test"; } })();
+let PHRASES = LISTS[listName].phrases;
+const doneCount = () => PHRASES.filter((p) => takes.has(p.id)).length;
+
+const $ = (s) => document.querySelector(s);
+const takes = new Map(); // id -> { blob, seconds }
+let index = 0;
+let resumeAt = null; // en train de refaire une phrase : la phrase où reprendre ensuite (null = pas de « refaire »)
+// Prénom de la personne qui enregistre : demandé une seule fois (avant la 1re phrase), il ne sert qu'au nom du ZIP.
+const NAME_KEY = "sira-enregistreur-prenom";
+let speaker = (() => { try { return localStorage.getItem(NAME_KEY) || ""; } catch { return ""; } })();
+// « Aïcha Koné » → « Aicha-Kone » : sans accents ni espaces, pour un nom de fichier sûr.
+const slug = (name) => name.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^A-Za-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "voix1";
+
+// ---------- Prises gardées dans le navigateur (IndexedDB) : rien n'est perdu si la page se ferme.
+let db = null;
+function openDb() {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open("sira-enregistreur-simple", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("prises");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+function dbDo(mode, action) {
+  if (!db) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const request = action(db.transaction("prises", mode).objectStore("prises"));
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+
+// ---------- Micro
+let ctx = null, recording = false, chunks = [], samples = 0, sampleRate = 48000, timer = null;
+let busy = false; // micro qui démarre ou prise en cours d'enregistrement : les appuis sont ignorés
+const TAIL_MS = 400; // on enregistre encore un peu après l'appui : la dernière syllabe n'est pas coupée
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function startMic() {
+  if (ctx) return;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    // Son brut, comme le reçoit le service vocal : pas de réduction de bruit du navigateur.
+    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+  });
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  sampleRate = ctx.sampleRate;
+  const processor = ctx.createScriptProcessor(4096, 1, 1);
+  processor.onaudioprocess = (event) => {
+    if (!recording) return;
+    const input = event.inputBuffer.getChannelData(0);
+    chunks.push(new Float32Array(input));
+    samples += input.length;
+  };
+  ctx.createMediaStreamSource(stream).connect(processor);
+  processor.connect(ctx.destination);
+}
+
+function wav(data, rate) {
+  const buffer = new ArrayBuffer(44 + data.length * 2), view = new DataView(buffer);
+  const text = (offset, value) => [...value].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+  text(0, "RIFF"); view.setUint32(4, 36 + data.length * 2, true); text(8, "WAVE"); text(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); text(36, "data"); view.setUint32(40, data.length * 2, true);
+  for (let i = 0; i < data.length; i++) {
+    const s = Math.max(-1, Math.min(1, data[i]));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+async function start() {
+  if (!$("#name").hidden) {
+    speaker = $("#name").value.trim();
+    try { localStorage.setItem(NAME_KEY, speaker); } catch {}
+  }
+  try {
+    await startMic();
+    if (ctx.state === "suspended") await ctx.resume();
+  } catch (error) {
+    status(`Micro inaccessible : autorise le micro dans le navigateur.`);
+    return;
+  }
+  chunks = []; samples = 0; recording = true;
+  const tick = () => status(`Enregistrement… ${(samples / sampleRate).toFixed(0)} s`);
+  timer = setInterval(tick, 250);
+  render();
+  tick();
+}
+
+// Refuse les prises inutilisables, avec la raison. null = prise correcte.
+function problem(data) {
+  if (data.length / sampleRate < 0.4) return "Trop court, recommence.";
+  let peak = 0, clipped = 0;
+  for (const value of data) {
+    const level = Math.abs(value);
+    if (level > peak) peak = level;
+    if (level > 0.99) clipped++;
+  }
+  // Une voix, même sur un micro faible, monte au-dessus de 0,015 (-36 dB) : en dessous, c'est le silence.
+  if (peak < 0.015) return "Je n'entends presque rien : vérifie le micro, puis recommence.";
+  if (clipped / data.length > 0.001) return "Son saturé : éloigne un peu le micro ou parle moins fort, puis recommence.";
+  return null;
+}
+
+async function stop() {
+  clearInterval(timer);
+  status("…");
+  await wait(TAIL_MS);
+  recording = false;
+  const data = new Float32Array(samples);
+  let offset = 0;
+  for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+  chunks = [];
+  const refused = problem(data);
+  if (refused) { render(); status(refused); return; }
+  const take = { blob: wav(data, sampleRate), seconds: data.length / sampleRate };
+  const id = PHRASES[index].id;
+  takes.set(id, take);
+  await dbDo("readwrite", (s) => s.put(take, id));
+  const redone = resumeAt !== null;
+  const number = index + 1;
+  index = redone ? resumeAt : nextToRecord(index);
+  resumeAt = null;
+  render();
+  status(redone ? `✓ Phrase ${number} refaite et enregistrée` : "✓ Enregistrée", "ok");
+}
+
+// La prochaine phrase pas encore enregistrée (après celle-ci, puis depuis le début) ; -1 = tout est fait.
+function nextToRecord(from) {
+  for (let step = 1; step <= PHRASES.length; step++) {
+    const i = (from + step) % PHRASES.length;
+    if (!takes.has(PHRASES[i].id)) return i;
+  }
+  return -1;
+}
+
+// ---------- Écran
+function status(text, cls = "") { const el = $("#status"); el.textContent = text; el.className = cls; }
+
+function render() {
+  const button = $("#record");
+  const finished = index === -1;
+  const list = LISTS[listName].label;
+  $("#count").textContent = finished ? `${list} · ${doneCount()} / ${PHRASES.length}`
+    : resumeAt !== null ? `Tu refais la phrase ${index + 1}` : `${list} · ${index + 1} / ${PHRASES.length}`;
+  if (finished) {
+    $("#phrase").textContent = "C'est fini, merci !";
+    button.textContent = "Télécharger";
+    button.className = "download";
+    status("Envoie le fichier téléchargé.");
+  } else {
+    $("#phrase").textContent = PHRASES[index].texte;
+    button.textContent = recording ? "Terminer" : "Enregistrer";
+    button.className = recording ? "on" : "";
+    if (!recording) status(resumeAt !== null ? "Ta nouvelle prise remplacera l'ancienne." : "Appuie, dis la phrase, appuie encore.");
+  }
+  const redoing = resumeAt !== null;
+  $("#back").textContent = redoing ? "Annuler" : "↺ Refaire une phrase";
+  $("#back").hidden = recording || (!redoing && recordedNear(-1) === -1);
+  $("#before").hidden = recording || !redoing || recordedNear(-1) === -1;
+  $("#after").hidden = recording || !redoing || recordedNear(1) === -1;
+  $("#reset").hidden = recording || redoing || takes.size === 0;
+  $("#note").textContent = LISTS[listName].note ?? "";
+  for (const tab of document.querySelectorAll("#tabs button")) {
+    const list = LISTS[tab.dataset.list];
+    tab.textContent = `${list.label} (${list.phrases.length})`;
+    tab.className = tab.dataset.list === listName ? "active" : "";
+    tab.disabled = recording || redoing;
+  }
+  // Le champ prénom n'apparaît qu'avant la toute première prise.
+  $("#name").hidden = recording || finished || takes.size > 0;
+}
+
+$("#record").onclick = async (event) => {
+  event.currentTarget.blur();
+  if (busy) return;
+  busy = true;
+  try {
+    if (index === -1) await download();
+    else if (recording) await stop();
+    else await start();
+  } finally {
+    busy = false;
+  }
+};
+
+// La phrase déjà enregistrée la plus proche avant (step = -1) ou après (step = 1) celle affichée ; -1 = aucune.
+function recordedNear(step) {
+  const from = index === -1 ? PHRASES.length : index;
+  for (let i = from + step; i >= 0 && i < PHRASES.length; i += step) if (takes.has(PHRASES[i].id)) return i;
+  return -1;
+}
+
+// « Refaire une phrase » : revient sur la phrase enregistrée juste avant ; ‹ Avant / Après › pour en choisir une
+// autre. « Annuler » : retour à la phrase d'où l'on venait, rien n'est changé.
+$("#back").onclick = () => {
+  if (recording || busy) return;
+  if (resumeAt !== null) { index = resumeAt; resumeAt = null; render(); return; }
+  const previous = recordedNear(-1);
+  if (previous === -1) return;
+  resumeAt = index;
+  index = previous;
+  render();
+};
+const browse = (step) => () => {
+  if (recording || busy || resumeAt === null) return;
+  const target = recordedNear(step);
+  if (target !== -1) { index = target; render(); }
+};
+$("#before").onclick = browse(-1);
+$("#after").onclick = browse(1);
+
+// Change de liste (examen ↔ entraînement) : chaque liste garde ses prises, on reprend à sa première phrase non faite.
+const chooseList = (name) => {
+  if (recording || busy || resumeAt !== null || name === listName) return;
+  listName = name;
+  try { localStorage.setItem(LIST_KEY, listName); } catch {}
+  PHRASES = LISTS[listName].phrases;
+  index = takes.has(PHRASES[0].id) ? nextToRecord(0) : 0;
+  render();
+};
+for (const tab of document.querySelectorAll("#tabs button")) tab.onclick = () => chooseList(tab.dataset.list);
+
+$("#reset").onclick = async () => {
+  if (recording || busy) return;
+  if (!confirm("Effacer tous les enregistrements et recommencer à la phrase 1 ?")) return;
+  takes.clear();
+  await dbDo("readwrite", (s) => s.clear());
+  index = 0; resumeAt = null;
+  // Une nouvelle personne peut enregistrer : le prénom sera redemandé.
+  speaker = "";
+  $("#name").value = "";
+  try { localStorage.removeItem(NAME_KEY); } catch {}
+  render();
+};
+
+document.addEventListener("keydown", (event) => {
+  // Espace = gros bouton, sauf quand on écrit son prénom (« Aïcha Koné »).
+  if (event.code !== "Space" || event.target.tagName === "INPUT") return;
+  event.preventDefault();
+  $("#record").click();
+});
+
+// ---------- ZIP (sans compression) : T01.wav… + attendu.csv pour le benchmark.
+const CRC = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = (bytes) => { let c = 0xffffffff; for (const b of bytes) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+
+async function zip(files) {
+  const parts = [], central = [];
+  let offset = 0;
+  for (const file of files) {
+    const name = new TextEncoder().encode(file.name);
+    const data = new Uint8Array(await file.data.arrayBuffer());
+    const crc = crc32(data);
+    const header = new DataView(new ArrayBuffer(30));
+    header.setUint32(0, 0x04034b50, true); header.setUint16(4, 20, true); header.setUint16(6, 0x0800, true);
+    header.setUint32(14, crc, true); header.setUint32(18, data.length, true); header.setUint32(22, data.length, true);
+    header.setUint16(26, name.length, true);
+    parts.push(header, name, data);
+    const entry = new DataView(new ArrayBuffer(46));
+    entry.setUint32(0, 0x02014b50, true); entry.setUint16(4, 20, true); entry.setUint16(6, 20, true);
+    entry.setUint16(8, 0x0800, true); entry.setUint32(16, crc, true); entry.setUint32(20, data.length, true);
+    entry.setUint32(24, data.length, true); entry.setUint16(28, name.length, true); entry.setUint32(42, offset, true);
+    central.push(entry, name);
+    offset += 30 + name.length + data.length;
+  }
+  const size = central.reduce((total, part) => total + part.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, size, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}
+
+async function download() {
+  const done = PHRASES.filter((p) => takes.has(p.id));
+  // Piper : le format de piper_dataset.py preparer (wavs/ + metadata.csv « id|texte »). Whisper : attendu.csv du benchmark.
+  const files = LISTS[listName].piper
+    ? [...done.map((p) => ({ name: `wavs/${p.id}.wav`, data: takes.get(p.id).blob })),
+       { name: "metadata.csv", data: new Blob([done.map((p) => `${p.id}|${p.texte}`).join("\n") + "\n"]) }]
+    : [...done.map((p) => ({ name: `${p.id}.wav`, data: takes.get(p.id).blob })),
+       { name: "attendu.csv", data: new Blob(["fichier;texte;lieu\n" + done.map((p) => `${p.id};${p.texte};${p.lieu}`).join("\n") + "\n"]) }];
+  const blob = await zip(files);
+  const name = `${LISTS[listName].zip}_${slug(speaker || "voix1")}_${new Date().toISOString().slice(0, 10)}.zip`;
+  // Chrome / Edge : « Enregistrer sous », qui rouvre le dernier dossier choisi (id) : on choisit une fois
+  // services/voice/enregistrements/a_ranger/ du projet, et les ZIP suivants y vont sans passer par Téléchargements.
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({ id: "sira-enregistrements", suggestedName: name,
+        types: [{ description: "Enregistrements SIRA (ZIP)", accept: { "application/zip": [".zip"] } }] });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      status(`✓ ${handle.name} enregistré. Lance npm run voice:import pour le ranger.`, "ok");
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") { status("Enregistrement annulé : rappuie sur Télécharger."); return; }
+      // Autre refus du navigateur : téléchargement classique ci-dessous.
+    }
+  }
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  link.click();
+}
+
+(async () => {
+  db = await openDb();
+  const keys = (await dbDo("readonly", (s) => s.getAllKeys())) || [];
+  for (const key of keys) {
+    const take = await dbDo("readonly", (s) => s.get(key));
+    if (take) takes.set(key, take);
+  }
+  // Reprend à la première phrase pas encore enregistrée.
+  index = takes.has(PHRASES[0].id) ? nextToRecord(0) : 0;
+  render();
+})();
+render();
+</script>
+</body>
+</html>

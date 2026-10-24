@@ -7,12 +7,14 @@ Deux façons d'enregistrer, un seul résultat (format LJSpeech attendu par piper
     metadata.csv                SIRA_0001|Pour aller à Siporex, prends le gbaka.
     rapport_qualite.csv         durée, niveau, saturation, score de correspondance, à vérifier ?
 
-1) Phrase par phrase (page « Enregistreur SIRA », export ZIP dézippé) :
-     python piper_dataset.py preparer --entree export_enregistreur/ --sortie dataset_piper/
+1) Phrase par phrase : page enregistreur_simple.html, onglet « Voix de SIRA » (une seule personne, au calme).
+   Le ZIP SIRA_piper_voix_<prénom>_<date>.zip se range avec  npm run voice:import  dans
+   services/voice/enregistrements/piper/<prénom>_<date>/ (wavs/ + metadata.csv), puis :
+     python piper_dataset.py preparer --entree ../enregistrements/piper/<prénom>_<date>/ --sortie dataset_piper/
 
 2) Un long enregistrement avec des pauses (1 à 2 s entre les phrases) :
      python piper_dataset.py decouper --audio seance1.wav --script script_voix.csv --sortie dataset_piper/
-        [--marqueurs seance1_marqueurs.csv]   # fichier du « mode long » de la page : découpage le plus sûr
+        [--marqueurs seance1_marqueurs.csv]   # « id;seconde » de début de chaque phrase, si on les a notés
         [--whisper small]                     # sinon : Whisper retrouve quelle phrase a été lue
         [--mots]                              # lecture enchaînée sans vraies pauses : alignement mot à mot
         [--ordre]                           # sinon : les morceaux sont pris dans l'ordre du script

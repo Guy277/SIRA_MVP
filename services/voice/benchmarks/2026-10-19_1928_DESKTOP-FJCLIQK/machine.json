@@ -1,0 +1,15 @@
+{
+  "nom": "DESKTOP-FJCLIQK",
+  "systeme": "Windows 11 (AMD64)",
+  "processeur": "11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz",
+  "coeurs_logiques": 8,
+  "memoire_go": 15.7,
+  "gpu_nvidia": [],
+  "gpu_cuda_utilisables": 0,
+  "python": "3.13.2",
+  "faster_whisper": "1.2.1",
+  "ctranslate2": "4.8.2",
+  "torch": "2.14.0+cpu",
+  "piper_tts": "1.8.0",
+  "date": "2026-10-19T19:21:46"
+}

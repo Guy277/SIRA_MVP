@@ -64,3 +64,6 @@ services/community/data/dev-jwt-secret
 
 # espaces de travail d'éditeur
 .kilo/
+
+# voix enregistrées pour tester ou entraîner la voix (vraies personnes) : jamais dans Git
+services/voice/enregistrements/
