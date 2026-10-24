@@ -145,6 +145,20 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 <Text style={styles.menuItemText}>Historique</Text>
               </TouchableOpacity>
 
+              <TouchableOpacity
+                style={styles.menuItemRow}
+                onPress={() => {
+                  onClose();
+                  router.push('/my-places');
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.iconCircleBadge}>
+                  <Ionicons name="bookmark" size={18} color="#F26522" />
+                </View>
+                <Text style={styles.menuItemText}>Mes lieux</Text>
+              </TouchableOpacity>
+
               <View style={styles.divider} />
 
               {/* Section 2: Trafic & Signaler */}

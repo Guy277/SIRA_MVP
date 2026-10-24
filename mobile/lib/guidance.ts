@@ -103,7 +103,8 @@ export const alightSoonSpeech = (leg: ApiLeg) => (leg.mode === 'taxi'
   : leg.alight_stop?.on_line
     ? `Prépare-toi, tu descends au prochain arrêt : ${leg.alight_stop.name}.`
     : 'Prépare-toi, tu descends au prochain arrêt.');
-export const arrivalSpeech = (destination: string) => `Te voilà à ${destination}. Merci d'avoir voyagé avec SIRA !`;
+// where: « à Cocody », or for the traveller's own places « à la maison », « chez Maman ».
+export const arrivalSpeech = (where: string) => `Te voilà ${where}. Merci d'avoir voyagé avec SIRA !`;
 export const fareQuestion = (leg: ApiLeg) =>
   `Combien as-tu payé ${spokenLine(leg).replace(/^un taxi$/, 'le taxi')} ? Ta réponse aide les autres voyageurs.`;
 

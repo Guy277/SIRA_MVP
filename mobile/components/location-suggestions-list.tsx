@@ -10,10 +10,19 @@ import { Text, TextInput } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 import { searchPlaces, type PlaceResult } from '@/lib/sira-api';
 import { knownPlace, placeLabel, rememberPlace } from '@/lib/places';
-import { SAVED_PLACE_LABELS, savePlace, useSavedPlaces, type SavedPlaceKind } from '@/lib/saved-places';
+import { FIXED_PLACES, setPlaceAddress, useSavedPlaces, type PlaceAddress, type SavedPlace } from '@/lib/saved-places';
 
-const SAVED_PLACE_ICONS: Record<SavedPlaceKind, keyof typeof Ionicons.glyphMap> = { home: 'home', work: 'briefcase' };
-const SAVED_PLACE_PROMPTS: Record<SavedPlaceKind, string> = { home: 'ta maison', work: 'ton travail' };
+// « l'adresse de ta maison », « l'adresse de « Chez Maman » ».
+const addressOf = (id: string, label: string) => (id === 'home' ? 'ta maison' : id === 'work' ? 'ton travail' : `« ${label} »`);
+
+// Choosing an address instead of a destination (« Mes lieux », or a place set from
+// the search): only places with known coordinates can be picked.
+export type AddressPick = {
+  prompt: string;
+  onPick: (address: PlaceAddress) => void;
+  onCancel: () => void;
+  onRemove?: () => void;
+};
 
 export interface LocationItem {
   id: string;
@@ -109,6 +118,9 @@ interface LocationSuggestionsListProps {
   headerLabel?: string;
   showFullHeader?: boolean;
   placeholder?: string;
+  pickAddress?: AddressPick;
+  // « Mes lieux » after the traveller's places, to add, rename or delete them.
+  onManagePlaces?: () => void;
 }
 
 export function LocationSuggestionsList({
@@ -122,6 +134,8 @@ export function LocationSuggestionsList({
   headerLabel = 'Je suis ici',
   showFullHeader = true,
   placeholder = 'Quartier, gare, carrefour, lieu…',
+  pickAddress,
+  onManagePlaces,
 }: LocationSuggestionsListProps) {
   const filteredLocations = SIRA_ABIDJAN_LOCATIONS.filter((item) => {
     if (!query.trim()) return true;
@@ -149,27 +163,37 @@ export function LocationSuggestionsList({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [query]);
 
-  // « Maison » / « Travail »: while one is being set, the next place touched with
-  // known coordinates becomes that address instead of a destination.
+  // The traveller's places in one touch. Maison or Travail without an address, or a long
+  // press on a place: the next place touched with known coordinates becomes its address.
   const savedPlaces = useSavedPlaces();
-  const [assigning, setAssigning] = React.useState<SavedPlaceKind | null>(null);
-
-  const assign = (kind: SavedPlaceKind, title: string, subtitle: string, coordinates: { latitude: number; longitude: number }) => {
-    savePlace(kind, { title, subtitle, ...coordinates });
-    setAssigning(null);
-    onQueryChange?.('');
-  };
+  const [assigning, setAssigning] = React.useState<{ id: string; label: string } | null>(null);
+  const picking: AddressPick | undefined = pickAddress ?? (assigning ? {
+    prompt: `Adresse de ${addressOf(assigning.id, assigning.label)}`,
+    onPick: (address) => { setPlaceAddress(assigning.id, address); setAssigning(null); onQueryChange?.(''); },
+    onCancel: () => setAssigning(null),
+    onRemove: (assigning.id === 'home' || assigning.id === 'work') && savedPlaces.some((place) => place.id === assigning.id)
+      ? () => { setPlaceAddress(assigning.id, null); setAssigning(null); }
+      : undefined,
+  } : undefined);
+  // The map picks a destination: setting a place's address from a chip, it is offered by « Mes lieux » instead.
+  const openMap = assigning ? undefined : onOpenMap;
+  type EmptySlot ={ id: 'home' | 'work'; label: string; icon: string; empty: true };
+  const slots: (SavedPlace | EmptySlot)[] = [
+    savedPlaces.find((place) => place.id === 'home') ?? { ...FIXED_PLACES.home, empty: true },
+    savedPlaces.find((place) => place.id === 'work') ?? { ...FIXED_PLACES.work, empty: true },
+    ...savedPlaces.filter((place) => place.kind === 'custom'),
+  ];
 
   const selectResult = (place: PlaceResult) => {
     rememberPlace(place.title, place.coordinates);
-    if (assigning) assign(assigning, place.title, place.subtitle, place.coordinates);
+    if (picking) picking.onPick({ title: place.title, subtitle: place.subtitle, ...place.coordinates });
     else onSelectLocation(place.title);
   };
 
   const selectShortcut = (item: LocationItem) => {
     const coordinates = knownPlace(item.title);
-    if (!assigning) onSelectLocation(item.title);
-    else if (coordinates) assign(assigning, item.title, item.subtitle, coordinates);
+    if (!picking) onSelectLocation(item.title);
+    else if (coordinates) picking.onPick({ title: item.title, subtitle: item.subtitle, ...coordinates });
   };
 
   return (
@@ -210,17 +234,21 @@ export function LocationSuggestionsList({
           <Ionicons name="search-outline" size={20} color="#777777" style={styles.searchIcon} />
           <TextInput
             style={styles.searchTextInput}
-            placeholder={assigning ? `Adresse de ${SAVED_PLACE_PROMPTS[assigning]}…` : placeholder}
+            placeholder={picking ? `${picking.prompt}…` : placeholder}
             placeholderTextColor="#888888"
             value={query}
             onChangeText={onQueryChange}
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <View style={styles.verticalDivider} />
-          <TouchableOpacity onPress={onOpenMap} activeOpacity={0.7} style={styles.carteButton}>
-            <Text style={styles.carteText}>Carte</Text>
-          </TouchableOpacity>
+          {openMap && (
+            <>
+              <View style={styles.verticalDivider} />
+              <TouchableOpacity onPress={openMap} activeOpacity={0.7} style={styles.carteButton}>
+                <Text style={styles.carteText}>Carte</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
 
@@ -230,62 +258,77 @@ export function LocationSuggestionsList({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContentContainer}
       >
-        {/* Setting « Maison » or « Travail »: what to do, and a way out */}
-        {assigning && (
+        {/* Choosing an address: what to do, and a way out */}
+        {picking && (
           <View style={styles.assignBanner}>
             <Text style={styles.assignBannerText}>
-              Cherche l’adresse de {SAVED_PLACE_PROMPTS[assigning]}, puis touche-la pour l’enregistrer.
+              {picking.prompt} : cherche-la ou choisis-la sur la carte, puis touche-la pour l’enregistrer.
             </Text>
             <View style={styles.assignBannerActions}>
-              {savedPlaces[assigning] && (
-                <TouchableOpacity
-                  onPress={() => { savePlace(assigning, null); setAssigning(null); }}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.assignBannerLink}>Retirer</Text>
+              {picking.onRemove && (
+                <TouchableOpacity onPress={picking.onRemove} activeOpacity={0.7} accessibilityRole="button">
+                  <Text style={styles.assignBannerLink}>Retirer l’adresse</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity onPress={() => setAssigning(null)} activeOpacity={0.7} accessibilityRole="button">
+              <TouchableOpacity onPress={picking.onCancel} activeOpacity={0.7} accessibilityRole="button">
                 <Text style={styles.assignBannerLink}>Annuler</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* One-touch « Maison » and « Travail » (Yango, Google Maps); long press to change */}
-        {!assigning && query.trim().length === 0 && (
-          <View style={styles.savedPlacesRow}>
-            {(['home', 'work'] as const).map((kind) => {
-              const place = savedPlaces[kind];
+        {/* The traveller's places in one touch (Yango, Google Maps); long press to change the address */}
+        {!picking && query.trim().length === 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.savedPlacesRow}
+            keyboardShouldPersistTaps="handled"
+          >
+            {slots.map((place) => {
+              const empty = 'empty' in place;
               return (
                 <TouchableOpacity
-                  key={kind}
+                  key={place.id}
                   style={styles.savedPlaceChip}
-                  onPress={() => (place ? onSelectLocation(place.title) : setAssigning(kind))}
-                  onLongPress={() => setAssigning(kind)}
+                  onPress={() => (empty ? setAssigning({ id: place.id, label: place.label }) : onSelectLocation(place.title))}
+                  onLongPress={() => setAssigning({ id: place.id, label: place.label })}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel={place
-                    ? `${SAVED_PLACE_LABELS[kind]} : ${place.title}. Appui long pour changer.`
-                    : `Ajouter l’adresse de ${SAVED_PLACE_PROMPTS[kind]}`}
+                  accessibilityLabel={empty
+                    ? `Ajouter l’adresse de ${addressOf(place.id, place.label)}`
+                    : `${place.label} : ${place.title}. Appui long pour changer l’adresse.`}
                 >
-                  <View style={[styles.savedPlaceIcon, !place && styles.savedPlaceIconEmpty]}>
-                    <Ionicons name={SAVED_PLACE_ICONS[kind]} size={14} color={place ? '#FFFFFF' : '#F26522'} />
+                  <View style={[styles.savedPlaceIcon, empty && styles.savedPlaceIconEmpty]}>
+                    <Ionicons name={place.icon as keyof typeof Ionicons.glyphMap} size={14} color={empty ? '#F26522' : '#FFFFFF'} />
                   </View>
                   <View style={styles.savedPlaceTextCol}>
-                    <Text style={styles.savedPlaceLabel}>{SAVED_PLACE_LABELS[kind]}</Text>
-                    <Text style={styles.savedPlaceValue} numberOfLines={1}>{place ? place.title : 'Ajouter'}</Text>
+                    <Text style={styles.savedPlaceLabel} numberOfLines={1}>{place.label}</Text>
+                    <Text style={styles.savedPlaceValue} numberOfLines={1}>{empty ? 'Ajouter' : place.title}</Text>
                   </View>
                 </TouchableOpacity>
               );
             })}
-          </View>
+            {onManagePlaces && (
+              <TouchableOpacity
+                style={[styles.savedPlaceChip, styles.managePlacesChip]}
+                onPress={onManagePlaces}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Mes lieux : ajouter, renommer ou supprimer"
+              >
+                <View style={[styles.savedPlaceIcon, styles.savedPlaceIconEmpty]}>
+                  <Ionicons name="add" size={16} color="#F26522" />
+                </View>
+                <Text style={styles.savedPlaceLabel}>Mes lieux</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         )}
 
         {/* Point at the place on the map instead of typing it (Uber, Yango). */}
-        {onOpenMap && !assigning && query.trim().length === 0 && (
-          <TouchableOpacity style={styles.locationCardRow} onPress={onOpenMap} activeOpacity={0.7} accessibilityRole="button">
+        {openMap && query.trim().length === 0 && (
+          <TouchableOpacity style={styles.locationCardRow} onPress={openMap} activeOpacity={0.7} accessibilityRole="button">
             <View style={[styles.iconSquareBadge, styles.mapBadge]}>
               <Ionicons name="map" size={22} color="#FFFFFF" />
             </View>
@@ -299,7 +342,7 @@ export function LocationSuggestionsList({
 
         {/* Clickable Custom Typed Destination Option */}
         {/* A typed text has no coordinates yet: it cannot become « Maison » or « Travail ». */}
-        {query.trim().length > 0 && !assigning && (
+        {query.trim().length > 0 && !picking && (
           <TouchableOpacity
             style={styles.customQueryRow}
             onPress={() => onSelectLocation(query.trim())}
@@ -343,7 +386,7 @@ export function LocationSuggestionsList({
         ))}
 
         {/* Frequent places shortcuts */}
-        {filteredLocations.filter((item) => !assigning || knownPlace(item.title)).map((item) => (
+        {filteredLocations.filter((item) => !picking || knownPlace(item.title)).map((item) => (
           <TouchableOpacity
             key={item.id}
             style={styles.locationCardRow}
@@ -444,12 +487,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F26522',
   },
   savedPlacesRow: {
-    flexDirection: 'row',
     gap: 10,
     paddingVertical: 8,
   },
   savedPlaceChip: {
-    flex: 1,
+    width: 150,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F2F2F4',
@@ -465,6 +507,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+  },
+  managePlacesChip: {
+    width: 'auto',
+    paddingRight: 16,
   },
   savedPlaceIconEmpty: {
     backgroundColor: '#FFFFFF',

@@ -42,6 +42,7 @@ class TextRequest(BaseModel):
     position: Position | None = None
     context: dict[str, Any] | None = None
     trip: dict[str, Any] | None = None  # trajet suivi dans l'application (« je descends où ? »)
+    places: list[dict[str, Any]] | None = None  # lieux du voyageur (Maison, Travail…), jamais gardés
     speak: bool = False
 
 
@@ -141,12 +142,13 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
     @app.post("/voice/ask")
     async def ask(request: TextRequest):
         position = request.position.model_dump() if request.position else None
-        payload = await run_in_threadpool(dialog().ask, request.text, position, request.context, request.trip)
+        payload = await run_in_threadpool(dialog().ask, request.text, position, request.context, request.trip, request.places)
         return await run_in_threadpool(with_audio, payload, request.speak)
 
     @app.post("/voice/query")
     async def query(audio: UploadFile = File(...), lat: float | None = Form(None), lon: float | None = Form(None),
-                    context: str | None = Form(None), trip: str | None = Form(None), speak: bool = Form(True)):
+                    context: str | None = Form(None), trip: str | None = Form(None), places: str | None = Form(None),
+                    speak: bool = Form(True)):
         data = await audio.read(config.MAX_AUDIO_BYTES + 1)
         if len(data) > config.MAX_AUDIO_BYTES:
             raise HTTPException(413, detail="Audio trop volumineux.")
@@ -173,7 +175,8 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
                 ctx = json.loads(context) if context else None
             except json.JSONDecodeError:
                 ctx = None
-            payload = await run_in_threadpool(dialog().ask, transcript["text"], position, ctx, ctx_raw_passthrough(trip))
+            payload = await run_in_threadpool(dialog().ask, transcript["text"], position, ctx, ctx_raw_passthrough(trip),
+                                              ctx_raw_passthrough(places))
         payload["transcript"] = transcript
         return await run_in_threadpool(with_audio, payload, speak)
 

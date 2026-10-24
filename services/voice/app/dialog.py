@@ -6,12 +6,14 @@ Le nouchi reste hors des consignes critiques (politique de voix SIRA v0.3).
 from __future__ import annotations
 
 import re
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from . import normalize as nz
 from .knowledge import Retriever
 from .nlu import NLUModel
+from .personal import clean_places, find_place
 from .resolver import Match, PlaceResolver, norm, same_name
 from .short_answer import yes_no
 from .trip import NO_TRIP, TripAnswers, clean_trip
@@ -33,6 +35,9 @@ QUESTIONS = {
 RETRY_REASONS = {"low_intent_confidence", "unresolvable_place"}
 # Un lieu dit seul (« Cocody ! ») classé dans ces intentions veut dire « je vais là ».
 PLACE_ALONE_INTENTS = {"confirm", "out_of_scope", "voice_help"}
+# Lieux du voyageur (Maison, Travail…) de la question en cours. Le dialogue sert toutes les requêtes à la fois :
+# ils sont propres à chaque appel de ask(), jamais gardés sur l'objet.
+_PERSONAL: ContextVar[list[dict]] = ContextVar("personal_places", default=[])
 YES_NO = {"oui", "ok", "d accord", "ya foye", "yafoye", "non", "voila", "c est ca", "merci"}
 # FAQ (services/voice/knowledge) : une vraie demande de trajet (« je vais à Treichville en bateau-bus ») ne cède
 # la place qu'à une fiche presque identique à la phrase (« le bateau-bus part d'où à Treichville ? »).
@@ -80,7 +85,16 @@ class VoiceDialog:
         self.faq_threshold = faq_threshold
 
     # ------------------------------------------------------------------ comprendre
-    def _place(self, entity: dict) -> tuple[dict, str | None]:
+    def _place(self, entity: dict, sentence: str = "") -> tuple[dict, str | None]:
+        # « à la maison », « au boulot », « chez Maman » : le lieu choisi par le voyageur passe avant le répertoire.
+        # Le modèle n'entend souvent que « tantie » dans « chez tantie » : le nom dit en entier dans la phrase compte.
+        mine = find_place(entity["text"], _PERSONAL.get())
+        if not mine and sentence:
+            in_sentence = find_place(sentence, _PERSONAL.get())
+            if in_sentence and norm(entity["text"]) and f" {norm(entity['text'])} " in f" {in_sentence['heard']} ":
+                mine = in_sentence
+        if mine:
+            return {"heard": entity["text"], "match": mine, "alternatives": [], "reason": None}, None
         matches = self.resolver.resolve(entity["text"])
         reason = self.resolver.decide(matches, self.place_threshold, self.place_margin)
         info = {"heard": entity["text"], "match": matches[0].as_dict() if matches else None,
@@ -92,6 +106,9 @@ class VoiceDialog:
         clean = text.strip(" .,!?;:")
         if not clean or norm(clean) in YES_NO:
             return None
+        if len(clean.split()) <= 4 and find_place(clean, _PERSONAL.get()):  # « À la maison ! »
+            start = text.index(clean)
+            return {"label": "DESTINATION", "start": start, "end": start + len(clean), "text": clean, "score": 1.0}
         matches = self.resolver.resolve(clean)
         if matches and matches[0].score >= 95 and self.resolver.decide(matches, self.place_threshold, self.place_margin) is None:
             start = text.index(clean)
@@ -119,10 +136,16 @@ class VoiceDialog:
                 e["value"] = nz.departure_at(e["text"])
         for label, key in (("DESTINATION", "destination"), ("ORIGIN", "origin"), ("PLACE", "place")):
             if by_label.get(label):
-                info, reason = self._place(by_label[label][0])
+                info, reason = self._place(by_label[label][0], text)
                 u.places[key] = info
                 if reason and (intent in ROUTE_INTENTS or key == "destination"):
                     u.reasons.append(reason)
+        # « Je rentre à la maison » sans lieu reconnu par le modèle : on cherche les lieux du voyageur dans la phrase.
+        if "destination" not in u.places and intent in ROUTE_INTENTS:
+            origin = ((u.places.get("origin") or {}).get("match") or {}).get("canonical")
+            mine = find_place(text, _PERSONAL.get(), skip=origin)
+            if mine:
+                u.places["destination"] = {"heard": mine["heard"], "match": mine, "alternatives": [], "reason": None}
         if confidence < self.intent_min_confidence:
             u.reasons.append("low_intent_confidence")
         if intent in ROUTE_INTENTS:
@@ -187,8 +210,17 @@ class VoiceDialog:
             return None if reason else self._point(info)
         return None
 
-    def ask(self, text: str, position: dict | None = None, context: dict | None = None, trip: dict | None = None) -> dict:
-        """trip : le trajet suivi dans l'application (calculé par SIRA-MORE), pour « je descends où ? »."""
+    def ask(self, text: str, position: dict | None = None, context: dict | None = None, trip: dict | None = None,
+            places: list | None = None) -> dict:
+        """trip : le trajet suivi dans l'application (calculé par SIRA-MORE), pour « je descends où ? ».
+        places : les lieux du voyageur (Maison, Travail…), lus pour cette question seulement."""
+        token = _PERSONAL.set(clean_places(places))
+        try:
+            return self._ask(text, position, context, trip)
+        finally:
+            _PERSONAL.reset(token)
+
+    def _ask(self, text: str, position: dict | None, context: dict | None, trip: dict | None) -> dict:
         u = self.understand(text, position)
         pending = (context or {}).get("pending_request")
         trip = clean_trip(trip)

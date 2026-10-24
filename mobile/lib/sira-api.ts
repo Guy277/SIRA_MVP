@@ -312,8 +312,12 @@ const appendAudio = (form: FormData, audio: VoiceAudio) => {
   else form.append('audio', audio as unknown as Blob);
 };
 
+// The traveller's places (Maison, Travail…), read by the assistant for this question only.
+export type VoicePlace = { kind: 'home' | 'work' | 'custom'; label: string; title: string; lat: number; lon: number };
+
 // Spoken request: audio recorded by the app (never stored by SIRA).
-export function askByVoice(audio: VoiceAudio, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null) {
+export function askByVoice(audio: VoiceAudio, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null,
+  places: VoicePlace[] = []) {
   const form = new FormData();
   appendAudio(form, audio);
   if (position) {
@@ -322,16 +326,18 @@ export function askByVoice(audio: VoiceAudio, position: Coordinates | null, cont
   }
   if (context) form.append('context', JSON.stringify(context));
   if (trip) form.append('trip', JSON.stringify(trip));
+  if (places.length) form.append('places', JSON.stringify(places));
   form.append('speak', String(speak));
   return voiceRequest('/voice/query', { method: 'POST', body: form });
 }
 
 // Same assistant from typed text (examples, no microphone).
-export function askByText(text: string, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null) {
+export function askByText(text: string, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null,
+  places: VoicePlace[] = []) {
   return voiceRequest('/voice/ask', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, position: position ? { lat: position.latitude, lon: position.longitude } : null, context, trip, speak }),
+    body: JSON.stringify({ text, position: position ? { lat: position.latitude, lon: position.longitude } : null, context, trip, speak, places }),
   });
 }
 

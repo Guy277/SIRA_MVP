@@ -6,6 +6,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { AnimatedText, Text, TextInput } from '@/components/sira-text';
 import { Image } from 'expo-image';
@@ -18,7 +19,8 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { firstName, useSession, useSessionRestored } from '@/lib/session';
-import { ensureCurrentPlace, isOwnPosition, rememberPlace, useCurrentPlace } from '@/lib/places';
+import { distanceM, ensureCurrentPlace, isOwnPosition, rememberPlace, useCurrentPlace } from '@/lib/places';
+import { useSavedPlaces } from '@/lib/saved-places';
 import { VoiceAssistantSheet } from '@/components/voice-assistant-sheet';
 import type { VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
@@ -57,6 +59,8 @@ export default function HomeScreen() {
   const greetingName = firstName(session?.user);
   const here = useCurrentPlace();
   useEffect(() => { void ensureCurrentPlace(); }, []);
+  // Within 200 m of a saved place, the traveller is there already: it is not offered.
+  const placesToGo = useSavedPlaces().filter((place) => here.status !== 'ready' || distanceM(here.coordinates, place) > 200);
   const [isYangoModalOpen, setIsYangoModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   // Another departure than one's own position, picked in the header of « On va où ? ».
@@ -269,6 +273,30 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
 
+          {/* The traveller's places (Maison, Travail, « Chez Maman »…) in one touch; not the one they are at. */}
+          {placesToGo.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.myPlacesRow}
+              contentContainerStyle={styles.myPlacesContent}
+            >
+              {placesToGo.map((place) => (
+                <TouchableOpacity
+                  key={place.id}
+                  style={styles.myPlaceChip}
+                  onPress={() => handleLocationSelect(place.title)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Aller à ${place.label} : ${place.title}`}
+                >
+                  <Ionicons name={place.icon as keyof typeof Ionicons.glyphMap} size={16} color="#F26522" />
+                  <Text style={styles.wayBackText} numberOfLines={1}>{place.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
           {/* Destination Search Bar (Floating Pill - Orange inactive / Dark active) */}
           <TouchableOpacity
             style={styles.searchPill}
@@ -476,6 +504,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 6,
+  },
+  myPlacesRow: {
+    maxWidth: SEARCH_PILL_WIDTH,
+    flexGrow: 0,
+    marginBottom: 10,
+  },
+  myPlacesContent: {
+    gap: 8,
+  },
+  myPlaceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: 170,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 20,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
   },
   wayBackText: {
     color: '#FFFFFF',

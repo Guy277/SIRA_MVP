@@ -147,6 +147,64 @@ class HorsReseauTest(unittest.TestCase):
         self.assertNotIn("réseau de SIRA", out["reply_text"])
 
 
+class LieuxDuVoyageurTest(unittest.TestCase):
+    """Maison, Travail et lieux nommés dans l'application : « emmène-moi à la maison » part de son adresse."""
+
+    PLACES = [
+        {"kind": "home", "label": "Maison", "title": "Riviera Palmeraie, rue des Jardins", "lat": 5.3631, "lon": -3.9594},
+        {"kind": "work", "label": "Travail", "title": "Orange Digital Center", "lat": 5.3260, "lon": -4.0198},
+        {"kind": "custom", "label": "Chez Maman", "title": "Yopougon Niangon", "lat": 5.3226, "lon": -4.0874},
+        {"kind": "custom", "label": "Lyon", "title": "Hors d'Abidjan", "lat": 45.76, "lon": 4.83},  # ignoré
+    ]
+
+    def setUp(self):
+        self.planner = Planner()
+        self.d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5,
+                             self.planner)
+
+    def test_maison_et_travail(self):
+        self.d.ask("je rentre à la maison", POSITION, places=self.PLACES)
+        self.d.ask("emmène-moi au boulot", POSITION, places=self.PLACES)
+        self.assertEqual([c["destination"]["name"] for c in self.planner.calls],
+                         ["Riviera Palmeraie, rue des Jardins", "Orange Digital Center"])
+        self.assertEqual(self.planner.calls[0]["destination"]["lat"], 5.3631)
+
+    def test_lieu_nomme_par_le_voyageur(self):
+        self.d.ask("je vais chez maman", POSITION, places=self.PLACES)
+        self.assertEqual(self.planner.calls[0]["destination"]["name"], "Yopougon Niangon")
+
+    def test_le_modele_n_entend_qu_une_partie_du_nom(self):
+        # Vu avec CamemBERT : dans « je vais chez tantie », seul « tantie » est reconnu comme lieu.
+        class PartNLU:
+            def predict(self, text):
+                start = text.index("tantie")
+                return "navigate_to", 0.9, [{"label": "DESTINATION", "start": start, "end": start + 6, "text": "tantie", "score": 0.9}]
+        d = VoiceDialog(PartNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5, self.planner)
+        places = [*self.PLACES, {"kind": "custom", "label": "Chez Tantie", "title": "Niangon sud", "lat": 5.3164, "lon": -4.0937}]
+        d.ask("je vais chez tantie", POSITION, places=places)
+        self.assertEqual(self.planner.calls[0]["destination"]["name"], "Niangon sud")
+
+    def test_reponse_a_tu_veux_aller_ou(self):
+        out = self.d.ask("je veux un trajet", POSITION, places=self.PLACES)
+        self.d.ask("à la maison", POSITION, out["context"], places=self.PLACES)
+        self.assertEqual(self.planner.calls[-1]["destination"]["name"], "Riviera Palmeraie, rue des Jardins")
+
+    def test_sans_lieux_rien_ne_change(self):
+        self.d.ask("je rentre à la maison", POSITION)
+        self.d.ask("je vais au plato", POSITION, places=self.PLACES)
+        self.assertEqual([c["destination"]["name"] for c in self.planner.calls], ["Plateau"])
+
+    def test_lieux_jamais_gardes_d_une_question_a_l_autre(self):
+        self.d.ask("je rentre à la maison", POSITION, places=self.PLACES)
+        self.d.ask("je rentre à la maison", POSITION)
+        self.assertEqual(len(self.planner.calls), 1)
+
+    def test_lieux_hors_abidjan_ou_mal_formes_ignores(self):
+        from services.voice.app.personal import clean_places
+        kept = clean_places([*self.PLACES, "Maison", {"kind": "home", "lat": "x", "lon": 1}, {"label": "Ab", "title": "A", "lat": 5.3, "lon": -4}])
+        self.assertEqual([p["label"] for p in kept], ["Maison", "Travail", "Chez Maman"])
+
+
 class ResolverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

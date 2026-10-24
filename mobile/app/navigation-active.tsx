@@ -24,6 +24,7 @@ import { upsertReport, useLiveReports } from '@/lib/reports';
 import { locateUser, refreshCurrentPlace } from '@/lib/places';
 import { goBack, goHome } from '@/lib/navigation';
 import { currentToken } from '@/lib/session';
+import { arrivalPhrase, placeForTitle } from '@/lib/saved-places';
 import { alightSoonSpeech, arrivalSpeech, fareQuestion, gpsEvent, gpsHint, minutes, spokenJourney, startSpeech, stepSpeech } from '@/lib/guidance';
 import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
 import { useSpokenQuestion } from '@/lib/use-spoken-question';
@@ -139,6 +140,9 @@ export default function NavigationActiveScreen() {
   };
 
   const destinationName = search?.arrival.name ?? 'ta destination';
+  // « Te voilà à la maison ! » when the trip goes to one of the traveller's places.
+  const savedArrival = placeForTitle(search?.arrival.name);
+  const arrivalWhere = savedArrival ? arrivalPhrase(savedArrival) : `à ${destinationName}`;
   // Community price asked on arrival (lines with a known id, not taxis).
   const fareLeg = journey?.legs.find((leg) => isVehicle(leg) && leg.mode !== 'taxi' && leg.line_id) ?? null;
   const canShareFare = Boolean(fareLeg && currentToken());
@@ -284,7 +288,7 @@ export default function NavigationActiveScreen() {
     if (!arrived || arrivalSaid.current) return;
     arrivalSaid.current = true;
     void (async () => {
-      await say(arrivalSpeech(destinationName), 'guidance');
+      await say(arrivalSpeech(arrivalWhere), 'guidance');
       if (!fareLeg || !canShareFare) return;
       const answer = await question.ask(fareQuestion(fareLeg), 'fare');
       if (answer?.amount) void sendFare(answer.amount);
@@ -474,7 +478,7 @@ export default function NavigationActiveScreen() {
           <View style={styles.bottomDashboardCard}>
             <View style={styles.arrivalHeader}>
               <Ionicons name="flag" size={24} color="#10B981" />
-              <Text style={styles.arrivalTitle}>Te voilà à {destinationName} !</Text>
+              <Text style={styles.arrivalTitle}>Te voilà {arrivalWhere} !</Text>
             </View>
             {canShareFare && fareLeg && fare.state === 'ask' && (
               <>

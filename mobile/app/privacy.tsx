@@ -23,6 +23,7 @@ type Icon = keyof typeof Ionicons.glyphMap;
 const NOT_KEPT: { icon: Icon; title: string; text: string }[] = [
   { icon: 'mic-off', title: 'Ta voix', text: "Elle sert seulement à comprendre ta demande, puis elle est effacée tout de suite, sur ton téléphone comme sur nos serveurs." },
   { icon: 'location', title: 'Ta position', text: "SIRA ne l'enregistre pas. Pour nommer l'endroit où tu es et chercher un lieu, elle est envoyée au service de cartes Photon (komoot, en Allemagne) ; pour un trajet en taxi, ton départ et ton arrivée passent par le service OSRM." },
+  { icon: 'bookmark', title: 'Tes lieux (Maison, Travail…)', text: "Ils restent sur ton téléphone. Ils partent seulement avec une question à SIRA, pour la comprendre, et ne sont pas gardés." },
   { icon: 'chatbubble-ellipses', title: 'Tes codes SMS', text: 'Ils sont effacés au bout de 24 heures.' },
   { icon: 'warning', title: 'Tes signalements', text: "Ils sont anonymes, visibles par tous les voyageurs, et disparaissent après quelques heures. N'y écris ni nom ni numéro de téléphone." },
 ];

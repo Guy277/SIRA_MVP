@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { LocationSuggestionsList } from './location-suggestions-list';
 import { MapLocationPicker } from './map-location-picker';
+import { useRouter } from 'expo-router';
 import { isOwnPosition } from '@/lib/places';
 
 interface YangoLocationModalProps {
@@ -49,7 +50,13 @@ function PickerBody({
   departureName,
   onSelectDeparture,
 }: YangoLocationModalProps) {
+  const router = useRouter();
   const [query, setQuery] = React.useState(initialQuery);
+  // « Mes lieux » opens above the screen: the picker closes first.
+  const managePlaces = () => {
+    onClose();
+    router.push('/my-places');
+  };
   // The list, or the map to point at the place directly.
   const [onMap, setOnMap] = React.useState(false);
   // Choosing a destination, the traveller touched the departure: they pick it first,
@@ -100,6 +107,7 @@ function PickerBody({
             onBackPress={() => { setChoosingDeparture(false); setQuery(''); }}
             onOpenMap={() => setOnMap(true)}
             onSelectLocation={pickDeparture}
+            onManagePlaces={managePlaces}
             onUseCurrentLocation={() => pickDeparture(currentLocationName)}
           />
         </KeyboardAvoidingView>
@@ -122,6 +130,7 @@ function PickerBody({
           showFullHeader={true}
           onBackPress={onClose}
           onOpenMap={() => setOnMap(true)}
+          onManagePlaces={managePlaces}
           onSelectLocation={(title) => {
             onSelectLocation(title);
             onClose();

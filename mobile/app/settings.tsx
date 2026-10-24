@@ -49,6 +49,13 @@ export default function SettingsScreen() {
       onPress: () => router.push('/location-settings'),
     },
     {
+      id: 'places',
+      title: 'Mes lieux',
+      subtitle: 'Maison, Travail et tes lieux à toi',
+      iconName: 'bookmark',
+      onPress: () => router.push('/my-places'),
+    },
+    {
       id: 'appearance',
       title: 'Apparence',
       subtitle: 'Thème et affichage de l’application',
