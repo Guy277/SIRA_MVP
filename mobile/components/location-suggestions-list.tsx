@@ -2,15 +2,18 @@ import React from 'react';
 import {
   StyleSheet,
   View,
-  Text,
   TouchableOpacity,
   ScrollView,
-  TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { Text, TextInput } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 import { searchPlaces, type PlaceResult } from '@/lib/sira-api';
-import { placeLabel, rememberPlace } from '@/lib/places';
+import { knownPlace, placeLabel, rememberPlace } from '@/lib/places';
+import { SAVED_PLACE_LABELS, savePlace, useSavedPlaces, type SavedPlaceKind } from '@/lib/saved-places';
+
+const SAVED_PLACE_ICONS: Record<SavedPlaceKind, keyof typeof Ionicons.glyphMap> = { home: 'home', work: 'briefcase' };
+const SAVED_PLACE_PROMPTS: Record<SavedPlaceKind, string> = { home: 'ta maison', work: 'ton travail' };
 
 export interface LocationItem {
   id: string;
@@ -146,9 +149,27 @@ export function LocationSuggestionsList({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [query]);
 
+  // « Maison » / « Travail »: while one is being set, the next place touched with
+  // known coordinates becomes that address instead of a destination.
+  const savedPlaces = useSavedPlaces();
+  const [assigning, setAssigning] = React.useState<SavedPlaceKind | null>(null);
+
+  const assign = (kind: SavedPlaceKind, title: string, subtitle: string, coordinates: { latitude: number; longitude: number }) => {
+    savePlace(kind, { title, subtitle, ...coordinates });
+    setAssigning(null);
+    onQueryChange?.('');
+  };
+
   const selectResult = (place: PlaceResult) => {
     rememberPlace(place.title, place.coordinates);
-    onSelectLocation(place.title);
+    if (assigning) assign(assigning, place.title, place.subtitle, place.coordinates);
+    else onSelectLocation(place.title);
+  };
+
+  const selectShortcut = (item: LocationItem) => {
+    const coordinates = knownPlace(item.title);
+    if (!assigning) onSelectLocation(item.title);
+    else if (coordinates) assign(assigning, item.title, item.subtitle, coordinates);
   };
 
   return (
@@ -189,7 +210,7 @@ export function LocationSuggestionsList({
           <Ionicons name="search-outline" size={20} color="#777777" style={styles.searchIcon} />
           <TextInput
             style={styles.searchTextInput}
-            placeholder={placeholder}
+            placeholder={assigning ? `Adresse de ${SAVED_PLACE_PROMPTS[assigning]}…` : placeholder}
             placeholderTextColor="#888888"
             value={query}
             onChangeText={onQueryChange}
@@ -209,8 +230,61 @@ export function LocationSuggestionsList({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContentContainer}
       >
+        {/* Setting « Maison » or « Travail »: what to do, and a way out */}
+        {assigning && (
+          <View style={styles.assignBanner}>
+            <Text style={styles.assignBannerText}>
+              Cherche l’adresse de {SAVED_PLACE_PROMPTS[assigning]}, puis touche-la pour l’enregistrer.
+            </Text>
+            <View style={styles.assignBannerActions}>
+              {savedPlaces[assigning] && (
+                <TouchableOpacity
+                  onPress={() => { savePlace(assigning, null); setAssigning(null); }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.assignBannerLink}>Retirer</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setAssigning(null)} activeOpacity={0.7} accessibilityRole="button">
+                <Text style={styles.assignBannerLink}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* One-touch « Maison » and « Travail » (Yango, Google Maps); long press to change */}
+        {!assigning && query.trim().length === 0 && (
+          <View style={styles.savedPlacesRow}>
+            {(['home', 'work'] as const).map((kind) => {
+              const place = savedPlaces[kind];
+              return (
+                <TouchableOpacity
+                  key={kind}
+                  style={styles.savedPlaceChip}
+                  onPress={() => (place ? onSelectLocation(place.title) : setAssigning(kind))}
+                  onLongPress={() => setAssigning(kind)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={place
+                    ? `${SAVED_PLACE_LABELS[kind]} : ${place.title}. Appui long pour changer.`
+                    : `Ajouter l’adresse de ${SAVED_PLACE_PROMPTS[kind]}`}
+                >
+                  <View style={[styles.savedPlaceIcon, !place && styles.savedPlaceIconEmpty]}>
+                    <Ionicons name={SAVED_PLACE_ICONS[kind]} size={14} color={place ? '#FFFFFF' : '#F26522'} />
+                  </View>
+                  <View style={styles.savedPlaceTextCol}>
+                    <Text style={styles.savedPlaceLabel}>{SAVED_PLACE_LABELS[kind]}</Text>
+                    <Text style={styles.savedPlaceValue} numberOfLines={1}>{place ? place.title : 'Ajouter'}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {/* Point at the place on the map instead of typing it (Uber, Yango). */}
-        {onOpenMap && query.trim().length === 0 && (
+        {onOpenMap && !assigning && query.trim().length === 0 && (
           <TouchableOpacity style={styles.locationCardRow} onPress={onOpenMap} activeOpacity={0.7} accessibilityRole="button">
             <View style={[styles.iconSquareBadge, styles.mapBadge]}>
               <Ionicons name="map" size={22} color="#FFFFFF" />
@@ -224,7 +298,8 @@ export function LocationSuggestionsList({
         )}
 
         {/* Clickable Custom Typed Destination Option */}
-        {query.trim().length > 0 && (
+        {/* A typed text has no coordinates yet: it cannot become « Maison » or « Travail ». */}
+        {query.trim().length > 0 && !assigning && (
           <TouchableOpacity
             style={styles.customQueryRow}
             onPress={() => onSelectLocation(query.trim())}
@@ -268,11 +343,11 @@ export function LocationSuggestionsList({
         ))}
 
         {/* Frequent places shortcuts */}
-        {filteredLocations.map((item) => (
+        {filteredLocations.filter((item) => !assigning || knownPlace(item.title)).map((item) => (
           <TouchableOpacity
             key={item.id}
             style={styles.locationCardRow}
-            onPress={() => onSelectLocation(item.title)}
+            onPress={() => selectShortcut(item)}
             activeOpacity={0.7}
           >
             {/* Left Rounded Square Icon Badge */}
@@ -367,6 +442,70 @@ const styles = StyleSheet.create({
   },
   mapBadge: {
     backgroundColor: '#F26522',
+  },
+  savedPlacesRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  savedPlaceChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F4',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  savedPlaceIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F26522',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  savedPlaceIconEmpty: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F26522',
+  },
+  savedPlaceTextCol: {
+    flex: 1,
+  },
+  savedPlaceLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  savedPlaceValue: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 1,
+  },
+  assignBanner: {
+    backgroundColor: '#FFF3EC',
+    borderRadius: 14,
+    padding: 12,
+    marginVertical: 8,
+  },
+  assignBannerText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111111',
+    lineHeight: 20,
+  },
+  assignBannerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 18,
+    marginTop: 8,
+  },
+  assignBannerLink: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F26522',
   },
   carteButton: {
     paddingVertical: 4,

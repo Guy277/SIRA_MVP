@@ -10,11 +10,11 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
+import { AnimatedText, Text } from '@/components/sira-text';
 import Animated, {
   Easing, FadeIn, FadeInDown, ReduceMotion, cancelAnimation, runOnJS,
   useAnimatedStyle, useSharedValue, withTiming,
@@ -214,7 +214,7 @@ export default function OnboardingScreen() {
           ))}
         </View>
 
-        <Animated.Text
+        <AnimatedText
           key={`title-${currentIndex}`}
           entering={FadeInDown.duration(350)}
           style={[styles.titleText, { fontSize: titleSize, lineHeight: titleSize * 1.22 }]}
@@ -222,15 +222,15 @@ export default function OnboardingScreen() {
           numberOfLines={3}
         >
           {SLIDES[currentIndex].title}
-        </Animated.Text>
+        </AnimatedText>
 
-        <Animated.Text
+        <AnimatedText
           key={`text-${currentIndex}`}
           entering={FadeIn.delay(120).duration(350)}
           style={[styles.descriptionText, { fontSize: textSize, lineHeight: textSize * 1.35 }]}
         >
           {SLIDES[currentIndex].description}
-        </Animated.Text>
+        </AnimatedText>
 
         {held && <Text style={styles.pausedText}>En pause</Text>}
       </Pressable>

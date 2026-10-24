@@ -1,6 +1,7 @@
 // Compact line of the steps of a journey: walk minutes and line badges.
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 import type { ApiJourney, LegMode } from '@/lib/sira-api';
 import { legBadges } from '@/lib/journey-format';

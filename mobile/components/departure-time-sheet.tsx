@@ -1,7 +1,8 @@
 // "Partir maintenant" or "Partir à…": a bottom sheet with quick offsets and
 // hour/minute steppers, so no native date picker dependency is needed.
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 import { formatClock } from '@/lib/journey-format';
 

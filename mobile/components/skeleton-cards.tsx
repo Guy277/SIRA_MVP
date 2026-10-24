@@ -1,7 +1,8 @@
 // Grey placeholder cards that pulse while SIRA computes the journeys: the
 // traveller sees the shape of the answer coming instead of a spinner.
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/components/sira-text';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 export function SkeletonCards({ label, count = 3 }: { label: string; count?: number }) {

@@ -1,7 +1,8 @@
 // Text that writes itself, used for SIRA's first words of the day. Shown in
 // full at once when `play` is false or the phone reduces animations.
 import React, { useEffect, useState } from 'react';
-import { Text, type StyleProp, type TextStyle } from 'react-native';
+import { type StyleProp, type TextStyle } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { useReducedMotion } from 'react-native-reanimated';
 
 type Props = { text: string; play: boolean; style?: StyleProp<TextStyle>; delayMs?: number; charMs?: number };

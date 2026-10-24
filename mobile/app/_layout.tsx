@@ -1,18 +1,28 @@
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 import { restoreSession } from '@/lib/session';
 import { loadIntroMemory } from '@/lib/motion';
+import { loadSavedPlaces } from '@/lib/saved-places';
 import { loadVoiceMode } from '@/lib/voice';
 import { SpeakingPill } from '@/components/speaking-pill';
+import { loadWebFonts, MONTSERRAT_FONTS } from '@/components/sira-text';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
 export default function RootLayout() {
-  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); }, []);
+  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); }, []);
+  // Montserrat before the first screen, so no text flashes in the system font.
+  // Without it (failed download on web), the screens fall back to the system font.
+  const [fontsLoaded, fontError] = useFonts(MONTSERRAT_FONTS);
+  // Web: every weight starts downloading now, without holding the first screen
+  // (about 2 MB of fonts, several seconds on a slow mobile connection).
+  useEffect(() => { if (fontsLoaded) void loadWebFonts(); }, [fontsLoaded]);
+  if (!fontsLoaded && !fontError) return null;
   return (
     <>
       <Stack

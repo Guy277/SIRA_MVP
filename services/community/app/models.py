@@ -1,4 +1,4 @@
-"""Persistence of accounts, one-time codes and community fare reports."""
+"""Persistence of accounts, one-time codes, community fare reports and trip ratings."""
 
 from __future__ import annotations
 
@@ -60,6 +60,20 @@ class FareReport(Base):
     line_id: Mapped[str] = mapped_column(String(64), index=True)
     mode: Mapped[str] = mapped_column(String(20))
     amount: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class TripRating(Base):
+    """Note de 1 à 5 donnée à l'arrivée d'un trajet guidé par SIRA, avec les lignes empruntées."""
+
+    __tablename__ = "community_trip_ratings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("community_users.id", ondelete="CASCADE"), index=True)
+    rating: Mapped[int] = mapped_column(Integer)
+    # Lignes du graphe SIRA et modes du trajet, séparés par des virgules.
+    line_ids: Mapped[str] = mapped_column(String(700), default="")
+    modes: Mapped[str] = mapped_column(String(100), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

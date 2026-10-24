@@ -5,12 +5,12 @@ import React, { useEffect } from 'react';
 import {
   StyleSheet,
   View,
-  Text,
   TouchableOpacity,
   ScrollView,
   Dimensions,
   Platform,
 } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';

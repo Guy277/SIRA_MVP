@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
-  Text,
   TouchableOpacity,
   Modal,
   ScrollView,
@@ -12,6 +11,7 @@ import {
   Share,
   Alert,
 } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';

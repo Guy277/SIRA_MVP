@@ -111,6 +111,29 @@ class FareTests(unittest.TestCase):
         self.assertEqual(client.get("/fares", params={"line_id": "inconnue"}).json()[0]["validated"], False)
 
 
+class TripRatingTests(unittest.TestCase):
+    """« Comment s'est passé ton trajet ? » : la note de l'arrivée est vraiment gardée, avec les lignes."""
+
+    def test_rating_is_kept_with_the_lines(self):
+        token = login(phone="07 41 41 41 41", name="Koffi")
+        rating = {"rating": 4, "line_ids": ["Line:relation:123", " "], "modes": ["walk", "gbaka"]}
+        response = client.post("/trips/ratings", json=rating, headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json(), {"rating": 4, "line_ids": ["Line:relation:123"]})
+        from services.community.app.models import SessionLocal, TripRating
+        with SessionLocal() as db:
+            kept = db.query(TripRating).filter(TripRating.line_ids == "Line:relation:123").one()
+            self.assertEqual((kept.rating, kept.modes), (4, "walk,gbaka"))
+
+    def test_rating_needs_an_account(self):
+        self.assertEqual(client.post("/trips/ratings", json={"rating": 5}).status_code, 401)
+
+    def test_rating_is_one_to_five_stars(self):
+        auth = {"Authorization": f"Bearer {login(phone='07 42 42 42 42')}"}
+        for stars in (0, 6):
+            self.assertEqual(client.post("/trips/ratings", json={"rating": stars}, headers=auth).status_code, 422)
+
+
 class DevSecretTests(unittest.TestCase):
     def test_development_key_survives_restarts(self):
         # Bug observé : une clé neuve à chaque redémarrage déconnectait tout le monde
@@ -129,8 +152,10 @@ class PrivacyTests(unittest.TestCase):
         token = login(phone="07 31 31 31 31", name="Adjoua")
         auth = {"Authorization": f"Bearer {token}"}
         client.post("/fares/reports", json={"line_id": "ligne-privacy", "mode": "woro", "amount": 300}, headers=auth)
+        client.post("/trips/ratings", json={"rating": 5, "line_ids": ["ligne-privacy"]}, headers=auth)
         data = client.get("/users/me/privacy", headers=auth).json()
-        self.assertEqual((data["phone_number"], data["full_name"], data["fare_reports"]), ("+2250731313131", "Adjoua", 1))
+        self.assertEqual((data["phone_number"], data["full_name"], data["fare_reports"], data["trip_ratings"]),
+                         ("+2250731313131", "Adjoua", 1, 1))
         self.assertIn("created_at", data)
         self.assertEqual(client.get("/users/me/privacy").status_code, 401)
 
@@ -138,13 +163,15 @@ class PrivacyTests(unittest.TestCase):
         token = login(phone="07 32 32 32 32", name="Yao")
         auth = {"Authorization": f"Bearer {token}"}
         client.post("/fares/reports", json={"line_id": "ligne-effacee", "mode": "gbaka", "amount": 500}, headers=auth)
+        client.post("/trips/ratings", json={"rating": 2, "line_ids": ["ligne-effacee"]}, headers=auth)
         self.assertEqual(client.delete("/users/me", headers=auth).status_code, 204)
         # Le jeton ne sert plus, le prix partagé ne compte plus, le numéro n'a plus de code en base.
         self.assertEqual(client.get("/auth/me", headers=auth).status_code, 401)
         self.assertEqual(client.get("/fares", params={"line_id": "ligne-effacee"}).json()[0]["reports"], 0)
-        from services.community.app.models import OtpCode, SessionLocal
+        from services.community.app.models import OtpCode, SessionLocal, TripRating
         with SessionLocal() as db:
             self.assertEqual(db.query(OtpCode).filter(OtpCode.phone_number == "+2250732323232").count(), 0)
+            self.assertEqual(db.query(TripRating).filter(TripRating.line_ids == "ligne-effacee").count(), 0)
         # Le même numéro peut recréer un compte, comme un nouveau voyageur.
         again = client.post("/auth/verify-otp", json={"phone_number": "07 32 32 32 32", "code": client.post(
             "/auth/request-otp", json={"phone_number": "07 32 32 32 32"}).json()["demo_code"]}).json()

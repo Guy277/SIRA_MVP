@@ -9,11 +9,10 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { AnimatedText, Text, TextInput } from '@/components/sira-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   BounceInDown, FadeIn, FadeInDown, FadeInLeft, FadeInRight,
@@ -194,8 +193,8 @@ export default function LoginScreen() {
         {/* Tagline Slogan Row (Top: 107px, Left: 42px, 325x111 at -13.72deg):
             the road comes in, then "ON TRACE," then "SANS STRESS." */}
         <View style={styles.sloganRow} pointerEvents="none">
-          <Animated.Text entering={intro ? FadeIn.delay(450).duration(350) : FadeIn.duration(250)} style={styles.sloganWhite}>ON TRACE, </Animated.Text>
-          <Animated.Text entering={intro ? FadeIn.delay(750).duration(350) : FadeIn.duration(250)} style={styles.sloganOrange}>SANS STRESS.</Animated.Text>
+          <AnimatedText entering={intro ? FadeIn.delay(450).duration(350) : FadeIn.duration(250)} style={styles.sloganWhite}>ON TRACE, </AnimatedText>
+          <AnimatedText entering={intro ? FadeIn.delay(750).duration(350) : FadeIn.duration(250)} style={styles.sloganOrange}>SANS STRESS.</AnimatedText>
         </View>
 
         {/* Location Pin Icon (Top: 107px, Left: 313px, 42x55 at 13.89deg),
@@ -231,43 +230,43 @@ export default function LoginScreen() {
             <View style={styles.textContainer} key={askName ? 'name' : signedIn ? 'in' : traveller ? 'known' : 'new'}>
               {askName ? (
                 <>
-                  <Animated.Text entering={enter(0, 0)} style={styles.titleLine1}>ENCHANTÉ !</Animated.Text>
-                  <Animated.Text entering={enter(1, 0)} style={styles.titleLine2}>
+                  <AnimatedText entering={enter(0, 0)} style={styles.titleLine1}>ENCHANTÉ !</AnimatedText>
+                  <AnimatedText entering={enter(1, 0)} style={styles.titleLine2}>
                     TON COMPTE <Text style={styles.titleOrange}>EST PRÊT</Text>
-                  </Animated.Text>
-                  <Animated.Text entering={enter(2, 0)} style={styles.subtitle}>
+                  </AnimatedText>
+                  <AnimatedText entering={enter(2, 0)} style={styles.subtitle}>
                     <Text style={styles.subtitleBold}>Comment on t’appelle ?</Text>{'\n'}
                     SIRA te saluera par ton prénom.
-                  </Animated.Text>
+                  </AnimatedText>
                 </>
               ) : known === undefined ? null : traveller ? (
                 <>
-                  <Animated.Text entering={enter(0)} style={styles.titleLine1}>HEUREUX</Animated.Text>
-                  <Animated.Text entering={enter(1)} style={styles.titleLine2}>
+                  <AnimatedText entering={enter(0)} style={styles.titleLine1}>HEUREUX</AnimatedText>
+                  <AnimatedText entering={enter(1)} style={styles.titleLine2}>
                     DE <Text style={styles.titleOrange}>TE REVOIR{name ? ',' : ''}</Text>
-                  </Animated.Text>
-                  {name && <Animated.Text entering={enter(2)} style={[styles.titleLine2, styles.titleOrange]}>{name}</Animated.Text>}
-                  <Animated.Text entering={enter(3)} style={styles.subtitle}>
+                  </AnimatedText>
+                  {name && <AnimatedText entering={enter(2)} style={[styles.titleLine2, styles.titleOrange]}>{name}</AnimatedText>}
+                  <AnimatedText entering={enter(3)} style={styles.subtitle}>
                     {signedIn ? (
                       <>Ton compte est déjà actif sur ce téléphone.{'\n'}<Text style={styles.subtitleBold}>Continue directement, sans code.</Text></>
                     ) : (
                       <>Ta mobilité à Abidjan t’attend.{'\n'}<Text style={styles.subtitleBold}>Confirme ton numéro Orange : code à {OTP_LENGTH} chiffres par SMS.</Text></>
                     )}
-                  </Animated.Text>
+                  </AnimatedText>
                 </>
               ) : (
                 <>
-                  <Animated.Text entering={enter(0)} style={styles.titleLine1}>BIENVENUE</Animated.Text>
-                  <Animated.Text entering={enter(1)} style={styles.titleLine2}>
+                  <AnimatedText entering={enter(0)} style={styles.titleLine1}>BIENVENUE</AnimatedText>
+                  <AnimatedText entering={enter(1)} style={styles.titleLine2}>
                     SUR <Text style={styles.titleOrange}>SIRA</Text>
-                  </Animated.Text>
+                  </AnimatedText>
                   {/* One sentence at a time instead of a paragraph. */}
                   <Animated.View entering={enter(2)} style={styles.rotatingWrap}>
                     <RotatingText phrases={WELCOME_PHRASES} style={[styles.subtitle, styles.noMargin]} />
                   </Animated.View>
-                  <Animated.Text entering={enter(3)} style={[styles.subtitle, styles.subtitleBold]}>
+                  <AnimatedText entering={enter(3)} style={[styles.subtitle, styles.subtitleBold]}>
                     Entre ton numéro Orange (07) : code à {OTP_LENGTH} chiffres par SMS.
-                  </Animated.Text>
+                  </AnimatedText>
                 </>
               )}
             </View>
@@ -312,9 +311,9 @@ export default function LoginScreen() {
             </Animated.View>
             )}
             {!signedIn && !askName && otp.step === 'phone' && numberCheck.message && (
-              <Animated.Text entering={FadeIn.duration(200)} style={styles.numberError} accessibilityRole="alert">
+              <AnimatedText entering={FadeIn.duration(200)} style={styles.numberError} accessibilityRole="alert">
                 {numberCheck.message}
-              </Animated.Text>
+              </AnimatedText>
             )}
             {otp.info && !askName && (
               <Text style={styles.otpInfo}>

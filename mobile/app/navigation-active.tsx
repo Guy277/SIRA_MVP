@@ -8,14 +8,14 @@ import {
   Dimensions,
   Platform,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/sira-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OsmMapView } from '@/components/osm-map-view';
+import { TripRatingModal } from '@/components/trip-rating-modal';
 import { notify } from '@/lib/notify';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { fetchJourneys, journeyImpact, reportFare, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
@@ -53,6 +53,8 @@ export default function NavigationActiveScreen() {
   const [arrived, setArrived] = useState(false);
   const [fare, setFare] = useState<{ state: 'ask' | 'sent'; typed: string }>({ state: 'ask', typed: '' });
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  // « Comment s'est passé ton trajet ? », asked when the traveller ends an arrived trip.
+  const [showRating, setShowRating] = useState(false);
   // Small phones: the top card grows (title on two lines), so what sits under it
   // follows its real bottom; the bottom card keeps only the icon of « Quitter ».
   const [hudBottom, setHudBottom] = useState(0);
@@ -151,6 +153,14 @@ export default function NavigationActiveScreen() {
     } catch (error) {
       notify('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     }
+  };
+
+  // Arrived: the trip is over, the home map is next (as in Google Maps and Waze).
+  const finishTrip = () => {
+    setShowRating(false);
+    journeyStore.finish();
+    void refreshCurrentPlace();
+    goHome(router);
   };
 
   const nextStep = () => {
@@ -496,11 +506,10 @@ export default function NavigationActiveScreen() {
             <TouchableOpacity
               style={[styles.cancelExitBtn, styles.arrivalDone]}
               onPress={() => {
-                // Arrived: the trip is over, the home map is next (as in Google Maps and Waze).
                 question.cancel();
-                journeyStore.finish();
-                void refreshCurrentPlace();
-                goHome(router);
+                // The note goes to the traveller's account: without one, the trip just ends.
+                if (currentToken()) setShowRating(true);
+                else finishTrip();
               }}
               activeOpacity={0.85}
             >
@@ -601,6 +610,8 @@ export default function NavigationActiveScreen() {
           </View>
         )}
       </SafeAreaView>
+
+      <TripRatingModal visible={showRating} legs={journey.legs} onClose={finishTrip} />
     </View>
   );
 }

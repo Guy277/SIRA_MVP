@@ -206,14 +206,21 @@ export const verifyOtp = (phone: string, code: string, fullName?: string) =>
 export const updateName = (fullName: string) =>
   apiJson<LoginResult['user']>('/users/me', { method: 'PATCH', body: JSON.stringify({ full_name: fullName }) });
 // Privacy screen: everything SIRA keeps about the traveller, and real account deletion
-// (account, shared fares and SMS codes of the number are erased on the server).
-export type PrivacySummary = { phone_number: string; full_name: string | null; role: string; created_at: string; fare_reports: number };
+// (account, shared fares, trip ratings and SMS codes of the number are erased on the server).
+export type PrivacySummary = { phone_number: string; full_name: string | null; role: string; created_at: string; fare_reports: number; trip_ratings?: number };
 export const privacySummary = () => apiJson<PrivacySummary>('/users/me/privacy');
 export const deleteAccount = () => apiJson<void>('/users/me', { method: 'DELETE' });
 export const fareSummaries = (lineIds: string[]) =>
   apiJson<FareSummary[]>(`/fares?${lineIds.map((id) => `line_id=${encodeURIComponent(id)}`).join('&')}`);
 export const reportFare = (lineId: string, mode: LegMode, amount: number) =>
   apiJson<FareSummary>('/fares/reports', { method: 'POST', body: JSON.stringify({ line_id: lineId, mode, amount }) });
+// Stars given on arrival, kept with the lines taken so the trips can be compared.
+export const rateTrip = (rating: number, legs: ApiLeg[]) =>
+  apiJson<{ rating: number }>('/trips/ratings', { method: 'POST', body: JSON.stringify({
+    rating,
+    line_ids: [...new Set(legs.map((leg) => leg.line_id).filter((id): id is string => Boolean(id)))].slice(0, 10),
+    modes: [...new Set(legs.map((leg) => leg.mode))],
+  }) });
 
 export type ReversePlace = { title: string; subtitle: string; kind: 'landmark' | 'street' | 'area'; lat: number; lon: number };
 // Nearest landmark (junction, station, bus stop…) or street for a position.

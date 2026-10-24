@@ -3,7 +3,8 @@
 // for reduced animations.
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
-import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import { AnimatedText } from '@/components/sira-text';
+import { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 
 type Props = { phrases: string[]; style?: StyleProp<TextStyle>; intervalMs?: number; lines?: number };
 
@@ -20,7 +21,7 @@ export function RotatingText({ phrases, style, intervalMs = 3200, lines = 2 }: P
   return (
     // Fixed height so the layout below does not jump between phrases.
     <View style={[styles.frame, { height: lineHeight * lines }]} accessibilityLiveRegion="polite">
-      <Animated.Text
+      <AnimatedText
         key={index}
         entering={FadeInDown.duration(350)}
         exiting={FadeOutUp.duration(250)}
@@ -28,7 +29,7 @@ export function RotatingText({ phrases, style, intervalMs = 3200, lines = 2 }: P
         numberOfLines={lines}
       >
         {phrases[index % phrases.length]}
-      </Animated.Text>
+      </AnimatedText>
     </View>
   );
 }

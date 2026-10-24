@@ -2,12 +2,12 @@ import React from 'react';
 import {
   StyleSheet,
   View,
-  Text,
   TouchableOpacity,
   Modal,
   Platform,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ProfilePhotoModalProps {

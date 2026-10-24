@@ -2,7 +2,8 @@
 // the traveller moves the map (or taps a spot) and SIRA names the place
 // under the pin; one button confirms it as departure or destination.
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PinMap } from '@/components/pin-map';

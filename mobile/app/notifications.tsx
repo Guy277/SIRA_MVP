@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
-  Text,
   TouchableOpacity,
   ScrollView,
-  TextInput,
   Dimensions,
   Platform,
   SafeAreaView,
 } from 'react-native';
+import { Text, TextInput } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';

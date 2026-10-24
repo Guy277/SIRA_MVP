@@ -3,7 +3,8 @@
 // alone can always be stopped. Gone as soon as SIRA is quiet.
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname } from 'expo-router';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/sira-text';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setVoiceMode, stopSpeaking, useSpeaking } from '@/lib/voice';

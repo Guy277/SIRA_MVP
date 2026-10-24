@@ -2,7 +2,8 @@
 // ne garde pas (et à qui la position est envoyée), l'état réel des
 // autorisations du téléphone, et la suppression définitive du compte.
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -77,6 +78,7 @@ export default function PrivacyScreen() {
     { label: 'Nom', value: data.full_name || 'Non renseigné' },
     { label: 'Compte créé le', value: formatDate(data.created_at) },
     { label: 'Prix partagés', value: data.fare_reports === 0 ? 'Aucun' : `${data.fare_reports}` },
+    { label: 'Trajets notés', value: data.trip_ratings ? `${data.trip_ratings}` : 'Aucun' },
   ] : [];
 
   return (
@@ -151,7 +153,7 @@ export default function PrivacyScreen() {
           <View style={styles.deleteIcon}><Ionicons name="trash" size={16} color="#FFFFFF" /></View>
           <View style={styles.itemText}>
             <Text style={styles.deleteTitle}>Supprimer mon compte</Text>
-            <Text style={styles.itemBody}>Efface ton numéro, ton nom et tes prix partagés, pour de bon.</Text>
+            <Text style={styles.itemBody}>Efface ton numéro, ton nom, tes prix partagés et tes notes de trajet, pour de bon.</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#E53935" />
         </TouchableOpacity>}

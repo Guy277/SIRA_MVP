@@ -5,7 +5,7 @@ import { RateLimiter, clientIp } from "../rate-limit";
 type Request = { originalUrl: string; method: string; headers: Record<string, string | string[] | undefined>; body?: unknown; socket?: { remoteAddress?: string } };
 type Response = { status(code: number): Response; type(value: string): Response; send(body: string): void; json(body: unknown): void };
 
-// Accounts and community fares live in the community service (FastAPI);
+// Accounts, community fares and trip ratings live in the community service (FastAPI);
 // the app keeps a single base URL and this controller forwards to it.
 export const COMMUNITY_URL = (process.env.COMMUNITY_URL ?? "http://community:8100").replace(/\/$/, "");
 const FORWARDED_HEADERS = ["authorization", "content-type", "accept-language"];
@@ -17,7 +17,7 @@ const otpRequests = new RateLimiter(Number(process.env.SIRA_OTP_REQUESTS_PER_IP 
 
 @Controller()
 export class CommunityController {
-  @All(["auth/*path", "users/*path", "fares", "fares/*path"])
+  @All(["auth/*path", "users/*path", "fares", "fares/*path", "trips/*path"])
   async forward(@Req() request: Request, @Res() response: Response) {
     const path = request.originalUrl.replace(/^\/api\/v1/, "");
     if (request.method === "POST" && path.startsWith("/auth/request-otp") && !otpRequests.allow(clientIp(request))) {

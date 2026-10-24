@@ -2,12 +2,12 @@ import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
-  Text,
   TouchableOpacity,
   FlatList,
   ScrollView,
   Platform,
 } from 'react-native';
+import { Text } from '@/components/sira-text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';

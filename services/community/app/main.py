@@ -1,8 +1,8 @@
-"""SIRA community service: phone accounts and community fares.
+"""SIRA community service: phone accounts, community fares and trip ratings.
 
 Built from the AKA branch (Aka Abraham): OTP login through Orange, JWT
 sessions and crowd-validated fares (validated after 3 matching reports).
-It sits behind the NestJS API, which forwards /auth, /users and /fares.
+It sits behind the NestJS API, which forwards /auth, /users, /fares and /trips.
 """
 
 from __future__ import annotations
@@ -14,10 +14,11 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .models import FareReport, OtpCode, User, get_db, init_db
+from .models import FareReport, OtpCode, TripRating, User, get_db, init_db
 from .security import OTP_DIGITS, current_user, request_otp, user_payload, verify_otp
 
 Role = Literal["STUDENT", "WORKER", "TRADER", "DRIVER", "TOURIST"]
+Mode = Literal["walk", "wait", "transfer", "sotra", "gbaka", "woro", "taxi", "boat"]
 FARE_TOLERANCE_FCFA = 50
 FARE_VALIDATION_COUNT = 3
 
@@ -45,6 +46,12 @@ class FareReportIn(BaseModel):
     line_id: str = Field(min_length=1, max_length=64)
     mode: Literal["sotra", "gbaka", "woro", "taxi", "boat"]
     amount: float = Field(gt=0, le=20_000)
+
+
+class TripRatingIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    line_ids: list[str] = Field(default=[], max_length=10)
+    modes: list[Mode] = Field(default=[], max_length=12)
 
 
 @app.get("/health")
@@ -82,13 +89,15 @@ def update_me(payload: ProfileUpdate, user: User = Depends(current_user), db: Se
 def my_data(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Tout ce que SIRA garde sur le voyageur (écran Confidentialité de l'application)."""
     return {**user_payload(user), "created_at": user.created_at.isoformat(),
-            "fare_reports": db.query(FareReport).filter(FareReport.user_id == user.id).count()}
+            "fare_reports": db.query(FareReport).filter(FareReport.user_id == user.id).count(),
+            "trip_ratings": db.query(TripRating).filter(TripRating.user_id == user.id).count()}
 
 
 @app.delete("/users/me", status_code=204)
 def delete_me(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Suppression définitive (loi n° 2013-450) : compte, prix partagés et codes SMS de ce numéro."""
+    """Suppression définitive (loi n° 2013-450) : compte, prix partagés, notes de trajet et codes SMS de ce numéro."""
     db.query(FareReport).filter(FareReport.user_id == user.id).delete()
+    db.query(TripRating).filter(TripRating.user_id == user.id).delete()
     db.query(OtpCode).filter(OtpCode.phone_number == user.phone_number).delete()
     db.delete(user)
     db.commit()
@@ -125,3 +134,12 @@ def fares(line_id: list[str] = Query(default=[], max_length=20), db: Session = D
     if not line_id:
         raise HTTPException(status_code=400, detail="Indique au moins une ligne (line_id).")
     return [fare_summary(line, db.query(FareReport).filter(FareReport.line_id == line).all()) for line in line_id]
+
+
+@app.post("/trips/ratings", status_code=201)
+def rate_trip(payload: TripRatingIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Note donnée à l'arrivée (écran « Comment s'est passé ton trajet ? »), gardée avec les lignes empruntées."""
+    line_ids = [line.strip()[:64] for line in payload.line_ids if line.strip()]
+    db.add(TripRating(user_id=user.id, rating=payload.rating, line_ids=",".join(line_ids), modes=",".join(payload.modes)))
+    db.commit()
+    return {"rating": payload.rating, "line_ids": line_ids}

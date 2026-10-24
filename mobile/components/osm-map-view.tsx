@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, ViewStyle, Text } from 'react-native';
+import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Text } from '@/components/sira-text';
 import MapView, {
   Marker,
   Polyline,

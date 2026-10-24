@@ -2,13 +2,12 @@ import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { AnimatedText, Text, TextInput } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -232,13 +231,13 @@ export default function HomeScreen() {
               style={[styles.speechGreeting, styles.speechGreetingBold]}
             />
             {message.greeting.lines.map((line, index) => (
-              <Animated.Text
+              <AnimatedText
                 key={line}
                 entering={message.animate ? FadeIn.delay(1000 + index * 350).duration(350) : FadeIn.duration(250)}
                 style={index === message.greeting.lines.length - 1 ? styles.speechSub : styles.speechMain}
               >
                 {bubbleLine(line)}
-              </Animated.Text>
+              </AnimatedText>
             ))}
             {/* Speech bubble pointer arrow */}
             <View style={styles.speechBubbleArrow} />
