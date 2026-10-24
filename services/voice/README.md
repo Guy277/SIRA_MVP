@@ -17,7 +17,7 @@ Micro → Silero VAD + Whisper (voix → texte)
 | Transcrire | Whisper `small` int8 (`turbo` possible) via faster-whisper | MIT | aucun pour l'instant |
 | Comprendre | CamemBERTv2 fine-tuné sur le dataset SIRA fr-CI v0.4 | MIT | notebook Colab |
 | Retrouver le lieu | règles phonétiques + RapidFuzz, 2 259 lieux (GTFS AbidjanTransport) + compléments | code SIRA / ODbL | aucun |
-| Parler | Piper `fr_FR-siwis-medium` | CC BY 4.0 | aucun |
+| Parler | Piper `fr_FR-upmc-medium` (« pierre », homme, par défaut) ou `fr_FR-siwis-medium` (femme), au choix dans Apparence | CC BY-SA 4.0 / CC BY 4.0 | aucun |
 
 **Compléments du répertoire de lieux** (`knowledge/lieux_complements.json`, dans Git) : le répertoire du notebook
 n'est pas modifié, ces corrections sont appliquées au chargement.
@@ -59,7 +59,7 @@ est cherché dans cet ordre :
 services/models/voice/
 ├── sira_models_v0.4/   CamemBERTv2 fine-tunés (intent + entités) + 2 259 lieux  (≈ 890 Mo)
 ├── whisper/small/      Whisper (faster-whisper)                                 (≈ 480 Mo)
-└── piper/              voix française fr_FR-siwis-medium                        (≈ 63 Mo)
+└── piper/              voix fr_FR-upmc-medium (homme) et fr_FR-siwis-medium (femme) (≈ 140 Mo)
 ```
 
 **2. Environnement Python + modèles prêts à l'emploi** :
@@ -152,7 +152,10 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 | `VOICE_WHISPER_BEAM` | `5` | précision de la transcription ; `1` ≈ 20 % plus rapide mais déforme des lieux |
 | `VOICE_SPEECH_RATE` | `1.1` | vitesse de la voix de SIRA (`1.0` = voix d'origine) |
 | `VOICE_PRELOAD` | `1` | Whisper et Piper chargés dès le démarrage (sinon la 1re phrase attend 10 à 20 s) |
-| `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-siwis-medium.onnx` | voix de SIRA (future voix ivoirienne : remplacer ce fichier) |
+| `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-siwis-medium.onnx` | voix de femme de SIRA |
+| `VOICE_PIPER_MALE_MODEL` | `services/models/voice/piper/fr_FR-upmc-medium.onnx` | voix d'homme de SIRA (future voix ivoirienne : remplacer ce fichier) |
+| `VOICE_PIPER_MALE_SPEAKER` | `1` | locuteur dans le modèle d'homme (upmc : `1` = pierre ; vide pour un modèle à une voix) |
+| `VOICE_DEFAULT` | `homme` | voix quand l'application n'en demande pas (`homme` ou `femme`) |
 | `SIRA_API_URL` | `http://127.0.0.1:4000/api/v1` | API de calcul des trajets |
 | `VOICE_PLACE_THRESHOLD` / `VOICE_PLACE_MARGIN` | `90` / `3` | seuils du correcteur de lieux : en dessous de 90, SIRA demande « Tu veux dire … ? » |
 

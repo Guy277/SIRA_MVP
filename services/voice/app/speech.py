@@ -66,9 +66,10 @@ class Transcriber:
 
 
 class Synthesizer:
-    def __init__(self, voice_path: Path, speed: float = 1.0):
+    def __init__(self, voice_path: Path, speed: float = 1.0, speaker_id: int | None = None):
         self.voice_path = Path(voice_path)
         self.speed = speed
+        self.speaker_id = speaker_id  # modèle à plusieurs voix (upmc : 1 = pierre)
         self._voice = None
         self._lock = threading.Lock()
 
@@ -102,7 +103,7 @@ class Synthesizer:
             if hasattr(voice, "synthesize_wav"):  # piper-tts ≥ 1.3
                 from piper.config import SynthesisConfig
 
-                voice.synthesize_wav(text, wav, syn_config=SynthesisConfig(length_scale=1 / self.speed))
+                voice.synthesize_wav(text, wav, syn_config=SynthesisConfig(length_scale=1 / self.speed, speaker_id=self.speaker_id))
             else:  # piper-tts 1.2
-                voice.synthesize(text, wav, length_scale=1 / self.speed)
+                voice.synthesize(text, wav, length_scale=1 / self.speed, speaker_id=self.speaker_id)
         return buffer.getvalue()

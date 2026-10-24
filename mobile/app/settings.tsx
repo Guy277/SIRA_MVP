@@ -58,7 +58,7 @@ export default function SettingsScreen() {
     {
       id: 'appearance',
       title: 'Apparence',
-      subtitle: 'Thème et affichage de l’application',
+      subtitle: 'Voix de SIRA, thème et affichage',
       iconName: 'color-palette',
       onPress: () => router.push('/appearance-settings'),
     },

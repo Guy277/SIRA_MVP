@@ -1,6 +1,7 @@
 // SIRA's voice, shared by every screen (greeting, assistant, guidance, alerts).
 // Three settings as in Google Maps: all spoken, alerts only, or muted.
-// SIRA speaks with its own Piper voice (services/voice), else the phone's voice.
+// SIRA speaks with its own Piper voice (services/voice), a man's (like the character)
+// or a woman's, as chosen in Apparence; else the phone's voice.
 import { useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
@@ -20,23 +21,53 @@ const KEY = 'sira-voice-mode';
 const MODES: VoiceMode[] = ['on', 'alerts', 'off'];
 export const VOICE_MODE_LABELS: Record<VoiceMode, string> = { on: 'Voix activée', alerts: 'Alertes seulement', off: 'Voix coupée' };
 
+export type VoiceGender = 'homme' | 'femme';
+const GENDER_KEY = 'sira-voice-gender';
+export const VOICE_GENDER_LABELS: Record<VoiceGender, string> = { homme: 'Homme', femme: 'Femme' };
+
 let mode: VoiceMode = 'on';
+let gender: VoiceGender = 'homme';
 const listeners = new Set<() => void>();
+
+const readSetting = (key: string) => (Platform.OS === 'web' ? Promise.resolve(window.localStorage.getItem(key)) : SecureStore.getItemAsync(key));
+function writeSetting(key: string, value: string) {
+  try {
+    if (Platform.OS === 'web') window.localStorage.setItem(key, value);
+    else void SecureStore.setItemAsync(key, value).catch(() => {});
+  } catch { /* stockage indisponible */ }
+}
 
 export async function loadVoiceMode() {
   try {
-    const saved = Platform.OS === 'web' ? window.localStorage.getItem(KEY) : await SecureStore.getItemAsync(KEY);
+    const saved = await readSetting(KEY);
     if (saved && (MODES as string[]).includes(saved)) { mode = saved as VoiceMode; listeners.forEach((l) => l()); }
-  } catch { /* réglage illisible : voix activée */ }
+    const savedGender = await readSetting(GENDER_KEY);
+    if (savedGender === 'homme' || savedGender === 'femme') { gender = savedGender; listeners.forEach((l) => l()); }
+  } catch { /* réglage illisible : voix activée, voix d'homme */ }
+}
+
+export const getVoiceGender = () => gender;
+
+// A man's or a woman's voice: SIRA says one sentence with the new voice.
+export function setVoiceGender(next: VoiceGender) {
+  gender = next;
+  listeners.forEach((l) => l());
+  writeSetting(GENDER_KEY, next);
+  void say('Voilà, je te parle avec cette voix.', 'answer');
+}
+
+export function useVoiceGender() {
+  return useSyncExternalStore(
+    (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
+    () => gender,
+    () => gender,
+  );
 }
 
 export function setVoiceMode(next: VoiceMode) {
   mode = next;
   listeners.forEach((l) => l());
-  try {
-    if (Platform.OS === 'web') window.localStorage.setItem(KEY, next);
-    else void SecureStore.setItemAsync(KEY, next).catch(() => {});
-  } catch { /* stockage indisponible */ }
+  writeSetting(KEY, next);
   if (next === 'off') stopSpeaking();
 }
 
@@ -102,7 +133,7 @@ export function stopSpeaking() {
 // Sentences written by the app (greeting, steps, prompts) come back often: SIRA's
 // voice for each one is kept (on the phone: in the cache folder, even after a
 // restart; on the web: for the session), so it plays at once the next time.
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const WEB_CACHE_MAX = 40;
 const webCache = new Map<string, string>();
 const TTS_TIMEOUT_MS = 6000;
@@ -110,7 +141,8 @@ const TTS_TIMEOUT_MS = 6000;
 const textKey = (text: string) => {
   let hash = 5381;
   for (let index = 0; index < text.length; index += 1) hash = ((hash << 5) + hash + text.charCodeAt(index)) | 0;
-  return `${CACHE_VERSION}-${(hash >>> 0).toString(36)}-${text.length}`;
+  // Each voice has its own recordings.
+  return `${CACHE_VERSION}-${gender}-${(hash >>> 0).toString(36)}-${text.length}`;
 };
 
 async function fetchVoice(text: string): Promise<Response | null> {
@@ -118,7 +150,7 @@ async function fetchVoice(text: string): Promise<Response | null> {
   const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
   try {
     const response = await fetch(`${apiBaseUrl()}/voice/tts`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }), signal: controller.signal,
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, voice: gender }), signal: controller.signal,
     });
     return response.ok ? response : null;
   } catch {

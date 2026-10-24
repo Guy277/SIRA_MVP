@@ -317,7 +317,7 @@ export type VoicePlace = { kind: 'home' | 'work' | 'custom'; label: string; titl
 
 // Spoken request: audio recorded by the app (never stored by SIRA).
 export function askByVoice(audio: VoiceAudio, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null,
-  places: VoicePlace[] = []) {
+  places: VoicePlace[] = [], voice: 'homme' | 'femme' = 'homme') {
   const form = new FormData();
   appendAudio(form, audio);
   if (position) {
@@ -328,16 +328,17 @@ export function askByVoice(audio: VoiceAudio, position: Coordinates | null, cont
   if (trip) form.append('trip', JSON.stringify(trip));
   if (places.length) form.append('places', JSON.stringify(places));
   form.append('speak', String(speak));
+  form.append('voice', voice);
   return voiceRequest('/voice/query', { method: 'POST', body: form });
 }
 
 // Same assistant from typed text (examples, no microphone).
 export function askByText(text: string, position: Coordinates | null, context: VoiceContext, speak = true, trip: VoiceTrip | null = null,
-  places: VoicePlace[] = []) {
+  places: VoicePlace[] = [], voice: 'homme' | 'femme' = 'homme') {
   return voiceRequest('/voice/ask', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text, position: position ? { lat: position.latitude, lon: position.longitude } : null, context, trip, speak, places }),
+    body: JSON.stringify({ text, position: position ? { lat: position.latitude, lon: position.longitude } : null, context, trip, speak, places, voice }),
   });
 }
 

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { savedPlaces, voicePlaces } from '@/lib/saved-places';
 import { askByText, askByVoice, type Coordinates, type VoiceAudio, type VoiceContext, type VoiceReply, type VoiceTrip } from '@/lib/sira-api';
 import { useMicrophone } from '@/lib/use-microphone';
-import { say, stopSpeaking } from '@/lib/voice';
+import { getVoiceGender, say, stopSpeaking } from '@/lib/voice';
 import { MIC_NEEDS_HTTPS, needsSecureContext } from '@/lib/secure-context';
 
 export type VoicePhase = 'idle' | 'recording' | 'thinking' | 'answered' | 'error';
@@ -62,7 +62,7 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
   };
 
   const microphone = useMicrophone((audio: VoiceAudio | null) => handle(audio
-    ? askByVoice(audio, position, context.current, true, trip, voicePlaces(savedPlaces()))
+    ? askByVoice(audio, position, context.current, true, trip, voicePlaces(savedPlaces()), getVoiceGender())
     // Nothing heard counts as a misunderstanding: polite reprompt, then other ways.
     : Promise.resolve({
       reply_text: NOTHING_HEARD, context: context.current, journey_request: null, journeys: null,
@@ -81,7 +81,7 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
   // Microphone button: start listening, or send right away without waiting.
   const toggle = () => (microphone.listening ? microphone.finish(true) : listen());
   const ask = (text: string, { aloud = true } = {}) =>
-    handle(askByText(text, position, context.current, aloud, trip, voicePlaces(savedPlaces())), aloud);
+    handle(askByText(text, position, context.current, aloud, trip, voicePlaces(savedPlaces()), getVoiceGender()), aloud);
 
   // Closing the assistant: microphone released, voice stopped, new conversation next time.
   const reset = () => {

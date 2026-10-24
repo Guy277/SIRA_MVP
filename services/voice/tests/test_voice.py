@@ -699,6 +699,34 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("Assistant vocal SIRA", r.text)
 
+    def test_voix_homme_ou_femme(self):
+        class FakeVoice:
+            def __init__(self, name, available=True):
+                self.name, self.available, self.said = name, available, []
+
+            def synthesize(self, text):
+                self.said.append(text)
+                return self.name.encode()
+        homme, femme = FakeVoice("homme"), FakeVoice("femme")
+        self.client.app.state.voices = {"femme": femme, "homme": homme}
+        self.client.post("/voice/ask", json={"text": "je vais au plato", "position": POSITION, "speak": True, "voice": "femme"})
+        self.assertEqual(self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "homme"}).content, b"homme")
+        self.assertEqual((len(femme.said), homme.said), (1, ["Akwaba"]))
+        self.assertEqual(self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "robot"}).status_code, 422)
+
+    def test_voix_absente_du_serveur(self):
+        from services.voice.app import config
+        from services.voice.app.main import pick_voice
+
+        class FakeVoice:
+            def __init__(self, available):
+                self.available = available
+        homme, femme = FakeVoice(False), FakeVoice(True)
+        voices = {"femme": femme, "homme": homme}
+        self.assertIs(pick_voice(voices, "homme"), femme)  # pas encore installée : l'autre voix parle
+        self.assertIs(pick_voice(voices, None), femme)
+        self.assertIn(config.DEFAULT_VOICE, ("homme", "femme"))
+
     def test_reponse_courte_sans_calcul_de_trajet(self):
         class SaidASR:
             def transcribe(self, data):
