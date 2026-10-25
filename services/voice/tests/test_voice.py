@@ -714,6 +714,33 @@ class ApiTest(unittest.TestCase):
         self.assertEqual((len(femme.said), homme.said), (1, ["Akwaba"]))
         self.assertEqual(self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "robot"}).status_code, 422)
 
+    def test_voix_envoyee_en_mp3(self):
+        # 9 fois plus léger que le WAV : la voix arrive vite même en 3G (mesuré : 47 Ko au lieu de 411 Ko pour 9 s).
+        import io
+        import math
+        import wave as wavemod
+
+        buffer = io.BytesIO()
+        with wavemod.open(buffer, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(22050)
+            wav.writeframes(b"".join(int(8000 * math.sin(i / 10)).to_bytes(2, "little", signed=True) for i in range(22050)))
+        wav_bytes = buffer.getvalue()
+
+        class WavVoice:
+            available = True
+
+            def synthesize(self, text):
+                return wav_bytes
+        self.client.app.state.voices = {"femme": WavVoice(), "homme": WavVoice()}
+        r = self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "homme"})
+        self.assertEqual(r.headers["content-type"], "audio/mpeg")
+        self.assertTrue(r.content[:3] == b"ID3" or r.content[0] == 0xFF)
+        self.assertLess(len(r.content), len(wav_bytes) / 4)
+        body = self.client.post("/voice/ask", json={"text": "je vais au plato", "position": POSITION, "speak": True}).json()
+        self.assertEqual(body["reply_audio"]["mime"], "audio/mpeg")
+
     def test_voix_absente_du_serveur(self):
         from services.voice.app import config
         from services.voice.app.main import pick_voice
@@ -753,6 +780,15 @@ class SpeechSettingsTest(unittest.TestCase):
     def test_vitesse_de_lecture(self):
         from services.voice.app import config
         self.assertTrue(0.7 <= config.SPEECH_RATE <= 1.5)
+
+    def test_intonation_reguliere_choisie_a_l_ecoute(self):
+        # Réglage « D » choisi le 2026-10-25 : plus régulier que les valeurs du modèle (0,667 / 0,8).
+        from services.voice.app import config
+        self.assertEqual((config.NOISE_SCALE, config.NOISE_W), (0.5, 0.6))
+        app = create_app(nlu=FakeNLU(), planner=Planner(), live=FakeLive())
+        with TestClient(app):
+            pierre = app.state.voices["homme"]
+            self.assertEqual((pierre.noise_scale, pierre.noise_w, pierre.speaker_id), (0.5, 0.6, 1))
 
 
 class ShortAnswerTest(unittest.TestCase):

@@ -53,7 +53,7 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
     setOfferTyping(giveUp);
     setReply(shown);
     setBusy('answered');
-    if (aloud) await say(shown.reply_text, 'answer', shown.reply_audio?.base64 ?? null);
+    if (aloud) await say(shown.reply_text, 'answer', shown.reply_audio?.base64 ?? null, shown.reply_audio?.mime);
     if (!open.current) return;
     setHeard(shown);
     // A question or « répète » : listen again right away, hands-free.

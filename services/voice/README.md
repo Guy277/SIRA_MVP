@@ -151,6 +151,9 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 | `VOICE_WHISPER_DEVICE` / `VOICE_WHISPER_COMPUTE` | `cpu` / `int8` | `cuda` / `float16` avec un GPU |
 | `VOICE_WHISPER_BEAM` | `5` | précision de la transcription ; `1` ≈ 20 % plus rapide mais déforme des lieux |
 | `VOICE_SPEECH_RATE` | `1.1` | vitesse de la voix de SIRA (`1.0` = voix d'origine) |
+| `VOICE_NOISE_SCALE` / `VOICE_NOISE_W` | `0.5` / `0.6` | intonation de Piper : plus bas = plus régulier (choisi à l'écoute le 2026-10-25 ; valeurs du modèle `0.667` / `0.8`) |
+| `VOICE_AUDIO_FORMAT` | `mp3` | voix envoyée à l'appli : `mp3` (≈ 9 fois plus léger, arrive vite en 3G) ou `wav` |
+| `VOICE_AUDIO_BITRATE` | `40000` | débit du MP3 en bits/s |
 | `VOICE_PRELOAD` | `1` | Whisper et Piper chargés dès le démarrage (sinon la 1re phrase attend 10 à 20 s) |
 | `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-siwis-medium.onnx` | voix de femme de SIRA |
 | `VOICE_PIPER_MALE_MODEL` | `services/models/voice/piper/fr_FR-upmc-medium.onnx` | voix d'homme de SIRA (future voix ivoirienne : remplacer ce fichier) |

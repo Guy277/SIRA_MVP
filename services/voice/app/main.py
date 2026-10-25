@@ -24,7 +24,7 @@ from .knowledge import KnowledgeBase
 from .resolver import PlaceResolver
 from .short_answer import parse_amount, yes_no
 from .sira_api import SiraApiClient
-from .speech import SpeechUnavailable, Synthesizer, Transcriber
+from .speech import SpeechUnavailable, Synthesizer, Transcriber, wav_to_mp3
 from .trip import TripAnswers
 
 log = logging.getLogger("sira.voice")
@@ -73,8 +73,9 @@ def build_state(app: FastAPI, nlu=None, planner=None, live=None):
                                config.INTENT_MIN_CONFIDENCE, plan, state.knowledge, trips, config.FAQ_THRESHOLD) if nlu else None
     state.asr = Transcriber(config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE,
                             state.resolver.place_names(kinds=("commune",)), config.MAX_AUDIO_SECONDS, config.WHISPER_BEAM)
-    state.voices = {"femme": Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE),
-                    "homme": Synthesizer(config.PIPER_MALE_VOICE, config.SPEECH_RATE, config.PIPER_MALE_SPEAKER)}
+    tone = {"noise_scale": config.NOISE_SCALE, "noise_w": config.NOISE_W}
+    state.voices = {"femme": Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE, **tone),
+                    "homme": Synthesizer(config.PIPER_MALE_VOICE, config.SPEECH_RATE, config.PIPER_MALE_SPEAKER, **tone)}
     state.tts = pick_voice(state.voices, config.DEFAULT_VOICE)
     if config.PRELOAD:
         # En arrière-plan : le service répond tout de suite, et la première phrase n'attend plus 10 à 20 s.
@@ -97,6 +98,16 @@ def pick_voice(voices: dict, wanted: str | None) -> Synthesizer:
         if name in voices and voices[name].available:
             return voices[name]
     return voices.get(wanted or config.DEFAULT_VOICE) or next(iter(voices.values()))
+
+
+def encode_audio(wav: bytes) -> tuple[bytes, str]:
+    """La voix au format envoyé à l'application (MP3 par défaut) ; le WAV tel quel si l'encodage échoue."""
+    if config.AUDIO_FORMAT == "mp3":
+        try:
+            return wav_to_mp3(wav, config.AUDIO_BITRATE), "audio/mpeg"
+        except Exception as error:  # FFmpeg absent ou audio inattendu : la voix part quand même
+            log.warning("Encodage MP3 impossible, envoi en WAV : %s", error)
+    return wav, "audio/wav"
 
 
 def ctx_raw_passthrough(context: str | None) -> dict | None:
@@ -125,8 +136,8 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
         payload["reply_audio"] = None
         if speak and payload.get("reply_text"):
             try:
-                wav = pick_voice(app.state.voices, voice).synthesize(payload["reply_text"])
-                payload["reply_audio"] = {"mime": "audio/wav", "base64": base64.b64encode(wav).decode()}
+                audio, mime = encode_audio(pick_voice(app.state.voices, voice).synthesize(payload["reply_text"]))
+                payload["reply_audio"] = {"mime": mime, "base64": base64.b64encode(audio).decode()}
             except SpeechUnavailable as error:
                 payload["tts_error"] = str(error)
         return payload
@@ -220,7 +231,8 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
             wav = await run_in_threadpool(pick_voice(app.state.voices, request.voice).synthesize, request.text)
         except SpeechUnavailable as error:
             raise HTTPException(503, detail=str(error)) from error
-        return Response(content=wav, media_type="audio/wav")
+        audio, mime = await run_in_threadpool(encode_audio, wav)
+        return Response(content=audio, media_type=mime)
 
     return app
 

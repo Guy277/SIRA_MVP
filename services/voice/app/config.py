@@ -54,6 +54,16 @@ if DEFAULT_VOICE not in ("homme", "femme"):
     DEFAULT_VOICE = "homme"
 # Vitesse de lecture : 1.0 = voix d'origine, 1.1 = 10 % plus rapide (plus naturel pour des consignes courtes).
 SPEECH_RATE = min(1.5, max(0.7, _float("VOICE_SPEECH_RATE", 1.1)))
+# Intonation de Piper : plus bas = voix plus régulière. 0,5 / 0,6 choisis à l'écoute le 2026-10-25 (réglage « D »,
+# préféré à l'actuel 0,667 / 0,8, à « plus posé » et à « plus vivant ») ; les valeurs d'origine du modèle sont 0,667 / 0,8.
+NOISE_SCALE = min(1.0, max(0.0, _float("VOICE_NOISE_SCALE", 0.5)))
+NOISE_W = min(1.0, max(0.0, _float("VOICE_NOISE_W", 0.6)))
+# Voix envoyée à l'application : MP3 (≈ 9 fois plus léger que le WAV : 47 Ko au lieu de 411 Ko pour 9 s de parole,
+# mesuré le 2026-10-25), lu partout (web, Android, iPhone). « wav » pour l'audio brut.
+AUDIO_FORMAT = os.environ.get("VOICE_AUDIO_FORMAT", "mp3")
+if AUDIO_FORMAT not in ("mp3", "wav"):
+    AUDIO_FORMAT = "mp3"
+AUDIO_BITRATE = int(_float("VOICE_AUDIO_BITRATE", 40_000))
 # Charger Whisper et Piper dès le démarrage (sinon la première phrase attend 10 à 20 s). 0 = au premier usage.
 PRELOAD = os.environ.get("VOICE_PRELOAD", "1") != "0"
 

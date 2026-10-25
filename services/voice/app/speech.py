@@ -11,6 +11,29 @@ class SpeechUnavailable(RuntimeError):
     pass
 
 
+def wav_to_mp3(wav_bytes: bytes, bitrate: int = 40_000) -> bytes:
+    """WAV 16 bits de Piper → MP3 mono (FFmpeg via PyAV, déjà installé pour Whisper). Lève une erreur si ce n'est
+    pas un WAV lisible : l'appelant envoie alors le WAV tel quel."""
+    import av
+    import numpy as np
+
+    with wave.open(io.BytesIO(wav_bytes)) as source:
+        rate, channels = source.getframerate(), source.getnchannels()
+        pcm = np.frombuffer(source.readframes(source.getnframes()), dtype=np.int16)
+    if channels != 1:
+        pcm = pcm.reshape(-1, channels).mean(axis=1).astype(np.int16)
+    out = io.BytesIO()
+    with av.open(out, "w", format="mp3") as container:
+        stream = container.add_stream("libmp3lame", rate=rate)
+        stream.bit_rate = bitrate
+        stream.layout = "mono"
+        frame = av.AudioFrame.from_ndarray(pcm.reshape(1, -1), format="s16", layout="mono")
+        frame.sample_rate = rate
+        for packet in [*stream.encode(frame), *stream.encode(None)]:
+            container.mux(packet)
+    return out.getvalue()
+
+
 class Transcriber:
     def __init__(self, model: str, device: str, compute_type: str, prompt_names: list[str], max_seconds: float,
                  beam_size: int = 5):
@@ -66,10 +89,13 @@ class Transcriber:
 
 
 class Synthesizer:
-    def __init__(self, voice_path: Path, speed: float = 1.0, speaker_id: int | None = None):
+    def __init__(self, voice_path: Path, speed: float = 1.0, speaker_id: int | None = None,
+                 noise_scale: float | None = None, noise_w: float | None = None):
         self.voice_path = Path(voice_path)
         self.speed = speed
         self.speaker_id = speaker_id  # modèle à plusieurs voix (upmc : 1 = pierre)
+        # Intonation : None garde les valeurs du modèle ; plus bas = voix plus régulière.
+        self.noise_scale, self.noise_w = noise_scale, noise_w
         self._voice = None
         self._lock = threading.Lock()
 
@@ -103,7 +129,9 @@ class Synthesizer:
             if hasattr(voice, "synthesize_wav"):  # piper-tts ≥ 1.3
                 from piper.config import SynthesisConfig
 
-                voice.synthesize_wav(text, wav, syn_config=SynthesisConfig(length_scale=1 / self.speed, speaker_id=self.speaker_id))
+                voice.synthesize_wav(text, wav, syn_config=SynthesisConfig(
+                    length_scale=1 / self.speed, speaker_id=self.speaker_id, noise_scale=self.noise_scale, noise_w_scale=self.noise_w))
             else:  # piper-tts 1.2
-                voice.synthesize(text, wav, length_scale=1 / self.speed, speaker_id=self.speaker_id)
+                voice.synthesize(text, wav, length_scale=1 / self.speed, speaker_id=self.speaker_id,
+                                 noise_scale=self.noise_scale, noise_w=self.noise_w)
         return buffer.getvalue()

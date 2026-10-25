@@ -137,7 +137,7 @@ export function stopSpeaking() {
 // Sentences written by the app (greeting, steps, prompts) come back often: SIRA's
 // voice for each one is kept (on the phone: in the cache folder, even after a
 // restart; on the web: for the session), so it plays at once the next time.
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const WEB_CACHE_MAX = 40;
 const webCache = new Map<string, string>();
 const TTS_TIMEOUT_MS = 6000;
@@ -148,6 +148,10 @@ const textKey = (text: string) => {
   // Each voice has its own recordings.
   return `${CACHE_VERSION}-${gender}-${(hash >>> 0).toString(36)}-${text.length}`;
 };
+
+// The server sends MP3 (about 9 times lighter than WAV, so it arrives in time on a
+// mobile connection and SIRA keeps its own voice), or WAV when it could not encode it.
+const extensionFor = (mime: string | null | undefined) => (mime?.includes('wav') ? 'wav' : 'mp3');
 
 async function fetchVoice(text: string): Promise<Response | null> {
   const controller = new AbortController();
@@ -181,19 +185,20 @@ async function cachedVoice(text: string): Promise<string | null> {
     }
     return url;
   }
-  const file = new File(Paths.cache, `sira-voix-${key}.wav`);
-  if (file.exists) return file.uri;
+  const known = ['mp3', 'wav'].map((ext) => new File(Paths.cache, `sira-voix-${key}.${ext}`)).find((file) => file.exists);
+  if (known) return known.uri;
   const response = await fetchVoice(text);
   if (!response) return null;
+  const file = new File(Paths.cache, `sira-voix-${key}.${extensionFor(response.headers.get('content-type'))}`);
   file.write(new Uint8Array(await response.arrayBuffer()));
   return file.uri;
 }
 
-async function wavUri(base64: string | null, text: string): Promise<string | null> {
+async function audioUri(base64: string | null, mime: string, text: string): Promise<string | null> {
   if (!base64) return cachedVoice(text);
   // Answer of the assistant: its audio came with the answer (no second request).
-  if (Platform.OS === 'web') return `data:audio/wav;base64,${base64}`;
-  const file = new File(Paths.cache, 'sira-voix-reponse.wav');
+  if (Platform.OS === 'web') return `data:${mime};base64,${base64}`;
+  const file = new File(Paths.cache, `sira-voix-reponse.${extensionFor(mime)}`);
   file.write(base64, { encoding: 'base64' });
   return file.uri;
 }
@@ -206,7 +211,7 @@ export async function prepareSpeech(texts: string[]) {
 
 // Browsers keep a page silent until it is touched once: the sentence waits for
 // that first touch instead of being lost (on a phone, it is spoken right away).
-type Pending = { text: string; kind: SpeechKind; audioBase64: string | null };
+type Pending = { text: string; kind: SpeechKind; audioBase64: string | null; audioMime: string };
 let pending: Pending | null = null;
 const needsTouch = () => {
   if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
@@ -220,7 +225,7 @@ function sayAfterFirstTouch(next: Pending) {
   window.addEventListener('pointerdown', () => {
     const waiting = pending;
     pending = null;
-    if (waiting) void say(waiting.text, waiting.kind, waiting.audioBase64);
+    if (waiting) void say(waiting.text, waiting.kind, waiting.audioBase64, waiting.audioMime);
   }, { once: true });
 }
 
@@ -228,13 +233,14 @@ function sayAfterFirstTouch(next: Pending) {
 // so a conversation can listen again right after a question: true when it was
 // said to the end, false when it was not said or was cut (so a series of
 // sentences stops with it).
-export async function say(text: string, kind: SpeechKind = 'guidance', audioBase64: string | null = null): Promise<boolean> {
+export async function say(text: string, kind: SpeechKind = 'guidance', audioBase64: string | null = null,
+  audioMime = 'audio/mpeg'): Promise<boolean> {
   if (!text || !allowed(kind)) return false;
-  if (needsTouch()) { sayAfterFirstTouch({ text, kind, audioBase64 }); return false; }
+  if (needsTouch()) { sayAfterFirstTouch({ text, kind, audioBase64, audioMime }); return false; }
   stopSpeaking();
   const mine = ++sentence;
   const done = new Promise<void>((resolve) => { finish = resolve; });
-  const uri = await wavUri(audioBase64, text);
+  const uri = await audioUri(audioBase64, audioMime, text);
   if (mine !== sentence) return false;  // a newer sentence took over
   try {
     if (!uri) throw new Error('Piper indisponible');
