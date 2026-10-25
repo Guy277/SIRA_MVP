@@ -93,8 +93,17 @@ question ─► Whisper ─► CamemBERT (rapide, cas simples) ─┬─► rép
 **Modèle** : **Ministral 3 3B** (Apache 2.0, Q4_K_M, 2,1 Go), retenu après le banc d'essai du 2026-10-24 sur les
 40 phrases de test réelles : bon outil 38/46, bon lieu 30/31, aucun chiffre inventé
 (`services/voice/benchmarks/2026-10-24_llm-synthese.md`). Qwen3.5-2B est plus rapide mais appelle trop peu les outils ;
-Qwen3.5-4B n'appelle les outils qu'avec sa réflexion (120 s). Moteur : llama.cpp (`llama-server`, API compatible
-OpenAI), modèles téléchargés dans `services/models/llm/` (hors Git). Banc : `services/voice/scripts/bench_llm.py`.
+Qwen3.5-4B n'appelle les outils qu'avec sa réflexion (120 s) : tous deux supprimés. Moteur : llama.cpp (`llama-server`,
+API compatible OpenAI), modèle téléchargé dans `services/models/llm/` (hors Git). Banc : `services/voice/scripts/bench_llm.py`.
+
+**Un seul modèle pour toute l'application** (choix du 2026-10-25) : un seul `llama-server` avec Ministral 3 3B, chargé
+une fois en mémoire (≈ 2,5 Go), appelé par tous les services qui en ont besoin :
+- **assistant vocal et chat** : le chat « Discuter avec SIRA » passe déjà par le service vocal (`/voice/ask`), il
+  profite donc du même chef d'orchestre que la voix ;
+- **aide aux autres moteurs** : pré-annoter les phrases transcrites pour ré-entraîner CamemBERT (toujours relues par
+  un humain), départager un lieu ambigu entre deux candidats du répertoire, expliquer en mots simples le trajet que
+  SIRA-MORE a choisi ; jamais de chiffre ni de lieu qui ne vienne pas des données ou des outils.
+Un autre modèle ne s'ajoute que si une mesure montre que celui-ci ne suffit pas pour une tâche.
 
 **Temps de réponse** : 7,4 s en moyenne par réponse sur ce PC sans GPU (mesuré) ; c'est pourquoi CamemBERT
 garde les cas simples et le LLM n'intervient que quand il apporte quelque chose.

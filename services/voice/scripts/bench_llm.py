@@ -35,7 +35,8 @@ ROOT = Path(__file__).resolve().parents[3]
 LLM_DIR = ROOT / "services" / "models" / "llm"
 SERVER = LLM_DIR / "llama.cpp" / ("llama-server.exe" if platform.system() == "Windows" else "llama-server")
 PORT = 8300
-DEFAULT_MODELS = ["Qwen3.5-4B-Q4_K_M.gguf", "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf", "Qwen3.5-2B-Q4_K_M.gguf"]
+# Le modèle de SIRA (choisi le 2026-10-24) ; un autre modèle se compare avec --models fichier.gguf.
+DEFAULT_MODELS = ["Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"]
 
 SAVED_PLACES = [("Maison", "Riviéra Palmeraie"), ("Travail", "Orange Digital Center"), ("Chez Tantie", "Niangon sud")]
 
