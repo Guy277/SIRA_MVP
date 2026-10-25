@@ -11,7 +11,7 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -44,12 +44,10 @@ class TextRequest(BaseModel):
     trip: dict[str, Any] | None = None  # trajet suivi dans l'application (« je descends où ? »)
     places: list[dict[str, Any]] | None = None  # lieux du voyageur (Maison, Travail…), jamais gardés
     speak: bool = False
-    voice: Literal["homme", "femme"] | None = None  # voix choisie dans l'application
 
 
 class TtsRequest(BaseModel):
     text: str = Field(min_length=1, max_length=600)
-    voice: Literal["homme", "femme"] | None = None
 
 
 def build_state(app: FastAPI, nlu=None, planner=None, live=None):
@@ -73,31 +71,19 @@ def build_state(app: FastAPI, nlu=None, planner=None, live=None):
                                config.INTENT_MIN_CONFIDENCE, plan, state.knowledge, trips, config.FAQ_THRESHOLD) if nlu else None
     state.asr = Transcriber(config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE,
                             state.resolver.place_names(kinds=("commune",)), config.MAX_AUDIO_SECONDS, config.WHISPER_BEAM)
-    tone = {"noise_scale": config.NOISE_SCALE, "noise_w": config.NOISE_W}
-    state.voices = {"femme": Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE, **tone),
-                    "homme": Synthesizer(config.PIPER_MALE_VOICE, config.SPEECH_RATE, config.PIPER_MALE_SPEAKER, **tone)}
-    state.tts = pick_voice(state.voices, config.DEFAULT_VOICE)
+    state.tts = Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE, config.PIPER_SPEAKER,
+                            noise_scale=config.NOISE_SCALE, noise_w=config.NOISE_W)
     if config.PRELOAD:
         # En arrière-plan : le service répond tout de suite, et la première phrase n'attend plus 10 à 20 s.
         threading.Thread(target=warm_speech, args=(state,), daemon=True, name="voice-warmup").start()
 
 
 def warm_speech(state) -> None:
-    # Les deux voix installées : changer de voix dans l'application ne fait pas attendre la phrase suivante.
-    voices = [(f"voix {name}", v) for name, v in state.voices.items() if v.available]
-    for name, part in (*voices, ("asr", state.asr)):
+    for name, part in (("tts", state.tts), ("asr", state.asr)):
         try:
             part.warm()
         except Exception as error:  # modèle absent : il sera signalé à la première demande, comme avant
             log.warning("Préchargement %s impossible : %s", name, error)
-
-
-def pick_voice(voices: dict, wanted: str | None) -> Synthesizer:
-    """La voix demandée si elle est installée, sinon celle par défaut, sinon l'autre (le serveur peut n'en avoir qu'une)."""
-    for name in (wanted, config.DEFAULT_VOICE, *voices):
-        if name in voices and voices[name].available:
-            return voices[name]
-    return voices.get(wanted or config.DEFAULT_VOICE) or next(iter(voices.values()))
 
 
 def encode_audio(wav: bytes) -> tuple[bytes, str]:
@@ -132,11 +118,11 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
             raise HTTPException(503, detail=f"Compréhension indisponible : {app.state.errors.get('nlu')}")
         return app.state.dialog
 
-    def with_audio(payload: dict, speak: bool, voice: str | None = None) -> dict:
+    def with_audio(payload: dict, speak: bool) -> dict:
         payload["reply_audio"] = None
         if speak and payload.get("reply_text"):
             try:
-                audio, mime = encode_audio(pick_voice(app.state.voices, voice).synthesize(payload["reply_text"]))
+                audio, mime = encode_audio(app.state.tts.synthesize(payload["reply_text"]))
                 payload["reply_audio"] = {"mime": mime, "base64": base64.b64encode(audio).decode()}
             except SpeechUnavailable as error:
                 payload["tts_error"] = str(error)
@@ -150,9 +136,7 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
                 "components": {"nlu": s.dialog is not None, "models_dir": str(config.MODELS_DIR), "places": len(s.resolver), "faq": len(s.knowledge),
                                "asr": {"model": config.WHISPER_NAME, "local": config.WHISPER_MODEL != config.WHISPER_NAME, "loaded": s.asr.loaded},
                                "tts": {"voice": s.tts.voice_path.name, "available": s.tts.available, "loaded": s.tts.loaded,
-                                       "speed": s.tts.speed, "default": config.DEFAULT_VOICE,
-                                       "voices": {name: {"model": v.voice_path.name, "speaker": v.speaker_id, "available": v.available,
-                                                         "loaded": v.loaded} for name, v in s.voices.items()}},
+                                       "speed": s.tts.speed, "speaker": s.tts.speaker_id, "format": config.AUDIO_FORMAT},
                                "sira_api": config.SIRA_API_URL},
                 "errors": s.errors}
 
@@ -170,12 +154,12 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
     async def ask(request: TextRequest):
         position = request.position.model_dump() if request.position else None
         payload = await run_in_threadpool(dialog().ask, request.text, position, request.context, request.trip, request.places)
-        return await run_in_threadpool(with_audio, payload, request.speak, request.voice)
+        return await run_in_threadpool(with_audio, payload, request.speak)
 
     @app.post("/voice/query")
     async def query(audio: UploadFile = File(...), lat: float | None = Form(None), lon: float | None = Form(None),
                     context: str | None = Form(None), trip: str | None = Form(None), places: str | None = Form(None),
-                    speak: bool = Form(True), voice: str | None = Form(None)):
+                    speak: bool = Form(True)):
         data = await audio.read(config.MAX_AUDIO_BYTES + 1)
         if len(data) > config.MAX_AUDIO_BYTES:
             raise HTTPException(413, detail="Audio trop volumineux.")
@@ -205,7 +189,7 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
             payload = await run_in_threadpool(dialog().ask, transcript["text"], position, ctx, ctx_raw_passthrough(trip),
                                               ctx_raw_passthrough(places))
         payload["transcript"] = transcript
-        return await run_in_threadpool(with_audio, payload, speak, voice)
+        return await run_in_threadpool(with_audio, payload, speak)
 
     # Réponse courte pendant le trajet (oui / non, prix payé) : transcription seule, sans NLU ni calcul.
     @app.post("/voice/answer")
@@ -228,7 +212,7 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
     @app.post("/voice/tts")
     async def tts(request: TtsRequest):
         try:
-            wav = await run_in_threadpool(pick_voice(app.state.voices, request.voice).synthesize, request.text)
+            wav = await run_in_threadpool(app.state.tts.synthesize, request.text)
         except SpeechUnavailable as error:
             raise HTTPException(503, detail=str(error)) from error
         audio, mime = await run_in_threadpool(encode_audio, wav)

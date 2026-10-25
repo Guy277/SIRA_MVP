@@ -13,15 +13,11 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { goBack } from '@/lib/navigation';
-import { setVoiceGender, useVoiceGender, VOICE_CHOICE_ENABLED, VOICE_GENDER_LABELS, type VoiceGender } from '@/lib/voice';
 
-type ModalType = 'voice' | 'theme' | 'textSize' | 'mapStyle' | null;
-const VOICE_OPTIONS = Object.values(VOICE_GENDER_LABELS);
+type ModalType = 'theme' | 'textSize' | 'mapStyle' | null;
 
 export default function AppearanceSettingsScreen() {
   const router = useRouter();
-  // SIRA's voice: a man's like the character, or a woman's (saved, used by every screen).
-  const voiceGender = useVoiceGender();
 
   const [themeSetting, setThemeSetting] = useState('Thème par défaut du systhème');
   const [textSizeSetting, setTextSizeSetting] = useState('Standard');
@@ -48,10 +44,7 @@ export default function AppearanceSettingsScreen() {
   ];
 
   const handleSelectOption = (value: string) => {
-    if (activeModal === 'voice') {
-      const chosen = (Object.keys(VOICE_GENDER_LABELS) as VoiceGender[]).find((key) => VOICE_GENDER_LABELS[key] === value);
-      if (chosen) setVoiceGender(chosen);
-    } else if (activeModal === 'theme') {
+    if (activeModal === 'theme') {
       setThemeSetting(value);
     } else if (activeModal === 'textSize') {
       setTextSizeSetting(value);
@@ -62,7 +55,6 @@ export default function AppearanceSettingsScreen() {
   };
 
   const getModalTitle = () => {
-    if (activeModal === 'voice') return 'CHOISIS LA VOIX DE SIRA';
     if (activeModal === 'theme') return 'CHOISIS UN THÈME';
     if (activeModal === 'textSize') return 'CHOISIS LA TAILLE DU TEXTE';
     if (activeModal === 'mapStyle') return "CHOISIS L'AFFICHAGE DE LA CARTE";
@@ -70,7 +62,6 @@ export default function AppearanceSettingsScreen() {
   };
 
   const getModalOptions = () => {
-    if (activeModal === 'voice') return VOICE_OPTIONS;
     if (activeModal === 'theme') return themeOptions;
     if (activeModal === 'textSize') return textSizeOptions;
     if (activeModal === 'mapStyle') return mapStyleOptions;
@@ -78,7 +69,6 @@ export default function AppearanceSettingsScreen() {
   };
 
   const getSelectedValue = () => {
-    if (activeModal === 'voice') return VOICE_GENDER_LABELS[voiceGender];
     if (activeModal === 'theme') return themeSetting;
     if (activeModal === 'textSize') return textSizeSetting;
     if (activeModal === 'mapStyle') return mapStyleSetting;
@@ -111,24 +101,6 @@ export default function AppearanceSettingsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Voix de SIRA : homme (comme le personnage) ou femme. Masqué tant que VOICE_CHOICE_ENABLED est false. */}
-          {VOICE_CHOICE_ENABLED && <TouchableOpacity
-            style={styles.settingCard}
-            onPress={() => setActiveModal('voice')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={`Voix de SIRA : ${VOICE_GENDER_LABELS[voiceGender]}. Touche pour changer.`}
-          >
-            <View style={styles.cardTextCol}>
-              <Text style={styles.cardTitle}>Voix de SIRA</Text>
-              <Text style={styles.cardSubtitle}>{VOICE_GENDER_LABELS[voiceGender]}</Text>
-            </View>
-
-            <View style={styles.orangeChevronCircle}>
-              <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>}
-
           {/* Card 1: Thème de l'application */}
           <TouchableOpacity
             style={styles.settingCard}

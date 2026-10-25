@@ -17,7 +17,7 @@ Micro → Silero VAD + Whisper (voix → texte)
 | Transcrire | Whisper `small` int8 (`turbo` possible) via faster-whisper | MIT | aucun pour l'instant |
 | Comprendre | CamemBERTv2 fine-tuné sur le dataset SIRA fr-CI v0.4 | MIT | notebook Colab |
 | Retrouver le lieu | règles phonétiques + RapidFuzz, 2 259 lieux (GTFS AbidjanTransport) + compléments | code SIRA / ODbL | aucun |
-| Parler | Piper `fr_FR-upmc-medium` (« pierre », homme, par défaut) ou `fr_FR-siwis-medium` (femme), au choix dans Apparence | CC BY-SA 4.0 / CC BY 4.0 | aucun |
+| Parler | Piper `fr_FR-upmc-medium`, « pierre » (homme) : la seule voix de SIRA, envoyée en MP3 | CC BY-SA 4.0 | aucun |
 
 **Compléments du répertoire de lieux** (`knowledge/lieux_complements.json`, dans Git) : le répertoire du notebook
 n'est pas modifié, ces corrections sont appliquées au chargement.
@@ -59,7 +59,7 @@ est cherché dans cet ordre :
 services/models/voice/
 ├── sira_models_v0.4/   CamemBERTv2 fine-tunés (intent + entités) + 2 259 lieux  (≈ 890 Mo)
 ├── whisper/small/      Whisper (faster-whisper)                                 (≈ 480 Mo)
-└── piper/              voix fr_FR-upmc-medium (homme) et fr_FR-siwis-medium (femme) (≈ 140 Mo)
+└── piper/              voix fr_FR-upmc-medium, « pierre » (≈ 76 Mo)
 ```
 
 **2. Environnement Python + modèles prêts à l'emploi** :
@@ -139,7 +139,7 @@ export async function askByVoice(audioUri: string, position: Coordinates | null,
 }
 ```
 
-Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix du téléphone (`expo-speech`).
+Si `reply_audio` est vide (Piper non installé), afficher `reply_text` sans le lire : SIRA n'a qu'une voix, pierre.
 
 ## Réglages (`.env`)
 
@@ -155,10 +155,8 @@ Si `reply_audio` est vide (Piper non installé), lire `reply_text` avec la voix 
 | `VOICE_AUDIO_FORMAT` | `mp3` | voix envoyée à l'appli : `mp3` (≈ 9 fois plus léger, arrive vite en 3G) ou `wav` |
 | `VOICE_AUDIO_BITRATE` | `40000` | débit du MP3 en bits/s |
 | `VOICE_PRELOAD` | `1` | Whisper et Piper chargés dès le démarrage (sinon la 1re phrase attend 10 à 20 s) |
-| `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-siwis-medium.onnx` | voix de femme de SIRA |
-| `VOICE_PIPER_MALE_MODEL` | `services/models/voice/piper/fr_FR-upmc-medium.onnx` | voix d'homme de SIRA (future voix ivoirienne : remplacer ce fichier) |
-| `VOICE_PIPER_MALE_SPEAKER` | `1` | locuteur dans le modèle d'homme (upmc : `1` = pierre ; vide pour un modèle à une voix) |
-| `VOICE_DEFAULT` | `homme` | voix quand l'application n'en demande pas (`homme` ou `femme`) |
+| `VOICE_PIPER_MODEL` | `services/models/voice/piper/fr_FR-upmc-medium.onnx` | la voix de SIRA, « pierre » (future voix ivoirienne : remplacer ce fichier) |
+| `VOICE_PIPER_SPEAKER` | `1` | locuteur dans le modèle (upmc : `1` = pierre ; vide pour un modèle à une seule voix) |
 | `SIRA_API_URL` | `http://127.0.0.1:4000/api/v1` | API de calcul des trajets |
 | `VOICE_PLACE_THRESHOLD` / `VOICE_PLACE_MARGIN` | `90` / `3` | seuils du correcteur de lieux : en dessous de 90, SIRA demande « Tu veux dire … ? » |
 
@@ -233,7 +231,7 @@ Les questions qui ne sont pas des demandes de trajet (« c'est quoi un gbaka ? �
 - Données d'entraînement **100 % synthétiques** ; bruit ASR **simulé** : une seule vraie voix mesurée pour l'instant
   (voir « Mesurer sur de vraies voix »), à confirmer avec d'autres personnes.
 - Intentions encore fragiles : `find_stop`, `ask_nearby_landmark`, `avoid_traffic`, `out_of_scope` (dataset v0.5).
-- Voix française (Piper siwis) en attendant une voix ivoirienne enregistrée avec consentement.
+- Voix française (Piper « pierre ») en attendant une voix ivoirienne enregistrée avec consentement.
 - **Aucun audio n'est conservé** : la collecte de voix demandera un consentement explicite (loi n° 2013-450, ARTCI).
 - Signalements (« y a accident vers Koumassi ») : le service prépare le signalement, l'app le fait confirmer à l'usager.
 

@@ -41,17 +41,12 @@ WHISPER_BEAM = max(1, int(_float("VOICE_WHISPER_BEAM", 5)))
 WHISPER_DEVICE = os.environ.get("VOICE_WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE = os.environ.get("VOICE_WHISPER_COMPUTE", "int8")
 
-# Synthèse vocale : voix Piper françaises (fichier .onnx + .onnx.json), au choix du voyageur.
-# Femme : siwis (CC BY 4.0). Homme : « pierre » du jeu upmc (locuteur 1, CC BY-SA 4.0), comme le personnage de SIRA.
-PIPER_VOICE = _path("VOICE_PIPER_MODEL", LOCAL_MODELS / "piper" / "fr_FR-siwis-medium.onnx")
-PIPER_MALE_VOICE = _path("VOICE_PIPER_MALE_MODEL", LOCAL_MODELS / "piper" / "fr_FR-upmc-medium.onnx")
-# Locuteur dans un modèle à plusieurs voix (upmc : 0 = jessica, 1 = pierre) ; vide pour un modèle à une voix.
-_MALE_SPEAKER = os.environ.get("VOICE_PIPER_MALE_SPEAKER", "1").strip()
-PIPER_MALE_SPEAKER = int(_MALE_SPEAKER) if _MALE_SPEAKER else None
-# Voix quand l'application n'en demande pas : « homme » ou « femme ».
-DEFAULT_VOICE = os.environ.get("VOICE_DEFAULT", "homme")
-if DEFAULT_VOICE not in ("homme", "femme"):
-    DEFAULT_VOICE = "homme"
+# Synthèse vocale : UNE seule voix, « pierre » (Piper fr_FR-upmc-medium, locuteur 1, CC BY-SA 4.0), un homme comme
+# le personnage de SIRA. Pas d'autre voix, ni de voix de secours : sans elle, SIRA affiche sa réponse sans la dire.
+PIPER_VOICE = _path("VOICE_PIPER_MODEL", LOCAL_MODELS / "piper" / "fr_FR-upmc-medium.onnx")
+# Locuteur dans un modèle à plusieurs voix (upmc : 1 = pierre) ; vide pour un modèle à une seule voix.
+_SPEAKER = os.environ.get("VOICE_PIPER_SPEAKER", "1").strip()
+PIPER_SPEAKER = int(_SPEAKER) if _SPEAKER else None
 # Vitesse de lecture : 1.0 = voix d'origine, 1.1 = 10 % plus rapide (plus naturel pour des consignes courtes).
 SPEECH_RATE = min(1.5, max(0.7, _float("VOICE_SPEECH_RATE", 1.1)))
 # Intonation de Piper : plus bas = voix plus régulière. 0,5 / 0,6 choisis à l'écoute le 2026-10-25 (réglage « D »,

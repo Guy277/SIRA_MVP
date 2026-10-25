@@ -463,7 +463,8 @@ def main() -> None:
           f"{', '.join(machine['gpu_nvidia']) or 'pas de GPU NVIDIA'} → calcul sur {device}/{compute}")
 
     from services.voice.app.speech import Synthesizer
-    tts = Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE)
+    tts = Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE, config.PIPER_SPEAKER,
+                      noise_scale=config.NOISE_SCALE, noise_w=config.NOISE_W)
     tts_ready = True
     try:
         tts.warm()

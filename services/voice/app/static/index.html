@@ -91,10 +91,8 @@ function show(data) {
   $("tags").innerHTML = tags.join("");
   $("raw").textContent = JSON.stringify(data, null, 2);
   context = data.context || null;
+  // Seule la voix de SIRA (pierre) parle : pas de voix du navigateur en secours.
   if (data.reply_audio?.base64) { $("audio").hidden = false; $("audio").src = `data:${data.reply_audio.mime};base64,${data.reply_audio.base64}`; $("audio").play().catch(() => {}); }
-  else if ($("speak").checked && data.reply_text && "speechSynthesis" in window) {
-    const u = new SpeechSynthesisUtterance(data.reply_text); u.lang = "fr-FR"; speechSynthesis.speak(u);  // secours : voix du navigateur
-  }
 }
 
 async function send() {

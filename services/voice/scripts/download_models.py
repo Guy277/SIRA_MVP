@@ -1,8 +1,7 @@
 """Télécharge UNE FOIS tous les modèles prêts à l'emploi dans services/models/voice/, pour un fonctionnement hors ligne.
 
 - Whisper (faster-whisper, CTranslate2)  -> services/models/voice/whisper/<small|turbo>/   (small ≈ 480 Mo, turbo ≈ 1,6 Go)
-- Voix Piper fr_FR-siwis-medium, femme (CC BY 4.0) -> services/models/voice/piper/ (≈ 63 Mo)
-- Voix Piper fr_FR-upmc-medium, dont « pierre », homme (CC BY-SA 4.0) -> services/models/voice/piper/ (≈ 76 Mo)
+- Voix Piper fr_FR-upmc-medium, « pierre », la seule voix de SIRA (CC BY-SA 4.0) -> services/models/voice/piper/ (≈ 76 Mo)
 - Silero VAD est inclus dans le paquet faster-whisper (≈ 1 Mo) : rien à télécharger.
 - Les modèles CamemBERT entraînés sur Colab sont copiés à la main (voir README) ; ce script vérifie leur présence.
 
@@ -17,8 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT.parent / "models" / "voice"  # réserve de modèles des services (hors Git)
 WHISPER_REPOS = {"small": "Systran/faster-whisper-small", "turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
                  "large-v3": "Systran/faster-whisper-large-v3"}
-# Femme (siwis) et homme (« pierre » du jeu upmc, comme le personnage de SIRA) : choisies dans l'application.
-VOICES = {"fr_FR-siwis-medium": "fr/fr_FR/siwis/medium", "fr_FR-upmc-medium": "fr/fr_FR/upmc/medium"}
+# La seule voix de SIRA : « pierre » (locuteur 1 du jeu upmc), un homme comme le personnage.
+VOICES = {"fr_FR-upmc-medium": "fr/fr_FR/upmc/medium"}
 
 
 def download_whisper(name: str) -> None:

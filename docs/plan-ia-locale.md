@@ -11,7 +11,7 @@ Rédigé le 2026-10-24. Les chiffres sans source sont des ordres de grandeur à 
 | Comprendre | CamemBERTv2 affiné fr-CI (intention + entités), notebook Colab | CPU | — |
 | Retrouver le lieu | règles phonétiques + RapidFuzz + répertoire de lieux | CPU | — |
 | Répondre (FAQ) | recherche RapidFuzz sur `services/voice/knowledge/` (55 fiches) | CPU | — |
-| Parler | Piper : « pierre » (homme, défaut), siwis (femme, masquée) | CPU | — |
+| Parler | Piper : « pierre » (homme), seule voix de SIRA, en MP3, intonation régulière | CPU | 9 s de parole en 0,75 s |
 
 **Enregistrements disponibles** (`services/voice/enregistrements/`, hors Git, voix de vraies personnes) :
 
@@ -51,7 +51,7 @@ affinée sous la même licence.
 Les enregistrements d'entraînement actuels (3 personnes, phrases courtes) servent à Whisper, pas à Piper : mélanger
 plusieurs voix donnerait une voix sans identité.
 
-**Entraînement** sur Colab, à partir du checkpoint choisi, puis export `.onnx` → `VOICE_PIPER_MALE_MODEL`.
+**Entraînement** sur Colab, à partir du checkpoint choisi, puis export `.onnx` → `VOICE_PIPER_MODEL` (locuteur : `VOICE_PIPER_SPEAKER`).
 Validation à l'oreille par des Ivoiriens + intelligibilité mesurée (Whisper retranscrit la voix produite : WER).
 
 ## 2. Transcription (Whisper)

@@ -8,7 +8,7 @@ services/models/
 ├── voice/                      assistant vocal (services/voice) — ≈ 1,4 Go
 │   ├── sira_models_v0.4/       CamemBERTv2 fine-tuné fr-CI (intention + entités) + 2 259 lieux
 │   ├── whisper/small/          voix → texte (faster-whisper, int8)
-│   └── piper/                  texte → voix (fr_FR-siwis-medium : femme ; fr_FR-upmc-medium, « pierre » : homme)
+│   └── piper/                  texte → voix (fr_FR-upmc-medium, « pierre », la seule voix de SIRA)
 └── README.md
 ```
 
@@ -16,8 +16,7 @@ services/models/
 |---|---|---|---|
 | `voice/sira_models_v0.4/` | comprendre la demande (fr-CI) | MIT (CamemBERTv2) | sortie du notebook Colab de SIRA, copiée à la main |
 | `voice/whisper/small/` | transcrire la voix | MIT | `npm run voice:setup` (une fois) |
-| `voice/piper/fr_FR-siwis-medium.onnx` | lire la réponse (voix de femme) | CC BY 4.0 | `npm run voice:setup` (une fois) |
-| `voice/piper/fr_FR-upmc-medium.onnx` | lire la réponse (voix d'homme « pierre », par défaut) | CC BY-SA 4.0 ([données upmc-pierre](https://github.com/marytts/upmc-pierre-data)) | `npm run voice:setup` (une fois) |
+| `voice/piper/fr_FR-upmc-medium.onnx` | lire la réponse (voix « pierre », la seule de SIRA) | CC BY-SA 4.0 ([données upmc-pierre](https://github.com/marytts/upmc-pierre-data)) | `npm run voice:setup` (une fois) |
 
 Ensuite, tout fonctionne **sans Internet**. Pour un serveur (hébergement chez un opérateur), copier ce dossier tel quel :
 Podman le monte dans le conteneur de la voix (`/models/voice`, voir `infra/compose.yaml`).

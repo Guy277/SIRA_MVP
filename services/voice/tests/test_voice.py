@@ -699,20 +699,28 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("Assistant vocal SIRA", r.text)
 
-    def test_voix_homme_ou_femme(self):
+    def test_une_seule_voix_pierre(self):
+        # La seule voix de SIRA : pierre (homme, locuteur 1 du modèle upmc). Plus de voix femme ni de choix de voix.
+        from services.voice.app import config
+        # Les tests remplacent le fichier de voix (VOICE_PIPER_MODEL) : on vérifie la valeur par défaut écrite dans la config.
+        source = Path(config.__file__).read_text(encoding="utf-8")
+        self.assertIn('"fr_FR-upmc-medium.onnx"', source)
+        self.assertNotIn("siwis", source)
+        self.assertEqual(config.PIPER_SPEAKER, 1)
+        self.assertFalse(hasattr(self.client.app.state, "voices"))
+        tts = self.client.get("/health").json()["components"]["tts"]
+        self.assertEqual((tts["voice"], tts["speaker"]), (config.PIPER_VOICE.name, 1))
+
         class FakeVoice:
-            def __init__(self, name, available=True):
-                self.name, self.available, self.said = name, available, []
+            available, said = True, []
 
             def synthesize(self, text):
                 self.said.append(text)
-                return self.name.encode()
-        homme, femme = FakeVoice("homme"), FakeVoice("femme")
-        self.client.app.state.voices = {"femme": femme, "homme": homme}
-        self.client.post("/voice/ask", json={"text": "je vais au plato", "position": POSITION, "speak": True, "voice": "femme"})
-        self.assertEqual(self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "homme"}).content, b"homme")
-        self.assertEqual((len(femme.said), homme.said), (1, ["Akwaba"]))
-        self.assertEqual(self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "robot"}).status_code, 422)
+                return b"pierre"
+        self.client.app.state.tts = FakeVoice()
+        # Une ancienne appli qui demande encore « femme » : la demande passe, et c'est pierre qui parle.
+        r = self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "femme"})
+        self.assertEqual((r.status_code, r.content, FakeVoice.said), (200, b"pierre", ["Akwaba"]))
 
     def test_voix_envoyee_en_mp3(self):
         # 9 fois plus léger que le WAV : la voix arrive vite même en 3G (mesuré : 47 Ko au lieu de 411 Ko pour 9 s).
@@ -733,26 +741,13 @@ class ApiTest(unittest.TestCase):
 
             def synthesize(self, text):
                 return wav_bytes
-        self.client.app.state.voices = {"femme": WavVoice(), "homme": WavVoice()}
-        r = self.client.post("/voice/tts", json={"text": "Akwaba", "voice": "homme"})
+        self.client.app.state.tts = WavVoice()
+        r = self.client.post("/voice/tts", json={"text": "Akwaba"})
         self.assertEqual(r.headers["content-type"], "audio/mpeg")
         self.assertTrue(r.content[:3] == b"ID3" or r.content[0] == 0xFF)
         self.assertLess(len(r.content), len(wav_bytes) / 4)
         body = self.client.post("/voice/ask", json={"text": "je vais au plato", "position": POSITION, "speak": True}).json()
         self.assertEqual(body["reply_audio"]["mime"], "audio/mpeg")
-
-    def test_voix_absente_du_serveur(self):
-        from services.voice.app import config
-        from services.voice.app.main import pick_voice
-
-        class FakeVoice:
-            def __init__(self, available):
-                self.available = available
-        homme, femme = FakeVoice(False), FakeVoice(True)
-        voices = {"femme": femme, "homme": homme}
-        self.assertIs(pick_voice(voices, "homme"), femme)  # pas encore installée : l'autre voix parle
-        self.assertIs(pick_voice(voices, None), femme)
-        self.assertIn(config.DEFAULT_VOICE, ("homme", "femme"))
 
     def test_reponse_courte_sans_calcul_de_trajet(self):
         class SaidASR:
@@ -787,7 +782,7 @@ class SpeechSettingsTest(unittest.TestCase):
         self.assertEqual((config.NOISE_SCALE, config.NOISE_W), (0.5, 0.6))
         app = create_app(nlu=FakeNLU(), planner=Planner(), live=FakeLive())
         with TestClient(app):
-            pierre = app.state.voices["homme"]
+            pierre = app.state.tts
             self.assertEqual((pierre.noise_scale, pierre.noise_w, pierre.speaker_id), (0.5, 0.6, 1))
 
 

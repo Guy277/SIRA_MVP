@@ -1,13 +1,13 @@
 // SIRA's voice, shared by every screen (greeting, assistant, guidance, alerts).
 // Three settings as in Google Maps: all spoken, alerts only, or muted.
-// SIRA speaks with its own Piper voice (services/voice), a man's (like the character)
-// or a woman's, as chosen in Apparence; else the phone's voice.
+// SIRA speaks with ONE voice only: its own Piper voice « pierre » (services/voice), a man
+// like the character. No other voice, not even the phone's: without SIRA's voice (offline,
+// service stopped) the sentence stays on screen, unspoken.
 import { useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
-import * as Speech from 'expo-speech';
 import { apiBaseUrl } from '@/lib/sira-api';
 
 export type VoiceMode = 'on' | 'alerts' | 'off';
@@ -21,15 +21,7 @@ const KEY = 'sira-voice-mode';
 const MODES: VoiceMode[] = ['on', 'alerts', 'off'];
 export const VOICE_MODE_LABELS: Record<VoiceMode, string> = { on: 'Voix activée', alerts: 'Alertes seulement', off: 'Voix coupée' };
 
-export type VoiceGender = 'homme' | 'femme';
-// The woman's voice is kept but hidden: SIRA speaks with the man's voice that goes with the
-// character (choice of the project, 2026-10). true shows « Voix de SIRA » in Apparence again.
-export const VOICE_CHOICE_ENABLED = false;
-const GENDER_KEY = 'sira-voice-gender';
-export const VOICE_GENDER_LABELS: Record<VoiceGender, string> = { homme: 'Homme', femme: 'Femme' };
-
 let mode: VoiceMode = 'on';
-let gender: VoiceGender = 'homme';
 const listeners = new Set<() => void>();
 
 const readSetting = (key: string) => (Platform.OS === 'web' ? Promise.resolve(window.localStorage.getItem(key)) : SecureStore.getItemAsync(key));
@@ -44,28 +36,7 @@ export async function loadVoiceMode() {
   try {
     const saved = await readSetting(KEY);
     if (saved && (MODES as string[]).includes(saved)) { mode = saved as VoiceMode; listeners.forEach((l) => l()); }
-    // Choice hidden: a « femme » saved before is not used, SIRA keeps the man's voice.
-    const savedGender = VOICE_CHOICE_ENABLED ? await readSetting(GENDER_KEY) : null;
-    if (savedGender === 'homme' || savedGender === 'femme') { gender = savedGender; listeners.forEach((l) => l()); }
-  } catch { /* réglage illisible : voix activée, voix d'homme */ }
-}
-
-export const getVoiceGender = () => gender;
-
-// A man's or a woman's voice: SIRA says one sentence with the new voice.
-export function setVoiceGender(next: VoiceGender) {
-  gender = next;
-  listeners.forEach((l) => l());
-  writeSetting(GENDER_KEY, next);
-  void say('Voilà, je te parle avec cette voix.', 'answer');
-}
-
-export function useVoiceGender() {
-  return useSyncExternalStore(
-    (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    () => gender,
-    () => gender,
-  );
+  } catch { /* réglage illisible : voix activée */ }
 }
 
 export function setVoiceMode(next: VoiceMode) {
@@ -130,23 +101,22 @@ export function stopSpeaking() {
   interrupted = sentence;
   player?.remove();
   player = null;
-  Speech.stop().catch(() => {});
   finished();
 }
 
 // Sentences written by the app (greeting, steps, prompts) come back often: SIRA's
 // voice for each one is kept (on the phone: in the cache folder, even after a
 // restart; on the web: for the session), so it plays at once the next time.
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const WEB_CACHE_MAX = 40;
 const webCache = new Map<string, string>();
-const TTS_TIMEOUT_MS = 6000;
+// Waited for, since there is no other voice: a sentence arrives late rather than in another voice.
+const TTS_TIMEOUT_MS = 10000;
 
 const textKey = (text: string) => {
   let hash = 5381;
   for (let index = 0; index < text.length; index += 1) hash = ((hash << 5) + hash + text.charCodeAt(index)) | 0;
-  // Each voice has its own recordings.
-  return `${CACHE_VERSION}-${gender}-${(hash >>> 0).toString(36)}-${text.length}`;
+  return `${CACHE_VERSION}-${(hash >>> 0).toString(36)}-${text.length}`;
 };
 
 // The server sends MP3 (about 9 times lighter than WAV, so it arrives in time on a
@@ -158,7 +128,7 @@ async function fetchVoice(text: string): Promise<Response | null> {
   const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
   try {
     const response = await fetch(`${apiBaseUrl()}/voice/tts`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, voice: gender }), signal: controller.signal,
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }), signal: controller.signal,
     });
     return response.ok ? response : null;
   } catch {
@@ -242,8 +212,9 @@ export async function say(text: string, kind: SpeechKind = 'guidance', audioBase
   const done = new Promise<void>((resolve) => { finish = resolve; });
   const uri = await audioUri(audioBase64, audioMime, text);
   if (mine !== sentence) return false;  // a newer sentence took over
+  // SIRA's voice unavailable (offline, service stopped): the sentence stays on screen, unspoken.
+  if (!uri) { finished(); return false; }
   try {
-    if (!uri) throw new Error('Piper indisponible');
     const current = createAudioPlayer({ uri });
     player = current;
     const subscription = (current as unknown as PlayerEvents).addListener('playbackStatusUpdate', (status) => {
@@ -254,9 +225,9 @@ export async function say(text: string, kind: SpeechKind = 'guidance', audioBase
     });
     current.play();
   } catch {
-    // A sentence stopped for a newer one must not end the newer one.
-    const end = () => { if (mine === sentence) finished(); };
-    Speech.speak(text, { language: 'fr-FR', onDone: end, onStopped: end, onError: end });
+    // Audio could not be played: no other voice takes over.
+    finished();
+    return false;
   }
   setSpeaking(true);
   // Never wait forever (autoplay blocked, audio route lost…).
