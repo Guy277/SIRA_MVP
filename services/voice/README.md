@@ -62,6 +62,7 @@ services/models/voice/
 ├── sira_models_v0.4/   CamemBERTv2 fine-tunés (intent + entités) + 2 259 lieux  (≈ 890 Mo)
 ├── parakeet-tdt-0.6b-v3-int8/  Parakeet, transcription rapide (onnx-asr)          (≈ 670 Mo)
 ├── whisper/small/      Whisper (faster-whisper), en secours                     (≈ 480 Mo)
+├── whisper/sira-small-ft/  Whisper small affiné sur les voix d'Abidjan, pris par défaut s'il est là (≈ 240 Mo)
 └── piper/              voix fr_FR-upmc-medium, « pierre » (≈ 76 Mo)
 ```
 
@@ -157,7 +158,7 @@ Si `reply_audio` est vide (Piper non installé), afficher `reply_text` sans le l
 |---|---|---|
 | `VOICE_MODELS_ROOT` | `services/models/voice` | réserve des modèles de la voix (`/models/voice` dans le conteneur) |
 | `VOICE_MODELS_DIR` | `services/models/voice/sira_models_v0.4` | modèles entraînés sur Colab |
-| `VOICE_WHISPER_MODEL` | `small` | `small` (rapide, CPU), `turbo` (plus précis), `large-v3` (GPU) |
+| `VOICE_WHISPER_MODEL` | `sira-small-ft` s'il est installé, sinon `small` | `sira-small-ft` : affiné SIRA (6,4 et 8,6 % de mots faux au lieu de 20,2 et 22,3 %, 31/32 lieux au lieu de 26/32, mesuré le 2026-11-02) ; `small` (rapide, CPU), `turbo` (plus précis), `large-v3` (GPU) |
 | `VOICE_WHISPER_DEVICE` / `VOICE_WHISPER_COMPUTE` | `cpu` / `int8` | `cuda` / `float16` avec un GPU |
 | `VOICE_WHISPER_BEAM` | `5` | précision de Whisper ; `1` ne fait gagner que 0,4 à 1,3 s et peut boucler (26 s mesurées le 25/10) |
 | `VOICE_WHISPER_TEMPERATURE` | `0` | une seule température : Whisper ne relance plus le décodage sur une phrase douteuse (cause des 23 et 26 s) |

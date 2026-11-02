@@ -169,7 +169,7 @@ def main():
         "config": {
             "sira_env": env.get("SIRA_ENV", "production"),
             "sms_configured": bool(env.get("ORANGE_CLIENT_ID")),
-            "whisper_model": env.get("VOICE_WHISPER_MODEL", "small"),
+            "whisper_model": env.get("VOICE_WHISPER_MODEL") or "sira-small-ft s'il est installé, sinon small",
         },
         "host": section(host),
         "containers": section(containers),

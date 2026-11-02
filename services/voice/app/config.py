@@ -31,7 +31,20 @@ NER_MODEL_DIR = MODELS_DIR / "sira-ner-fr-ci"
 GAZETTEER_PATH = _path("VOICE_GAZETTEER", MODELS_DIR / "gazetteer_v0.4.json")
 
 # Transcription : faster-whisper (Silero VAD intégré). "small" ou "turbo" en int8 tournent sur CPU.
-WHISPER_NAME = os.environ.get("VOICE_WHISPER_MODEL", "small")
+# Par défaut, Whisper small affiné sur les voix d'Abidjan (outils/entrainement_whisper_sira.ipynb) s'il est installé :
+# 6,4 % et 8,6 % de mots faux au lieu de 20,2 % et 22,3 %, 31/32 bons lieux au lieu de 26/32, sur deux voix jamais
+# entendues à l'entraînement (benchmarks/2026-11-02_1359_* et 2026-11-02_1405_*). Il n'est pas dans Git : sans lui, small.
+WHISPER_FINE_TUNED = "sira-small-ft"
+
+
+def whisper_name(env, whisper_dir: Path) -> str:
+    chosen = (env.get("VOICE_WHISPER_MODEL") or "").strip()
+    if chosen:
+        return chosen
+    return WHISPER_FINE_TUNED if (whisper_dir / WHISPER_FINE_TUNED / "model.bin").exists() else "small"
+
+
+WHISPER_NAME = whisper_name(os.environ, LOCAL_MODELS / "whisper")
 _WHISPER_LOCAL = LOCAL_MODELS / "whisper" / WHISPER_NAME
 # Copie locale (npm run voice:setup) si elle existe, sinon faster-whisper télécharge le modèle au premier usage.
 WHISPER_MODEL = str(_WHISPER_LOCAL) if (_WHISPER_LOCAL / "model.bin").exists() else WHISPER_NAME

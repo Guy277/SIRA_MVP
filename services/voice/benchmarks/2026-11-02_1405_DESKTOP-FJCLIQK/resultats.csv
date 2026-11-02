@@ -1,0 +1,81 @@
+﻿modele;beam;appareil;fichier;duree_audio_s;transcription_s;vitesse_x_temps_reel;texte_attendu;texte_entendu;wer;lieu_attendu;lieu_trouve;lieu_juste;intention;comprehension_s
+small;5;cpu/int8;T01.wav;3,33;2,927;1,14;Je veux aller à Cocody.;Je veux aller à Cocody.;0,0;Cocody;Cocody;True;navigate_to;0,231
+small;5;cpu/int8;T02.wav;4,27;2,991;1,43;Comment je fais pour partir à Yopougon ?;Comment je fais pour partir à Yopougon ?;0,0;Yopougon;Yopougon;True;navigate_to;0,101
+small;5;cpu/int8;T03.wav;4,69;2,841;1,65;Je quitte Abobo, je vais au Plateau.;Je quitte Abobo, je vais au plateau.;0,0;Plateau;Plateau;True;navigate_to;0,113
+small;5;cpu/int8;T04.wav;3,93;3,115;1,26;Le gbaka pour Adjamé, c'est combien ?;Le Baka pour Adjamé, C'est Koumbié.;0,286;Adjamé;Adjamé;True;ask_mode;0,208
+small;5;cpu/int8;T05.wav;4,27;3,152;1,35;Je descends à Treichville, je prends quoi ?;Je descends à Treichville, je prends quoi ?;0,0;Treichville;Treichville;True;ask_mode;0,107
+small;5;cpu/int8;T06.wav;3,5;3,139;1,11;On peut aller à Marcory en wôrô-wôrô ?;On peut aller à Marcory en wôrô-wôrô.;0,0;Marcory;Marcory;True;navigate_to;0,182
+small;5;cpu/int8;T07.wav;3,5;2,946;1,19;Je veux prendre le bateau-bus pour le Plateau.;Je prends le bateau-bus pour le plateau.;0,222;Plateau;Plateau;True;ask_mode;0,111
+small;5;cpu/int8;T08.wav;3,16;2,873;1,1;Montre-moi le chemin pour Koumassi.;Montre-moi le chemin pour Koumassi.;0,0;Koumassi;Koumassi;True;navigate_to;0,102
+small;5;cpu/int8;T09.wav;4,52;3,102;1,46;Je pars à Port-Bouët, mais je ne veux pas trop marcher.;Je vais pas à Port-Bouët, mais je ne veux pas trop marcher.;0,167;Port-Bouët;Port-Bouët;True;navigate_to;0,155
+small;5;cpu/int8;T10.wav;3,93;2,885;1,36;C'est quel bus SOTRA pour Bingerville ?;C'est quel bus SOTRA pour Bingerville ?;0,0;Bingerville;Bingerville;True;ask_mode;0,109
+small;5;cpu/int8;T11.wav;4,52;2,722;1,66;Je vais à Anyama avec cinq cents francs.;Je vais à Anyama avec 500 francs.;0,25;Anyama;Anyama;True;ask_cheapest;0,107
+small;5;cpu/int8;T12.wav;5,55;3,782;1,47;Je quitte Yop, je veux aller à Adjamé 220 Logements.;Je quitte Yopougon, je vais aller Adjamé de sauve-logement.;0,6;Adjamé 220 Logements;Adjamé Liberté;False;navigate_to;0,147
+small;5;cpu/int8;T13.wav;5,21;3,06;1,7;Pour aller à Riviera Palmeraie, je fais comment ?;Pour aller à Riviera-Palmeré, je fais comme moi.;0,375;Riviera Palmeraie;Riviera Palmeraie;True;navigate_to;0,16
+small;5;cpu/int8;T14.wav;4,52;3,018;1,5;Je suis à Adjamé, je vais à Abobo Baoulé.;Je suis à Adjamé, je vais à Bobo-Bowli.;0,222;Abobo Baoulé;Abobo Baoulé;True;navigate_to;0,142
+small;5;cpu/int8;T15.wav;4,95;3,094;1,6;Je veux aller à Siporex, j'ai deux cents francs seulement.;Je veux aller à Sipores, j'ai deux saufs en seulement.;0,273;Siporex;Siporex;True;navigate_to;0,214
+small;5;cpu/int8;T16.wav;5,29;2,899;1,82;Comment je vais à Angré depuis le Plateau ?;Comment je vais engrer de plus le plateau ?;0,375;Angré;Plateau;False;voice_help;0,13
+small;5;cpu/int8;T17.wav;4,18;2,783;1,5;Je pars à la gare de Bassam.;Je pas à la gare de Bassam.;0,143;Gare de Bassam;Gare de Bassam;True;navigate_to;0,097
+small;5;cpu/int8;T18.wav;5,12;2,962;1,73;Je dois aller au CHU de Cocody, c'est urgent.;Je dois aller au chute de Cocody, c'est Hujon.;0,2;CHU de Cocody;CHU de Cocody;True;navigate_to;0,129
+small;5;cpu/int8;T19.wav;4,95;3,138;1,58;Je vais à Riviera 2, le coulé c'est combien ?;Je vais à l'arrivée Rade 2. Le couler c'est combien ?;0,4;Riviera 2;Marraie;False;ask_fare;0,169
+small;5;cpu/int8;T20.wav;5,29;2,922;1,81;Je veux aller à Williamsville en taxi communal.;Je veux aller à Williamsville, en Tassi Cominale.;0,25;Williamsville;Williamsville;True;navigate_to;0,104
+small;5;cpu/int8;T21.wav;4,27;2,733;1,56;Montre-moi un trajet pour Attécoubé.;Montre-moi et trajet pour Attécoubé.;0,167;Attécoubé;Attécoubé;True;navigate_to;0,106
+small;5;cpu/int8;T22.wav;4,61;2,877;1,6;Je vais à la Zone 4, il y a un bus ?;Je vais aller à Zankat, il y a un bus.;0,364;Zone 4;Ana;False;navigate_to;0,146
+small;5;cpu/int8;T23.wav;3,33;2,744;1,21;Je pars à Vridi ce soir.;Je veux pas avouer dit ce soir.;0,667;Vridi;;False;deny;0,113
+small;5;cpu/int8;T24.wav;3,75;2,765;1,36;Comment je fais pour aller à Gonzagueville ?;Comment je fais pour aller à Gonzacville ?;0,143;Gonzagueville;Gonzagueville;True;navigate_to;0,123
+small;5;cpu/int8;T25.wav;4,95;3,204;1,54;Je veux aller à Niangon, mais pas en gbaka.;Je veux aller à Nyongon, mais pas en Gbaka.;0,111;Niangon;Niangon;True;navigate_to;0,141
+small;5;cpu/int8;T26.wav;4,78;2,961;1,61;Je vais à l'aéroport, c'est quel chemin ?;Je vais à l'aéroport. C'est quel chemin ?;0,0;Aéroport;Aéroport;True;navigate_to;0,12
+small;5;cpu/int8;T27.wav;5,8;3,563;1,63;Je suis à Koumassi, je veux aller à Treichville en wôrô-wôrô.;Je suis à Koumassi. Je veux aller à Treichville en wôrô-wôrô.;0,0;Treichville;Treichville;True;navigate_to;0,177
+small;5;cpu/int8;T28.wav;6,91;3,322;2,08;Mon frère, je vais à Yopougon, c'est combien le gbaka ?;Mon frère, je vais à Yopougon. C'est combien le bagarre ?;0,091;Yopougon;Yopougon;True;ask_fare;0,133
+small;5;cpu/int8;T29.wav;5,72;3,28;1,74;Je quitte Cocody pour Abobo, je veux le moins cher.;Je quitte Cocody pour Abobo. Je vais le mouiller chez.;0,3;Abobo;Abobo;True;navigate_to;0,144
+small;5;cpu/int8;T30.wav;4,35;2,875;1,51;Je veux aller au Plateau avant huit heures.;Je veux aller au plateau avant 8h.;0,25;Plateau;Plateau;True;navigate_to;0,114
+small;5;cpu/int8;T31.wav;3,58;3,055;1,17;Y a des bouchons sur mon trajet ?;Il y a la bouchon sur mon trajet.;0,429;;;;report_incident;0,092
+small;5;cpu/int8;T32.wav;2,73;2,762;0,99;Je descends où ?;Je descends ou ?;0,333;;;;ask_transfer;0,088
+small;5;cpu/int8;T33.wav;2,47;2,709;0,91;Ça fait combien ?;Ça fait combien ?;0,0;;;;ask_fare;0,072
+small;5;cpu/int8;T34.wav;3,07;2,673;1,15;J'arrive à quelle heure ?;J'arrive à Kaleu.;0,4;;Cabine Bleue;;navigate_to;0,094
+small;5;cpu/int8;T35.wav;2,73;2,69;1,02;Oui, c'est ça.;Oui, c'est ça.;0,0;;;;confirm;0,085
+small;5;cpu/int8;T36.wav;3,58;2,781;1,29;Non, c'est Riviera Palmeraie.;Non, ça arrivera pas le mur.;1,0;Riviera Palmeraie;;False;deny;0,102
+small;5;cpu/int8;T37.wav;4,69;3,012;1,56;Il y a un accident sur le pont, je veux signaler.;Il y a un assidon sur le pont. Je vais signaler.;0,182;;;;report_incident;0,156
+small;5;cpu/int8;T38.wav;3,24;2,986;1,09;C'est quoi un coulé dans SIRA ?;C'est quoi le coulet d'Ossira ?;0,571;;Arrêt CIRT;;find_stop;0,105
+small;5;cpu/int8;T39.wav;3,07;2,797;1,1;Le bateau-bus marche le dimanche ?;Le bateau-bus match le dimanche.;0,167;;;;find_stop;0,103
+small;5;cpu/int8;T40.wav;5,03;2,941;1,71;Je veux aller à Marcory, mais je ne veux pas prendre le bateau.;Je veux aller à Marcory, mais je ne veux pas prendre le bateau.;0,0;Marcory;Marcory;True;navigate_to;0,132
+sira-small-ft;5;cpu/int8;T01.wav;3,33;2,316;1,44;Je veux aller à Cocody.;Je veux aller à Cocody.;0,0;Cocody;Cocody;True;navigate_to;0,099
+sira-small-ft;5;cpu/int8;T02.wav;4,27;2,752;1,55;Comment je fais pour partir à Yopougon ?;Comment je fais pour partir à Yopougon ?;0,0;Yopougon;Yopougon;True;navigate_to;0,103
+sira-small-ft;5;cpu/int8;T03.wav;4,69;2,765;1,7;Je quitte Abobo, je vais au Plateau.;Je quitte Abobo, je vais au Plateau.;0,0;Plateau;Plateau;True;navigate_to;0,115
+sira-small-ft;5;cpu/int8;T04.wav;3,93;2,736;1,43;Le gbaka pour Adjamé, c'est combien ?;Le gbaka pour Adjamé, c'est combien ?;0,0;Adjamé;Adjamé;True;ask_fare;0,108
+sira-small-ft;5;cpu/int8;T05.wav;4,27;2,751;1,55;Je descends à Treichville, je prends quoi ?;Je descends à Treichville, je prends quoi ?;0,0;Treichville;Treichville;True;ask_mode;0,105
+sira-small-ft;5;cpu/int8;T06.wav;3,5;2,837;1,23;On peut aller à Marcory en wôrô-wôrô ?;On peut aller à Marcory en wôrô-wôrô.;0,0;Marcory;Marcory;True;navigate_to;0,143
+sira-small-ft;5;cpu/int8;T07.wav;3,5;2,969;1,18;Je veux prendre le bateau-bus pour le Plateau.;Je prends le bateau-bus pour le Plateau.;0,222;Plateau;Plateau;True;ask_mode;0,119
+sira-small-ft;5;cpu/int8;T08.wav;3,16;3,048;1,04;Montre-moi le chemin pour Koumassi.;Montre-moi le chemin pour Koumassi.;0,0;Koumassi;Koumassi;True;navigate_to;0,106
+sira-small-ft;5;cpu/int8;T09.wav;4,52;3,082;1,47;Je pars à Port-Bouët, mais je ne veux pas trop marcher.;Je pars à Port-Bouët, mais je ne veux pas trop marcher.;0,0;Port-Bouët;Port-Bouët;True;navigate_to;0,148
+sira-small-ft;5;cpu/int8;T10.wav;3,93;2,734;1,44;C'est quel bus SOTRA pour Bingerville ?;C'est quel bus SOTRA pour Bingerville ?;0,0;Bingerville;Bingerville;True;ask_mode;0,1
+sira-small-ft;5;cpu/int8;T11.wav;4,52;2,795;1,62;Je vais à Anyama avec cinq cents francs.;Je vais à Anyama avec cinq cents francs.;0,0;Anyama;Anyama;True;ask_cheapest;0,103
+sira-small-ft;5;cpu/int8;T12.wav;5,55;3,101;1,79;Je quitte Yop, je veux aller à Adjamé 220 Logements.;Je quitte Yopougon, je vais à Adjamé 220 Logements.;0,3;Adjamé 220 Logements;Adjamé 220 Logements;True;navigate_to;0,159
+sira-small-ft;5;cpu/int8;T13.wav;5,21;2,846;1,83;Pour aller à Riviera Palmeraie, je fais comment ?;Pour aller à Riviera Palmeraie, je fais comment ?;0,0;Riviera Palmeraie;Riviera Palmeraie;True;navigate_to;0,103
+sira-small-ft;5;cpu/int8;T14.wav;4,52;2,924;1,55;Je suis à Adjamé, je vais à Abobo Baoulé.;Je suis à Adjamé, je vais à Abobo Baoulé.;0,0;Abobo Baoulé;Abobo Baoulé;True;navigate_to;0,127
+sira-small-ft;5;cpu/int8;T15.wav;4,95;3,064;1,62;Je veux aller à Siporex, j'ai deux cents francs seulement.;Je veux aller à Siporex, j'ai deux sofons seulement.;0,182;Siporex;Siporex;True;navigate_to;0,137
+sira-small-ft;5;cpu/int8;T16.wav;5,29;3,135;1,69;Comment je vais à Angré depuis le Plateau ?;Comment je vais à Angré, depuis le Plateau ?;0,0;Angré;Angré;True;navigate_to;0,106
+sira-small-ft;5;cpu/int8;T17.wav;4,18;2,957;1,41;Je pars à la gare de Bassam.;Je pars à la Gare de Bassam.;0,0;Gare de Bassam;Gare de Bassam;True;navigate_to;0,748
+sira-small-ft;5;cpu/int8;T18.wav;5,12;5,089;1,01;Je dois aller au CHU de Cocody, c'est urgent.;Je dois aller au CHU de Cocody, c'est urgent.;0,0;CHU de Cocody;CHU de Cocody;True;ask_fastest;0,155
+sira-small-ft;5;cpu/int8;T19.wav;4,95;4,518;1,1;Je vais à Riviera 2, le coulé c'est combien ?;Je vais à Riviera 2, le coulé, c'est combien ?;0,0;Riviera 2;Riviera 2;True;ask_fare;0,195
+sira-small-ft;5;cpu/int8;T20.wav;5,29;3,578;1,48;Je veux aller à Williamsville en taxi communal.;Je veux aller à Williamsville, en taxi communal.;0,0;Williamsville;Williamsville;True;navigate_to;0,128
+sira-small-ft;5;cpu/int8;T21.wav;4,27;3,254;1,31;Montre-moi un trajet pour Attécoubé.;Montre-moi un trajet pour Attécoubé.;0,0;Attécoubé;Attécoubé;True;navigate_to;0,11
+sira-small-ft;5;cpu/int8;T22.wav;4,61;3,2;1,44;Je vais à la Zone 4, il y a un bus ?;Je veux aller à Zone 4, y'a un bus ?;0,364;Zone 4;Zone 4;True;ask_mode;0,12
+sira-small-ft;5;cpu/int8;T23.wav;3,33;3,204;1,04;Je pars à Vridi ce soir.;Je pars à Avridi, ce soir.;0,167;Vridi;Vridi;True;navigate_to;0,094
+sira-small-ft;5;cpu/int8;T24.wav;3,75;2,938;1,28;Comment je fais pour aller à Gonzagueville ?;Comment je fais pour aller à Gonzagueville ?;0,0;Gonzagueville;Gonzagueville;True;navigate_to;0,125
+sira-small-ft;5;cpu/int8;T25.wav;4,95;3,205;1,54;Je veux aller à Niangon, mais pas en gbaka.;Je veux aller à Niangon, mais pas en gbaka.;0,0;Niangon;Niangon;True;navigate_to;0,14
+sira-small-ft;5;cpu/int8;T26.wav;4,78;3,395;1,41;Je vais à l'aéroport, c'est quel chemin ?;Je vais à l'aéroport, c'est quel chemin ?;0,0;Aéroport;Aéroport;True;navigate_to;0,11
+sira-small-ft;5;cpu/int8;T27.wav;5,8;3,594;1,61;Je suis à Koumassi, je veux aller à Treichville en wôrô-wôrô.;Je suis à Koumassi, je veux aller à Treichville en wôrô-wôrô.;0,0;Treichville;Treichville;True;navigate_to;0,161
+sira-small-ft;5;cpu/int8;T28.wav;6,91;3,528;1,96;Mon frère, je vais à Yopougon, c'est combien le gbaka ?;Mon frère, je vais à Yopougon, c'est combien le gbaka ?;0,0;Yopougon;Yopougon;True;ask_fare;0,221
+sira-small-ft;5;cpu/int8;T29.wav;5,72;3,593;1,59;Je quitte Cocody pour Abobo, je veux le moins cher.;Je quitte Cocody pour Abobo, je veux le mouin cher.;0,1;Abobo;Abobo;True;ask_cheapest;0,16
+sira-small-ft;5;cpu/int8;T30.wav;4,35;4,712;0,92;Je veux aller au Plateau avant huit heures.;Je veux aller au Plateau avant 8 h.;0,25;Plateau;Plateau;True;navigate_to;0,123
+sira-small-ft;5;cpu/int8;T31.wav;3,58;3,071;1,17;Y a des bouchons sur mon trajet ?;Y'a la bouchon sur mon trajet ?;0,286;;;;traffic_status;0,119
+sira-small-ft;5;cpu/int8;T32.wav;2,73;2,582;1,06;Je descends où ?;Je descends où ?;0,0;;;;ask_transfer;0,111
+sira-small-ft;5;cpu/int8;T33.wav;2,47;2,626;0,94;Ça fait combien ?;Ça fait combien ?;0,0;;;;ask_fare;0,295
+sira-small-ft;5;cpu/int8;T34.wav;3,07;2,711;1,13;J'arrive à quelle heure ?;J'arrive à quelle heure ?;0,0;;;;ask_eta;0,105
+sira-small-ft;5;cpu/int8;T35.wav;2,73;2,613;1,05;Oui, c'est ça.;Oui, c'est ça.;0,0;;;;confirm;0,115
+sira-small-ft;5;cpu/int8;T36.wav;3,58;2,786;1,29;Non, c'est Riviera Palmeraie.;Non, ça arrivera pas à le murée.;1,2;Riviera Palmeraie;BMW;False;deny;0,096
+sira-small-ft;5;cpu/int8;T37.wav;4,69;3,032;1,55;Il y a un accident sur le pont, je veux signaler.;Il y a un assidon sur le pont, je veux signaler.;0,091;;;;report_incident;0,149
+sira-small-ft;5;cpu/int8;T38.wav;3,24;2,96;1,1;C'est quoi un coulé dans SIRA ?;C'est quoi le coulé de Sira ?;0,286;;Arrêt CIRT;;traffic_status;0,102
+sira-small-ft;5;cpu/int8;T39.wav;3,07;2,947;1,04;Le bateau-bus marche le dimanche ?;Le bateau-bus marche le dimanche.;0,0;;;;ask_mode;0,125
+sira-small-ft;5;cpu/int8;T40.wav;5,03;3,066;1,64;Je veux aller à Marcory, mais je ne veux pas prendre le bateau.;Je veux aller à Marcory, mais je ne veux pas prendre le bateau.;0,0;Marcory;Marcory;True;navigate_to;0,139

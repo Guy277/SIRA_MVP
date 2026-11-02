@@ -24,7 +24,7 @@ os.environ.setdefault("VOICE_PARAKEET_DIR", str(FIXTURES / "absent"))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from services.voice.app import normalize as nz  # noqa: E402
-from services.voice.app.config import PLACE_MARGIN, PLACE_THRESHOLD  # noqa: E402
+from services.voice.app.config import PLACE_MARGIN, PLACE_THRESHOLD, whisper_name  # noqa: E402
 from services.voice.app import dialog as dialog_module  # noqa: E402
 from services.voice.app.dialog import JourneyServiceError, VoiceDialog  # noqa: E402
 from services.voice.app.knowledge import KnowledgeBase  # noqa: E402
@@ -1009,6 +1009,19 @@ class ApiTest(unittest.TestCase):
 
 
 class SpeechSettingsTest(unittest.TestCase):
+    def test_whisper_affine_par_defaut_s_il_est_installe(self):
+        # sira-small-ft n'est pas dans Git : une machine qui ne l'a pas garde small ; un choix explicite gagne toujours.
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            whisper_dir = Path(folder)
+            self.assertEqual(whisper_name({}, whisper_dir), "small")
+            (whisper_dir / "sira-small-ft").mkdir()
+            self.assertEqual(whisper_name({}, whisper_dir), "small")  # dossier sans model.bin : incomplet
+            (whisper_dir / "sira-small-ft" / "model.bin").write_bytes(b"")
+            self.assertEqual(whisper_name({}, whisper_dir), "sira-small-ft")
+            self.assertEqual(whisper_name({"VOICE_WHISPER_MODEL": ""}, whisper_dir), "sira-small-ft")  # compose.yaml
+            self.assertEqual(whisper_name({"VOICE_WHISPER_MODEL": "small"}, whisper_dir), "small")
+
     def test_transcription_rapide(self):
         # Mesuré sur ce PC : liste de 40 lieux (538 caractères) = 11,8 s par phrase ; communes seulement = 6,8 s.
         # La recherche large (beam 5) est gardée : la simple déformait « je quitte Yopougon ».

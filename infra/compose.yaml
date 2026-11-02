@@ -84,7 +84,8 @@ services:
       dockerfile: Containerfile
     environment:
       SIRA_API_URL: http://api:4000/api/v1
-      VOICE_WHISPER_MODEL: ${VOICE_WHISPER_MODEL:-small}
+      # Vide : sira-small-ft (Whisper affiné SIRA) s'il est dans services/models/voice/whisper/, sinon small.
+      VOICE_WHISPER_MODEL: ${VOICE_WHISPER_MODEL:-}
     volumes:
       - ../services/models/voice:/models/voice:ro,Z
       - voice_cache:/root/.cache:Z

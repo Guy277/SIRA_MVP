@@ -8,6 +8,7 @@ services/models/
 ├── voice/                      assistant vocal (services/voice) — ≈ 1,4 Go
 │   ├── sira_models_v0.4/       CamemBERTv2 fine-tuné fr-CI (intention + entités) + 2 259 lieux
 │   ├── whisper/small/          voix → texte (faster-whisper, int8)
+│   ├── whisper/sira-small-ft/  le même, affiné sur les voix d'Abidjan (pris par défaut s'il est là)
 │   └── piper/                  texte → voix (fr_FR-upmc-medium, « pierre », la seule voix de SIRA)
 └── README.md
 ```
@@ -16,6 +17,7 @@ services/models/
 |---|---|---|---|
 | `voice/sira_models_v0.4/` | comprendre la demande (fr-CI) | MIT (CamemBERTv2) | sortie du notebook Colab de SIRA, copiée à la main |
 | `voice/whisper/small/` | transcrire la voix | MIT | `npm run voice:setup` (une fois) |
+| `voice/whisper/sira-small-ft/` | transcrire la voix, affiné sur les voix d'Abidjan (pris par défaut s'il est là) | MIT | notebook `services/voice/outils/entrainement_whisper_sira.ipynb` (Colab), puis dézipper ici |
 | `voice/piper/fr_FR-upmc-medium.onnx` | lire la réponse (voix « pierre », la seule de SIRA) | CC BY-SA 4.0 ([données upmc-pierre](https://github.com/marytts/upmc-pierre-data)) | `npm run voice:setup` (une fois) |
 
 Ensuite, tout fonctionne **sans Internet**. Pour un serveur (hébergement chez un opérateur), copier ce dossier tel quel :
