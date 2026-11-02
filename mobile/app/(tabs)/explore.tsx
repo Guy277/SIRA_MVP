@@ -18,7 +18,7 @@ import { fetchJourneys, type ApiJourney, type CategoryName, type LegMode } from 
 import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, placeLabel, resolvePlace, useCurrentPlace } from '@/lib/places';
 import { needsSecureContext } from '@/lib/secure-context';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
-import { alternativesText, arrivalTime, formatClock, formatDuration, formatPrice, isVehicle, journeySummary } from '@/lib/journey-format';
+import { arrivalTime, formatClock, formatDuration, formatPrice, journeySummary } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
 import { resultsSpeech, SEARCH_ERRORS } from '@/lib/spoken';
 import { useSpeech } from '@/lib/voice';
@@ -373,8 +373,6 @@ function JourneyList({ journeys, departureAt, onOpen }: { journeys: ApiJourney[]
   return (
     <View style={styles.list}>
       {journeys.map((journey, index) => {
-        const firstRide = journey.legs.find(isVehicle);
-        const also = firstRide ? alternativesText(firstRide, { otherModesOnly: true }) : null;
         return (
           // Rows cascade in; only the first few are delayed so long lists stay quick.
           <Animated.View key={journey.id} entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(300)}>
@@ -383,7 +381,6 @@ function JourneyList({ journeys, departureAt, onOpen }: { journeys: ApiJourney[]
               <JourneyBadges journey={journey} />
               <Text style={styles.rowPrice}>{formatPrice(journey.price)}</Text>
               <Text style={styles.metaText}>{journeySummary(journey)}</Text>
-              {also && <Text style={styles.alsoText} numberOfLines={2}>{also}</Text>}
             </View>
             <View style={styles.rowSide}>
               <Text style={styles.bigDuration}>{formatDuration(journey.duration)}</Text>
@@ -462,6 +459,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   rowMain: { flex: 1, gap: 5 },
   rowPrice: { fontSize: 13, fontWeight: '700', color: '#111111' },
-  alsoText: { fontSize: 12, color: '#2D6A4F', fontWeight: '600' },
   rowSide: { alignItems: 'flex-end', justifyContent: 'space-between' },
 });

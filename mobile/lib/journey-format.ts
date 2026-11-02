@@ -58,18 +58,21 @@ export function legBadges(journey: ApiJourney): LegBadge[] {
   });
 }
 
-// "Aussi possible : bus 15, 51 · gbaka vers Yopougon Palais" for a ride step.
-// Lists already show same-mode lines in the badge, so they can skip them.
-export function alternativesText(leg: ApiLeg, { otherModesOnly = false } = {}) {
-  const others = (leg.alternatives ?? []).filter((line) => !otherModesOnly || line.mode !== leg.mode);
+// "Aussi possible : bus 15, bus 51, gbaka (2 lignes)" for a ride step of the journey detail.
+export function alternativesText(leg: ApiLeg) {
+  // Same-mode numbered lines are already written in the step (« Bus SOTRA 28 / 210 / 773 »): not repeated here.
+  const written = new Set(legCodes(leg).codes);
+  const others = (leg.alternatives ?? []).filter((line) => !(line.mode === leg.mode && line.code && written.has(line.code)));
   if (!others.length) return null;
-  // Several lines can end at the same place: each way of saying it is listed once.
-  const names = [...new Set(others.map((line) => {
-    if (line.code) return `${line.mode === 'boat' ? 'bateau' : 'bus'} ${line.code}`;
-    const [, route] = line.name.split(':');
-    const terminus = route?.split('↔').pop()?.trim();
-    return `${MODE_SHORT[line.mode]?.toLowerCase() ?? 'ligne'}${terminus ? ` vers ${terminus}` : ''}`;
-  }))];
+  // Lines with a number are named by it. The others are counted per mode: the network does not say
+  // which way they run here, and « wôrô vers Plateau » on a trip to Riviera was a wrong guess.
+  const coded = [...new Set(others.filter((line) => line.code).map((line) => `${line.mode === 'boat' ? 'bateau' : 'bus'} ${line.code}`))];
+  const uncoded = new Map<string, number>();
+  for (const line of others.filter((item) => !item.code)) {
+    const mode = MODE_SHORT[line.mode]?.toLowerCase() ?? 'ligne';
+    uncoded.set(mode, (uncoded.get(mode) ?? 0) + 1);
+  }
+  const names = [...coded, ...[...uncoded].map(([mode, count]) => (count > 1 ? `${mode} (${count} lignes)` : mode))];
   return `Aussi possible : ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`;
 }
 
