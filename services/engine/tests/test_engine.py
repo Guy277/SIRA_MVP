@@ -177,6 +177,38 @@ class OptimisationScenarios(unittest.TestCase):
         self.assertEqual((categories["coule"][0], categories["suspendu"][0]), ("bus", "taxi"))
         self.assertEqual(categories["debout"], [])
 
+    def test_41_debout_is_never_slower_and_dearer_than_coule(self):
+        # Vraie recherche du 2026-11-02 vers Riviera 2 Anono : le wôrô (47 min, 400 F) sortait en « Debout »
+        # alors que le gbaka (42 min, 300 F) est plus rapide ET moins cher. Ce n'est pas un juste milieu.
+        routes = [
+            candidate("gbaka", price=300, walk=18, wait=0, ride=24, transfer=0, mode="gbaka", line="G", comfort=2),
+            candidate("woro", price=400, walk=16, wait=0, ride=31, transfer=0, mode="woro", line="W", comfort=3),
+            candidate("taxi", price=2600, walk=0, wait=0, ride=24, transfer=0, mode="taxi", line="T", comfort=5),
+        ]
+        categories = recommend(routes, budget=999999)["categories"]
+        self.assertEqual(categories["coule"][0], "gbaka")
+        self.assertEqual(categories["suspendu"][0], "taxi")
+        self.assertEqual(categories["debout"], [])
+
+    def test_42_debout_saves_time_for_a_price_below_suspendu(self):
+        routes = [
+            candidate("bus", price=200, walk=10, wait=10, ride=40, transfer=0, line="B", comfort=2),
+            candidate("mixte", price=700, walk=8, wait=5, ride=27, transfer=0, mode="woro", line="M", comfort=3),
+            candidate("taxi", price=2500, walk=0, wait=3, ride=22, transfer=0, mode="taxi", line="T", comfort=5),
+        ]
+        self.assertEqual(recommend(routes, budget=999999)["categories"]["debout"], ["mixte"])
+
+    def test_43_categories_do_not_repeat_each_other(self):
+        # Chaque onglet montrait les trois mêmes trajets : le taxi dans « Coulé », le bus dans « Suspendu ».
+        routes = [
+            candidate("bus", price=200, walk=10, wait=10, ride=40, transfer=0, line="B", comfort=2),
+            candidate("mixte", price=700, walk=8, wait=5, ride=27, transfer=0, mode="woro", line="M", comfort=3),
+            candidate("taxi", price=2500, walk=0, wait=3, ride=22, transfer=0, mode="taxi", line="T", comfort=5),
+        ]
+        categories = recommend(routes, budget=999999)["categories"]
+        self.assertNotIn("taxi", categories["coule"])
+        self.assertNotIn("bus", categories["suspendu"])
+
     def test_36_category_leaders_are_always_returned_and_labelled(self):
         routes = [candidate("bus", price=200, ride=45, line="B", comfort=2), candidate("taxi", price=2000, ride=15, transfer=0, mode="taxi", line="T", comfort=5)]
         result = recommend(routes, budget=999999, preference="fast", max_results=1)

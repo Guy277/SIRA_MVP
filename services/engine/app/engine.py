@@ -242,27 +242,43 @@ def _profile_scores(frontier: list[dict[str, Any]], profile: str, max_budget: in
 CATEGORY_PROFILES = {"coule": "cheap", "debout": "balanced", "suspendu": "comfort"}
 
 
+# What makes each list short and meaningful (decided 2026-11-02, after a real search where every tab
+# showed the same three journeys and « Debout » was slower AND dearer than « Coulé ») :
+COULE_PRICE_MARGIN_FCFA = 100      # Coulé also lists journeys at most this much dearer than the cheapest
+SUSPENDU_SCORE_MARGIN = 10         # Suspendu also lists journeys this close to the most comfortable (0-100 score)
+DEBOUT_MIN_SAVED_MINUTES = 5       # Debout must save at least this much time on Coulé…
+DEBOUT_MIN_SAVED_WALK_M = 500      # …or at least this much walking, and cost less than Suspendu
+
+
 def categorize(frontier: list[dict[str, Any]], max_budget: int, max_per_category: int = 3) -> dict[str, list[str]]:
     if not frontier:
         return {name: [] for name in CATEGORY_PROFILES}
-    categories = {}
-    for name, profile in CATEGORY_PROFILES.items():
-        scores = _profile_scores(frontier, profile, max_budget)
-        if name == "coule":
-            # Strictly the cheapest first; score and duration only break ties.
-            key = lambda item: (_price_for_comparison(item, max_budget), -scores[item["id"]], item["duration"])
-        else:
-            key = lambda item: (-scores[item["id"]], item["duration"], _price_for_comparison(item, max_budget))
-        categories[name] = [item["id"] for item in sorted(frontier, key=key)[:max_per_category]]
-    # Debout is a middle ground: it never repeats the cheapest or the most
-    # comfortable journey, and stays empty when no in-between option exists.
-    if len(frontier) > 1:
-        extremes = {categories["coule"][0], categories["suspendu"][0]}
-        scores = _profile_scores(frontier, "balanced", max_budget)
-        middle = [item for item in frontier if item["id"] not in extremes]
-        middle.sort(key=lambda item: (-scores[item["id"]], item["duration"], _price_for_comparison(item, max_budget)))
-        categories["debout"] = [item["id"] for item in middle[:max_per_category]]
-    return categories
+    price = lambda item: _price_for_comparison(item, max_budget)  # noqa: E731
+    scores = {name: _profile_scores(frontier, profile, max_budget) for name, profile in CATEGORY_PROFILES.items()}
+    # Strictly the cheapest first for Coulé; score and duration only break ties.
+    by_price = sorted(frontier, key=lambda item: (price(item), -scores["coule"][item["id"]], item["duration"]))
+    by_comfort = sorted(frontier, key=lambda item: (-scores["suspendu"][item["id"]], item["duration"], price(item)))
+    cheapest, comfiest = by_price[0], by_comfort[0]
+    if len(frontier) == 1:  # one journey: it leads every category
+        return {name: [cheapest["id"]] for name in CATEGORY_PROFILES}
+
+    # Each list keeps its own kind of journey: the cheapest is not repeated as « comfortable », nor the most
+    # comfortable as « cheap ». The others stay reachable in « Tous » and under each list.
+    coule = [item for item in by_price
+             if item is cheapest or (item is not comfiest and price(item) <= price(cheapest) + COULE_PRICE_MARGIN_FCFA)]
+    suspendu = [item for item in by_comfort
+                if item is comfiest or (item is not cheapest and scores["suspendu"][item["id"]]
+                                        >= scores["suspendu"][comfiest["id"]] - SUSPENDU_SCORE_MARGIN)]
+    # Debout is a real trade-off: dearer than Coulé is fine only if it saves time or walking, and it must cost
+    # less than Suspendu. A journey slower and dearer than Coulé is no « middle ground »: Debout then stays empty.
+    middle = [item for item in frontier if item is not cheapest and item is not comfiest
+              and price(item) < price(comfiest)
+              and (item["duration"] <= cheapest["duration"] - DEBOUT_MIN_SAVED_MINUTES
+                   or item["walking_distance_m"] <= cheapest["walking_distance_m"] - DEBOUT_MIN_SAVED_WALK_M)]
+    middle.sort(key=lambda item: (-scores["debout"][item["id"]], item["duration"], price(item)))
+    return {"coule": [item["id"] for item in coule[:max_per_category]],
+            "debout": [item["id"] for item in middle[:max_per_category]],
+            "suspendu": [item["id"] for item in suspendu[:max_per_category]]}
 
 
 def recommend(candidates: list[dict[str, Any]], *, budget: int = 1500, preference: str = "balanced", constraints: dict[str, Any] | None = None, max_results: int = 3) -> dict[str, Any]:

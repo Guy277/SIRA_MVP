@@ -49,10 +49,11 @@ export function legBadges(journey: ApiJourney): LegBadge[] {
   return journey.legs.flatMap((leg): LegBadge[] => {
     if (leg.mode === 'walk' || leg.mode === 'transfer') return leg.duration >= 1 ? [{ kind: 'walk', minutes: leg.duration }] : [];
     if (!isVehicle(leg)) return [];
-    const { codes, lines } = legCodes(leg);
+    const { codes } = legCodes(leg);
     const text = codes.length
       ? codes.slice(0, 3).join(' / ') + (codes.length > 3 ? ` +${codes.length - 3}` : '')
-      : `${MODE_SHORT[leg.mode] ?? MODE_NAMES[leg.mode]}${lines > 1 ? ` ×${lines}` : ''}`;
+      // « Gbaka ×5 » read as « five gbakas »: the badge names the mode, the possible lines are in the detail.
+      : MODE_SHORT[leg.mode] ?? MODE_NAMES[leg.mode];
     return [{ kind: 'vehicle', mode: leg.mode, text }];
   });
 }

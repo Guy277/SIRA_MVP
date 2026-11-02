@@ -138,8 +138,16 @@ export default function RouteExploreScreen() {
     router.push('/route-detail');
   };
 
-  const matchesFilter = (journey: ApiJourney) => filter === 'Tout'
-    || journey.legs.some((leg) => FILTER_MODES[filter].includes(leg.mode));
+  // Only the modes these journeys really use: no « Bateau » chip that leads to an empty list,
+  // and no chips at all when every journey uses the same mode.
+  const usedFilters = (Object.keys(FILTER_MODES) as Exclude<Filter, 'Tout'>[])
+    .filter((item) => journeys.some((journey) => journey.legs.some((leg) => FILTER_MODES[item].includes(leg.mode))));
+  const activeFilter: Filter = filter === 'Tout' || usedFilters.includes(filter) ? filter : 'Tout';
+  const matchesFilter = (journey: ApiJourney) => activeFilter === 'Tout'
+    || journey.legs.some((leg) => FILTER_MODES[activeFilter].includes(leg.mode));
+  // Journeys already on the three cards: « Voir tous » only when it shows something more.
+  const onCards = new Set(CATEGORIES.map((category) => inCategory(category.name)[0]?.id).filter(Boolean));
+  const notOnCards = journeys.filter((journey) => !onCards.has(journey.id)).length;
   const listed = step && step !== 'all' ? inCategory(step) : [...journeys].sort((a, b) => a.duration - b.duration);
   const others = step && step !== 'all' ? journeys.filter((journey) => !listed.includes(journey)) : [];
 
@@ -193,11 +201,11 @@ export default function RouteExploreScreen() {
             <Text style={styles.timeChipText}>{departureLabel(departAt)}</Text>
             <Ionicons name="chevron-down" size={14} color="#1F1F1F" />
           </TouchableOpacity>
-          {step && (
+          {step && usedFilters.length > 1 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-              {(['Tout', 'Bus', 'Gbaka', 'Wôrô', 'Taxi', 'Bateau'] as Filter[]).map((item) => (
-                <TouchableOpacity key={item} style={[styles.filterChip, filter === item && styles.filterChipActive]} onPress={() => setFilter(item)} activeOpacity={0.8}>
-                  <Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item}</Text>
+              {(['Tout', ...usedFilters] as Filter[]).map((item) => (
+                <TouchableOpacity key={item} style={[styles.filterChip, activeFilter === item && styles.filterChipActive]} onPress={() => setFilter(item)} activeOpacity={0.8}>
+                  <Text style={[styles.filterText, activeFilter === item && styles.filterTextActive]}>{item}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -307,10 +315,12 @@ export default function RouteExploreScreen() {
                   </Animated.View>
                 );
               })}
-              <TouchableOpacity style={styles.allLink} onPress={() => { setFilter('Tout'); setStep('all'); }} activeOpacity={0.7}>
-                <Text style={styles.allLinkText}>Voir tous les trajets ({journeys.length})</Text>
-                <Ionicons name="chevron-forward" size={16} color="#F26522" />
-              </TouchableOpacity>
+              {notOnCards > 0 && (
+                <TouchableOpacity style={styles.allLink} onPress={() => { setFilter('Tout'); setStep('all'); }} activeOpacity={0.7}>
+                  <Text style={styles.allLinkText}>Voir {notOnCards === 1 ? 'l’autre trajet' : `les ${notOnCards} autres trajets`}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#F26522" />
+                </TouchableOpacity>
+              )}
             </>
           )}
 
@@ -333,7 +343,7 @@ export default function RouteExploreScreen() {
                 </TouchableOpacity>
               </View>
 
-              <JourneyList key={`${step}-${filter}`} journeys={listed.filter(matchesFilter)} departureAt={departureAt} onOpen={openJourney} />
+              <JourneyList key={`${step}-${activeFilter}`} journeys={listed.filter(matchesFilter)} departureAt={departureAt} onOpen={openJourney} />
               {listed.filter(matchesFilter).length === 0 && (
                 <View style={styles.stateCard}>
                   <Ionicons name="information-circle" size={18} color="#F26522" />
