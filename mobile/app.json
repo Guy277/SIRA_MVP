@@ -54,7 +54,8 @@
         {
           "microphonePermission": "SIRA utilise le micro pour comprendre ta destination quand tu parles. Aucun enregistrement n'est conservé."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
