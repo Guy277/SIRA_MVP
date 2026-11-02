@@ -40,6 +40,17 @@ export default function VoiceSettingsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* The setting in use, at a glance: its icon changes with the mode. */}
+          <View style={styles.currentCard} accessibilityLiveRegion="polite">
+            <View style={[styles.currentIcon, mode === 'off' && styles.currentIconOff]}>
+              <Ionicons name={VOICE_MODE_ICONS[mode]} size={26} color={mode === 'off' ? '#64748B' : '#FFFFFF'} />
+            </View>
+            <View style={styles.cardTextCol}>
+              <Text style={styles.currentLabel}>Réglage actuel</Text>
+              <Text style={styles.currentValue}>{VOICE_MODE_LABELS[mode]}</Text>
+            </View>
+          </View>
+
           <Text style={styles.intro}>
             Choisis si SIRA te parle. Ce réglage est gardé sur ce téléphone.
           </Text>
@@ -126,6 +137,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 24,
+  },
+  currentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+  currentIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F26522',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  currentIconOff: {
+    backgroundColor: '#E2E8F0',
+  },
+  currentLabel: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginBottom: 2,
+  },
+  currentValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   intro: {
     fontSize: 14,
