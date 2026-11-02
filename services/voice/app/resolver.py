@@ -192,5 +192,7 @@ class PlaceResolver:
         return Match(best["place_id"], best["canonical"], best["kind"], best.get("commune"), best["lat"], best["lon"], 100.0)
 
     def place_names(self, kinds=("commune", "quartier"), limit: int = 80) -> list[str]:
-        names = [p["canonical"] for p in self.places.values() if p["kind"] in kinds]
+        # Sans les lieux hors réseau : dans le prompt de Whisper, Dabou ou Alépé chassaient Yopougon et Treichville
+        # (liste coupée à 15) et attiraient « Port-Bouët » vers « Dabou » (bon lieu 26/32 → 22/32, mesuré le 25/10).
+        names = [p["canonical"] for p in self.places.values() if p["kind"] in kinds and "hors_reseau" not in p]
         return sorted(set(names))[:limit]

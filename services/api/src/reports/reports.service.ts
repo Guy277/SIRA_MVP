@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 export type ReportType = "accident" | "traffic" | "flood" | "works" | "blocked" | "road_damage" | "breakdown" | "transport" | "other";
 export type ReportSeverity = "low" | "medium" | "high";
@@ -83,10 +85,26 @@ const toCoordinates = (value: unknown): [number, number][] => Array.isArray(valu
   ? value.filter((item): item is [number, number] => Array.isArray(item) && item.length >= 2 && Number.isFinite(item[0]) && Number.isFinite(item[1]))
   : [];
 
+// Where reports survive a restart of the API. SIRA_REPORTS_FILE overrides it; "memoire" keeps them in memory only.
+// Locally: services/api/runtime/reports.json (outside Git). In the container: /app/runtime, a volume (infra/compose.yaml).
+export function reportsFile(env: Record<string, string | undefined> = process.env): string | null {
+  const configured = env.SIRA_REPORTS_FILE?.trim();
+  if (configured === "memoire") return null;
+  return configured || resolve(__dirname, "..", "..", "runtime", "reports.json");
+}
+
+type StoredReports = { version: 1; reports: TrafficReport[]; voters: Record<string, string[]> };
+
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger("Signalements");
   private readonly reports: TrafficReport[] = [];
   private readonly voters = new Map<string, Set<string>>();
+
+  // No file (tests, SIRA_REPORTS_FILE=memoire): reports live in memory only, as before.
+  constructor(private readonly file: string | null = null) {
+    if (file) this.load(file);
+  }
 
   list() {
     return this.reports.map((report) => this.refresh(report)).filter((report) => ACTIVE_STATUSES.includes(report.status)).slice(0, 100);
@@ -114,6 +132,7 @@ export class ReportsService {
     // The author cannot confirm their own report.
     this.voters.set(report.id, new Set([travellerId]));
     if (this.reports.length > MAX_REPORTS) this.voters.delete(this.reports.pop()!.id);
+    this.save();
     return report;
   }
 
@@ -133,7 +152,51 @@ export class ReportsService {
       report.contests += 1;
     }
     report.updatedAt = new Date(now).toISOString();
-    return this.refresh(report);
+    this.refresh(report);
+    this.save();
+    return report;
+  }
+
+  // ---- persistence: one small JSON file (≤ 500 reports), rewritten whole at each change ----
+
+  private load(file: string) {
+    let stored: Partial<StoredReports>;
+    try {
+      stored = JSON.parse(readFileSync(file, "utf-8"));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        this.logger.warn(`Fichier des signalements illisible (${file}), on repart de zéro : ${(error as Error).message}`);
+      }
+      return;
+    }
+    const valid = (Array.isArray(stored.reports) ? stored.reports : []).filter((report): report is TrafficReport =>
+      !!report && typeof report.id === "string" && isReportType(report.type) && Number.isFinite(report.lat) && Number.isFinite(report.lon)
+      && typeof report.expiresAt === "string" && !Number.isNaN(Date.parse(report.expiresAt)));
+    for (const report of valid.slice(0, MAX_REPORTS)) {
+      this.reports.push(report);
+      const voters = stored.voters?.[report.id];
+      this.voters.set(report.id, new Set(Array.isArray(voters) ? voters.filter((id) => typeof id === "string") : []));
+    }
+    const active = this.list().length;
+    this.logger.log(`${this.reports.length} signalement(s) repris de ${file}, dont ${active} en cours.`);
+  }
+
+  private save() {
+    if (!this.file) return;
+    // Expired and resolved reports are kept until MAX_REPORTS pushes them out, so a vote on them still says why.
+    const stored: StoredReports = {
+      version: 1,
+      reports: this.reports,
+      voters: Object.fromEntries([...this.voters].map(([id, voters]) => [id, [...voters]])),
+    };
+    const temporary = `${this.file}.${process.pid}.tmp`;
+    try {
+      mkdirSync(dirname(this.file), { recursive: true });
+      writeFileSync(temporary, JSON.stringify(stored), "utf-8");
+      renameSync(temporary, this.file); // all or nothing: a crash never leaves half a file
+    } catch (error) {
+      this.logger.error(`Signalements non enregistrés dans ${this.file} : ${(error as Error).message}`);
+    }
   }
 
   impact(legs: ImpactLeg[]) {

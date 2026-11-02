@@ -1,0 +1,241 @@
+﻿voix;fichier;circuit;moteur;secondes;wer;lieu_attendu;lieu_trouve;lieu_juste;texte
+2026-10-19;T01.wav;whisper seul;whisper;3.15;0.0;Cocody;Cocody;True;Je veux aller à Cocody.
+2026-10-19;T01.wav;parakeet + secours;parakeet;1.22;0.0;Cocody;Cocody;True;Je veux aller à Cocody.
+2026-10-19;T02.wav;whisper seul;whisper;3.18;0.0;Yopougon;Yopougon;True;Comment je fais pour partir à Yopougon ?
+2026-10-19;T02.wav;parakeet + secours;whisper;4.12;0.0;Yopougon;Yopougon;True;Comment je fais pour partir à Yopougon ?
+2026-10-19;T03.wav;whisper seul;whisper;3.41;0.0;Plateau;Plateau;True;Je quitte Abobo, je vais au plateau.
+2026-10-19;T03.wav;parakeet + secours;parakeet;1.28;0.286;Plateau;Plateau;True;Je quitte Abobou, je veux au plateau.
+2026-10-19;T04.wav;whisper seul;whisper;3.22;0.143;Adjamé;Adjamé;True;Le Baka pour Adjamé, c'est combien ?
+2026-10-19;T04.wav;parakeet + secours;whisper;4.14;0.143;Adjamé;Adjamé;True;Le Baka pour Adjamé, c'est combien ?
+2026-10-19;T05.wav;whisper seul;whisper;3.14;0.143;Treichville;Treichville;True;Je dessins à Treichville. Je prends quoi ?
+2026-10-19;T05.wav;parakeet + secours;whisper;3.96;0.143;Treichville;Treichville;True;Je dessins à Treichville. Je prends quoi ?
+2026-10-19;T06.wav;whisper seul;whisper;3.3;0.0;Marcory;Marcory;True;On peut aller à Marcory en wôrô-wôrô.
+2026-10-19;T06.wav;parakeet + secours;whisper;4.15;0.0;Marcory;Marcory;True;On peut aller à Marcory en wôrô-wôrô.
+2026-10-19;T07.wav;whisper seul;whisper;3.03;0.111;Plateau;;False;Je veux prendre le bateau-bus ou le plateau.
+2026-10-19;T07.wav;parakeet + secours;parakeet;0.95;0.111;Plateau;Plateau;True;Je veux prendre le bateau bus. Le plateau.
+2026-10-19;T08.wav;whisper seul;whisper;3.1;0.0;Koumassi;Koumassi;True;Montre-moi le chemin pour Koumassi.
+2026-10-19;T08.wav;parakeet + secours;whisper;3.93;0.0;Koumassi;Koumassi;True;Montre-moi le chemin pour Koumassi.
+2026-10-19;T09.wav;whisper seul;whisper;3.68;0.25;Port-Bouët;Port-Bouët;True;Je pars à Pobouë, mais je ne veux pas trop mâcher.
+2026-10-19;T09.wav;parakeet + secours;whisper;5.08;0.25;Port-Bouët;Port-Bouët;True;Je pars à Pobouë, mais je ne veux pas trop mâcher.
+2026-10-19;T10.wav;whisper seul;whisper;3.31;0.0;Bingerville;Bingerville;True;C'est quel bus SOTRA pour Bingerville.
+2026-10-19;T10.wav;parakeet + secours;parakeet;1.01;0.143;Bingerville;Bingerville;True;C'est quel bus souterra pour Bingerville?
+2026-10-19;T11.wav;whisper seul;whisper;3.49;0.5;Anyama;Anyama;True;Je vais à Ayama, avec Singh Saint-François.
+2026-10-19;T11.wav;parakeet + secours;parakeet;0.92;0.375;Anyama;Anyama;True;Je vais à Ayama avec 500 francs.
+2026-10-19;T12.wav;whisper seul;whisper;6.33;0.0;Adjamé 220 Logements;Adjamé 220 Logements;True;Je quitte Yop, je veux aller à Adjamé, 220 logements.
+2026-10-19;T12.wav;parakeet + secours;whisper;5.27;0.0;Adjamé 220 Logements;Adjamé 220 Logements;True;Je quitte Yop, je veux aller à Adjamé, 220 logements.
+2026-10-19;T13.wav;whisper seul;whisper;3.42;0.25;Riviera Palmeraie;Riviera Palmeraie;True;Pour aller à la Riviera-Palmuret, je fais comment ?
+2026-10-19;T13.wav;parakeet + secours;parakeet;1.15;0.375;Riviera Palmeraie;Riviera Palmeraie;True;Pour aller à la rivière Palmurée, je fais comment?
+2026-10-19;T14.wav;whisper seul;whisper;3.67;0.222;Abobo Baoulé;Abobo Baoulé;True;Je suis un Adjamé. Je vais à Abobo Baoli.
+2026-10-19;T14.wav;parakeet + secours;whisper;4.18;0.222;Abobo Baoulé;Abobo Baoulé;True;Je suis un Adjamé. Je vais à Abobo Baoli.
+2026-10-19;T15.wav;whisper seul;whisper;3.38;0.636;Siporex;Siporex;True;Je veux aller à Sipourès. J'ai 200 francs, c'est le moins.
+2026-10-19;T15.wav;parakeet + secours;whisper;4.5;0.636;Siporex;Siporex;True;Je veux aller à Sipourès. J'ai 200 francs, c'est le moins.
+2026-10-19;T16.wav;whisper seul;whisper;3.03;0.5;Angré;Plateau;False;Comment ? Je vais à engager du platau.
+2026-10-19;T16.wav;parakeet + secours;whisper;3.98;0.5;Angré;Plateau;False;Comment ? Je vais à engager du platau.
+2026-10-19;T17.wav;whisper seul;whisper;2.9;0.143;Gare de Bassam;Gare de Bassam;True;Je pars à la gare du Bassam.
+2026-10-19;T17.wav;parakeet + secours;parakeet;0.69;0.143;Gare de Bassam;Gare de Bassam;True;Je pars à la gare du bassam.
+2026-10-19;T18.wav;whisper seul;whisper;3.17;0.1;CHU de Cocody;Cocody;False;Je dois aller au-dessus de Cocody, c'est urgent.
+2026-10-19;T18.wav;parakeet + secours;whisper;4.03;0.1;CHU de Cocody;Cocody;False;Je dois aller au-dessus de Cocody, c'est urgent.
+2026-10-19;T19.wav;whisper seul;whisper;3.16;0.2;Riviera 2;Riviera 2;True;Je vais à la Riviera 2. Le couler, c'est combien ?
+2026-10-19;T19.wav;parakeet + secours;parakeet;0.91;0.4;Riviera 2;Riviera;False;Je veux à la riviera de le couler c'est combien?
+2026-10-19;T20.wav;whisper seul;whisper;3.04;0.125;Williamsville;Williamsville;True;Je veux aller à Wiliamsivine en taxi communal.
+2026-10-19;T20.wav;parakeet + secours;parakeet;0.87;0.25;Williamsville;Williamsville;True;Je veux aller à William Civil, en taxi communal.
+2026-10-19;T21.wav;whisper seul;whisper;3.05;0.0;Attécoubé;Attécoubé;True;Montre-moi un trajet pour Attécoubé.
+2026-10-19;T21.wav;parakeet + secours;whisper;4.02;0.0;Attécoubé;Attécoubé;True;Montre-moi un trajet pour Attécoubé.
+2026-10-19;T22.wav;whisper seul;whisper;3.17;0.364;Zone 4;Anonkoua;False;Je vais Azonkat, il y a un bus.
+2026-10-19;T22.wav;parakeet + secours;parakeet;0.89;0.091;Zone 4;Zone 4;True;Je vais à Zone 4. Il y a un bus.
+2026-10-19;T23.wav;whisper seul;whisper;5.2;0.5;Vridi;Vridi;True;Je pas avridi ce soir.
+2026-10-19;T23.wav;parakeet + secours;whisper;4.27;0.5;Vridi;Vridi;True;Je pas avridi ce soir.
+2026-10-19;T24.wav;whisper seul;whisper;3.71;0.143;Gonzagueville;Gonzagueville;True;Comment je fais pour aller à Gonzacville ?
+2026-10-19;T24.wav;parakeet + secours;whisper;4.03;0.143;Gonzagueville;Gonzagueville;True;Comment je fais pour aller à Gonzacville ?
+2026-10-19;T25.wav;whisper seul;whisper;3.3;0.222;Niangon;Niangon;True;Je vais aller à Nyongong, mais pas en Gbaka.
+2026-10-19;T25.wav;parakeet + secours;whisper;4.4;0.222;Niangon;Niangon;True;Je vais aller à Nyongong, mais pas en Gbaka.
+2026-10-19;T26.wav;whisper seul;whisper;3.28;0.222;Aéroport;Bon repos;False;Je vais à la repos. C'est quel chemin ?
+2026-10-19;T26.wav;parakeet + secours;whisper;4.37;0.222;Aéroport;Bon repos;False;Je vais à la repos. C'est quel chemin ?
+2026-10-19;T27.wav;whisper seul;whisper;4.11;0.083;Treichville;Treichville;True;Je suis à Koumassi, je veux aller à Treichville, wôrô-wôrô.
+2026-10-19;T27.wav;parakeet + secours;whisper;4.91;0.083;Treichville;Treichville;True;Je suis à Koumassi, je veux aller à Treichville, wôrô-wôrô.
+2026-10-19;T28.wav;whisper seul;whisper;3.43;0.182;Yopougon;Yopougon;True;Mon frère, je vais à Yopougon. C'est comme le Baka.
+2026-10-19;T28.wav;parakeet + secours;parakeet;0.92;0.273;Yopougon;Yopougon;True;Mon frère, je vais à Yopougon. C'est comme il bouka.
+2026-10-19;T29.wav;whisper seul;whisper;3.21;0.2;Abobo;Abobo;True;Je quitte Cocody pour Abobo. Je veux le mocher.
+2026-10-19;T29.wav;parakeet + secours;parakeet;1.01;0.2;Abobo;Abobo;True;Je quitte Cocody pour Abobo. Je veux le moucher.
+2026-10-19;T30.wav;whisper seul;whisper;2.96;0.0;Plateau;Plateau;True;Je veux aller au plateau avant huit heures.
+2026-10-19;T30.wav;parakeet + secours;parakeet;0.88;0.25;Plateau;Plateau;True;Je veux aller au plateau avant 8h.
+2026-10-19;T31.wav;whisper seul;whisper;3.27;0.143;;;;Il y a des bouchons sur mon trajet.
+2026-10-19;T31.wav;parakeet + secours;parakeet;0.75;0.143;;;;Il y a des bouchons sur mon trajet.
+2026-10-19;T32.wav;whisper seul;whisper;2.93;0.0;;;;Je descends où ?
+2026-10-19;T32.wav;parakeet + secours;parakeet;0.72;0.0;;;;Je descends où?
+2026-10-19;T33.wav;whisper seul;whisper;2.67;0.0;;;;Ça fait combien ?
+2026-10-19;T33.wav;parakeet + secours;whisper;3.48;0.0;;;;Ça fait combien ?
+2026-10-19;T34.wav;whisper seul;whisper;2.9;0.2;;;;J'arrive à quel heure ?
+2026-10-19;T34.wav;parakeet + secours;whisper;3.83;0.2;;;;J'arrive à quel heure ?
+2026-10-19;T35.wav;whisper seul;whisper;2.88;0.0;;;;Oui, c'est ça.
+2026-10-19;T35.wav;parakeet + secours;parakeet;0.63;0.0;;;;Oui, c'est ça.
+2026-10-19;T36.wav;whisper seul;whisper;3.17;1.6;Riviera Palmeraie;;False;Nous, on ne s'érifiera pas le muret.
+2026-10-19;T36.wav;parakeet + secours;parakeet;0.82;0.4;Riviera Palmeraie;Riviera Palmeraie;True;Non, c'est rivera palmurée.
+2026-10-19;T37.wav;whisper seul;whisper;3.11;0.091;;;;Il y a un accident sur le pont, je vais signaler.
+2026-10-19;T37.wav;parakeet + secours;parakeet;0.77;0.091;;;;Il y a un incident sur le pont, je veux signaler.
+2026-10-19;T38.wav;whisper seul;whisper;3.13;0.571;;;;C'est quoi un coulis d'un Syrah ?
+2026-10-19;T38.wav;parakeet + secours;whisper;3.95;0.571;;;;C'est quoi un coulis d'un Syrah ?
+2026-10-19;T39.wav;whisper seul;whisper;3.11;0.167;;;;Le bateau-bus mâche le dimanche.
+2026-10-19;T39.wav;parakeet + secours;whisper;4.09;0.167;;;;Le bateau-bus mâche le dimanche.
+2026-10-19;T40.wav;whisper seul;whisper;3.21;0.077;Marcory;Marcory;True;Je vais aller à Marcory, mais je ne veux pas prendre le bateau.
+2026-10-19;T40.wav;parakeet + secours;whisper;4.35;0.077;Marcory;Marcory;True;Je vais aller à Marcory, mais je ne veux pas prendre le bateau.
+FRANCK_2026-10-24;T01.wav;whisper seul;whisper;3.07;0.8;Cocody;Bogui;False;J'ai vu aller à Bogody.
+FRANCK_2026-10-24;T01.wav;parakeet + secours;whisper;4.07;0.8;Cocody;Bogui;False;J'ai vu aller à Bogody.
+FRANCK_2026-10-24;T02.wav;whisper seul;whisper;3.5;0.429;Yopougon;Yopougon;True;Comment j'ai fait pour partir à Yopougon ?
+FRANCK_2026-10-24;T02.wav;parakeet + secours;whisper;4.1;0.429;Yopougon;Yopougon;True;Comment j'ai fait pour partir à Yopougon ?
+FRANCK_2026-10-24;T03.wav;whisper seul;whisper;3.37;0.429;Plateau;Plateau;True;J'ai quitté Abobo, je vais au plateau.
+FRANCK_2026-10-24;T03.wav;parakeet + secours;whisper;4.26;0.429;Plateau;Plateau;True;J'ai quitté Abobo, je vais au plateau.
+FRANCK_2026-10-24;T04.wav;whisper seul;whisper;3.19;0.714;Adjamé;Terminus Ecole Gandhi;False;Le Bacapoo Adjamé, secondier.
+FRANCK_2026-10-24;T04.wav;parakeet + secours;whisper;3.93;0.714;Adjamé;Terminus Ecole Gandhi;False;Le Bacapoo Adjamé, secondier.
+FRANCK_2026-10-24;T05.wav;whisper seul;whisper;3.29;1.286;Treichville;Treichville;True;J'ai deux ans à Treichville, j'ai pas le corps.
+FRANCK_2026-10-24;T05.wav;parakeet + secours;whisper;4.03;1.286;Treichville;Treichville;True;J'ai deux ans à Treichville, j'ai pas le corps.
+FRANCK_2026-10-24;T06.wav;whisper seul;whisper;3.97;0.25;Marcory;Marcory;True;On prétend aller à Marcory, wôrô-wôrô.
+FRANCK_2026-10-24;T06.wav;parakeet + secours;whisper;4.61;0.25;Marcory;Marcory;True;On prétend aller à Marcory, wôrô-wôrô.
+FRANCK_2026-10-24;T07.wav;whisper seul;whisper;3.49;0.111;Plateau;Plateau;True;Je vais prendre le bateau-bus pour le plateau.
+FRANCK_2026-10-24;T07.wav;parakeet + secours;parakeet;0.78;0.111;Plateau;Plateau;True;Je vais prendre le bateau bus pour le plateau.
+FRANCK_2026-10-24;T08.wav;whisper seul;whisper;3.17;0.0;Koumassi;Koumassi;True;Montre-moi le chemin pour Koumassi.
+FRANCK_2026-10-24;T08.wav;parakeet + secours;whisper;3.75;0.0;Koumassi;Koumassi;True;Montre-moi le chemin pour Koumassi.
+FRANCK_2026-10-24;T09.wav;whisper seul;whisper;3.5;0.5;Port-Bouët;Port-Bouët;True;J'ai pas un Port-Bouët, mais je ne peux pas trop mâcher.
+FRANCK_2026-10-24;T09.wav;parakeet + secours;whisper;4.36;0.5;Port-Bouët;Port-Bouët;True;J'ai pas un Port-Bouët, mais je ne peux pas trop mâcher.
+FRANCK_2026-10-24;T10.wav;whisper seul;whisper;3.21;0.143;Bingerville;Bingerville;True;C'est quel bus SOTRA ou Bingerville ?
+FRANCK_2026-10-24;T10.wav;parakeet + secours;whisper;4.05;0.143;Bingerville;Bingerville;True;C'est quel bus SOTRA ou Bingerville ?
+FRANCK_2026-10-24;T11.wav;whisper seul;whisper;3.04;0.375;Anyama;Anyama;True;Je vais à Anyama avec 5 enfants.
+FRANCK_2026-10-24;T11.wav;parakeet + secours;parakeet;0.78;0.375;Anyama;Anyama;True;Je vais à Niama avec 500 francs.
+FRANCK_2026-10-24;T12.wav;whisper seul;whisper;3.69;0.9;Adjamé 220 Logements;Adjamé;False;J'ai quitté Yopougon quand je vais aller à Adjamé descend vers logement.
+FRANCK_2026-10-24;T12.wav;parakeet + secours;whisper;4.53;0.9;Adjamé 220 Logements;Adjamé;False;J'ai quitté Yopougon quand je vais aller à Adjamé descend vers logement.
+FRANCK_2026-10-24;T13.wav;whisper seul;whisper;3.34;0.75;Riviera Palmeraie;Riviera;False;Pour aller à la Riviera, Palmeré, j'ai fait commande.
+FRANCK_2026-10-24;T13.wav;parakeet + secours;parakeet;0.9;0.375;Riviera Palmeraie;Riviera;False;Pour aller à la rivière, palméré, je fais comment?
+FRANCK_2026-10-24;T14.wav;whisper seul;whisper;3.55;0.556;Abobo Baoulé;Abobo Baoulé;True;J'y suis à Adjamé, j'y vais à Abobo-Bawli.
+FRANCK_2026-10-24;T14.wav;parakeet + secours;whisper;4.43;0.556;Abobo Baoulé;Abobo Baoulé;True;J'y suis à Adjamé, j'y vais à Abobo-Bawli.
+FRANCK_2026-10-24;T15.wav;whisper seul;whisper;3.45;0.636;Siporex;Siporex;True;Je vais aller à Sipores, j'ai 200 francs sur le monde.
+FRANCK_2026-10-24;T15.wav;parakeet + secours;whisper;4.3;0.636;Siporex;Siporex;True;Je vais aller à Sipores, j'ai 200 francs sur le monde.
+FRANCK_2026-10-24;T16.wav;whisper seul;whisper;3.06;0.125;Angré;Wangler;False;Comment je vais à Anglais depuis le plateau ?
+FRANCK_2026-10-24;T16.wav;parakeet + secours;whisper;3.87;0.125;Angré;Wangler;False;Comment je vais à Anglais depuis le plateau ?
+FRANCK_2026-10-24;T17.wav;whisper seul;whisper;3.14;0.571;Gare de Bassam;Gare de Bassam;True;J'ai pas à la gade de Bassam.
+FRANCK_2026-10-24;T17.wav;parakeet + secours;whisper;3.92;0.571;Gare de Bassam;Gare de Bassam;True;J'ai pas à la gade de Bassam.
+FRANCK_2026-10-24;T18.wav;whisper seul;whisper;3.57;0.4;CHU de Cocody;CHU de Cocody;True;J'ai doit aller au chute de Cocody, c'est urgent.
+FRANCK_2026-10-24;T18.wav;parakeet + secours;parakeet;1.46;0.2;CHU de Cocody;Cocody;False;Je dois aller au sud de Cocodis, c'est urgent.
+FRANCK_2026-10-24;T19.wav;whisper seul;whisper;3.61;0.4;Riviera 2;;False;Je vais arriver à le couler, c'est combien ?
+FRANCK_2026-10-24;T19.wav;parakeet + secours;whisper;5.17;0.4;Riviera 2;;False;Je vais arriver à le couler, c'est combien ?
+FRANCK_2026-10-24;T20.wav;whisper seul;whisper;4.23;0.25;Williamsville;Williamsville;True;Je vais aller à Williamsville en taxi communial.
+FRANCK_2026-10-24;T20.wav;parakeet + secours;whisper;4.69;0.25;Williamsville;Williamsville;True;Je vais aller à Williamsville en taxi communial.
+FRANCK_2026-10-24;T21.wav;whisper seul;whisper;3.3;0.333;Attécoubé;Attécoubé;True;Montre-moi l'entrage pour Attécoubé.
+FRANCK_2026-10-24;T21.wav;parakeet + secours;whisper;4.89;0.333;Attécoubé;Attécoubé;True;Montre-moi l'entrage pour Attécoubé.
+FRANCK_2026-10-24;T22.wav;whisper seul;whisper;3.44;0.182;Zone 4;Zone 4;True;J'y vais à la zone 4, il y a un bus.
+FRANCK_2026-10-24;T22.wav;parakeet + secours;parakeet;0.8;0.0;Zone 4;Zone 4;True;Je vais à la zone 4, il y a un bus.
+FRANCK_2026-10-24;T23.wav;whisper seul;whisper;3.19;0.667;Vridi;Vridi;True;J'ai pas avridi ce soir.
+FRANCK_2026-10-24;T23.wav;parakeet + secours;whisper;3.83;0.667;Vridi;Vridi;True;J'ai pas avridi ce soir.
+FRANCK_2026-10-24;T24.wav;whisper seul;whisper;3.42;0.429;Gonzagueville;Gonzagueville;True;Comment je vais faire pour aller à Gonzacville ?
+FRANCK_2026-10-24;T24.wav;parakeet + secours;whisper;3.9;0.429;Gonzagueville;Gonzagueville;True;Comment je vais faire pour aller à Gonzacville ?
+FRANCK_2026-10-24;T25.wav;whisper seul;whisper;3.19;0.222;Niangon;Niangon;True;Je vais aller à Nyango, mais pas en gbaka.
+FRANCK_2026-10-24;T25.wav;parakeet + secours;parakeet;0.83;0.444;Niangon;Niangon;True;Je vais aller à Niango, mais pas à Nbaka.
+FRANCK_2026-10-24;T26.wav;whisper seul;whisper;3.06;0.667;Aéroport;;False;J'y vais à la réponse, c'est combien ?
+FRANCK_2026-10-24;T26.wav;parakeet + secours;whisper;3.8;0.667;Aéroport;;False;J'y vais à la réponse, c'est combien ?
+FRANCK_2026-10-24;T27.wav;whisper seul;whisper;3.69;0.083;Treichville;Treichville;True;Je suis à Koumassi, je vais aller à Treichville en wôrô-wôrô.
+FRANCK_2026-10-24;T27.wav;parakeet + secours;whisper;4.64;0.083;Treichville;Treichville;True;Je suis à Koumassi, je vais aller à Treichville en wôrô-wôrô.
+FRANCK_2026-10-24;T28.wav;whisper seul;whisper;3.5;0.273;Yopougon;Yopougon;True;Mon frère, j'y vais à Yopougon, c'est combien le baka ?
+FRANCK_2026-10-24;T28.wav;parakeet + secours;parakeet;0.97;0.182;Yopougon;Yopougon;True;Mon frère, je vais à Yobougon, c'est combien le bac?
+FRANCK_2026-10-24;T29.wav;whisper seul;whisper;3.37;0.3;Abobo;Abobo;True;J'équipe Cocody pour Abobo, je vais le moins cher.
+FRANCK_2026-10-24;T29.wav;parakeet + secours;parakeet;1.14;0.2;Abobo;Abobo;True;Je quitte Cocodie pour Abobo, je vais le moins cher.
+FRANCK_2026-10-24;T30.wav;whisper seul;whisper;2.98;0.375;Plateau;Plateau;True;Je vais aller au plateau avant 8h00.
+FRANCK_2026-10-24;T30.wav;parakeet + secours;parakeet;0.78;0.25;Plateau;Plateau;True;Je vais aller au plateau avant 8 heures.
+FRANCK_2026-10-24;T31.wav;whisper seul;whisper;3.02;0.143;;;;Il y a des bouchons sur mon trajet.
+FRANCK_2026-10-24;T31.wav;parakeet + secours;parakeet;0.7;0.143;;;;Il y a des bouchons sur mon trajet.
+FRANCK_2026-10-24;T32.wav;whisper seul;whisper;2.85;1.0;;;;J'ai descendu.
+FRANCK_2026-10-24;T32.wav;parakeet + secours;whisper;3.45;1.0;;;;J'ai descendu.
+FRANCK_2026-10-24;T33.wav;whisper seul;whisper;2.78;0.0;;;;Ça fait combien ?
+FRANCK_2026-10-24;T33.wav;parakeet + secours;whisper;3.51;0.0;;;;Ça fait combien ?
+FRANCK_2026-10-24;T34.wav;whisper seul;whisper;2.9;0.0;;;;J'arrive à quelle heure ?
+FRANCK_2026-10-24;T34.wav;parakeet + secours;whisper;3.57;0.0;;;;J'arrive à quelle heure ?
+FRANCK_2026-10-24;T35.wav;whisper seul;whisper;2.86;0.0;;;;Oui, c'est ça.
+FRANCK_2026-10-24;T35.wav;parakeet + secours;parakeet;0.68;0.0;;;;Oui, c'est ça.
+FRANCK_2026-10-24;T36.wav;whisper seul;whisper;3.05;1.0;Riviera Palmeraie;Arrêt BANCO;False;Non, ça arrivera pas le miret.
+FRANCK_2026-10-24;T36.wav;parakeet + secours;parakeet;1.02;0.8;Riviera Palmeraie;Trois Palmiers;False;Non, ça arrive à palmir.
+FRANCK_2026-10-24;T37.wav;whisper seul;whisper;3.39;0.091;;;;Il y a un accident sur le pont, je vais signaler.
+FRANCK_2026-10-24;T37.wav;parakeet + secours;parakeet;0.81;0.0;;;;Il y a un accident sur le pont, je veux signaler.
+FRANCK_2026-10-24;T38.wav;whisper seul;whisper;3.16;0.571;;Shish;;C'est quoi le coulis de Syrah ?
+FRANCK_2026-10-24;T38.wav;parakeet + secours;whisper;3.98;0.571;;Shish;;C'est quoi le coulis de Syrah ?
+FRANCK_2026-10-24;T39.wav;whisper seul;whisper;3.15;0.167;;Marché (Abobo);;Le bateau-bus, Marche, le Dimash.
+FRANCK_2026-10-24;T39.wav;parakeet + secours;whisper;3.79;0.167;;Marché (Abobo);;Le bateau-bus, Marche, le Dimash.
+FRANCK_2026-10-24;T40.wav;whisper seul;whisper;3.29;0.154;Marcory;Marcory;True;Je vais aller à Marcory, mais je ne vais pas prendre le bateau.
+FRANCK_2026-10-24;T40.wav;parakeet + secours;whisper;4.98;0.154;Marcory;Marcory;True;Je vais aller à Marcory, mais je ne vais pas prendre le bateau.
+Marie_2026-10-24;T01.wav;whisper seul;whisper;3.03;0.0;Cocody;Cocody;True;Je veux aller à Cocody.
+Marie_2026-10-24;T01.wav;parakeet + secours;parakeet;0.71;0.2;Cocody;Cocody;True;Je veux aller à Cocodie.
+Marie_2026-10-24;T02.wav;whisper seul;whisper;3.24;0.0;Yopougon;Yopougon;True;Comment je fais pour partir à Yopougon ?
+Marie_2026-10-24;T02.wav;parakeet + secours;parakeet;0.86;0.0;Yopougon;Yopougon;True;Comment je fais pour partir à Yopougon?
+Marie_2026-10-24;T03.wav;whisper seul;whisper;3.28;0.0;Plateau;Plateau;True;Je quitte Abobo, je vais au plateau.
+Marie_2026-10-24;T03.wav;parakeet + secours;parakeet;1.04;0.286;Plateau;Plateau;True;Je quitte à Bobo, je vais au plateau.
+Marie_2026-10-24;T04.wav;whisper seul;whisper;3.39;0.286;Adjamé;Adjamé;True;Le Baka pour Adjamé, C'est Koumbié.
+Marie_2026-10-24;T04.wav;parakeet + secours;whisper;4.34;0.286;Adjamé;Adjamé;True;Le Baka pour Adjamé, C'est Koumbié.
+Marie_2026-10-24;T05.wav;whisper seul;whisper;3.16;0.0;Treichville;Treichville;True;Je descends à Treichville, je prends quoi ?
+Marie_2026-10-24;T05.wav;parakeet + secours;whisper;4.0;0.0;Treichville;Treichville;True;Je descends à Treichville, je prends quoi ?
+Marie_2026-10-24;T06.wav;whisper seul;whisper;3.22;0.0;Marcory;Marcory;True;On peut aller à Marcory en wôrô-wôrô.
+Marie_2026-10-24;T06.wav;parakeet + secours;whisper;4.05;0.0;Marcory;Marcory;True;On peut aller à Marcory en wôrô-wôrô.
+Marie_2026-10-24;T07.wav;whisper seul;whisper;3.58;0.222;Plateau;Plateau;True;Je prends le bateau-bus pour le plateau.
+Marie_2026-10-24;T07.wav;parakeet + secours;parakeet;0.8;0.222;Plateau;Plateau;True;Je prends le bateau bus pour le plateau
+Marie_2026-10-24;T08.wav;whisper seul;whisper;3.31;0.0;Koumassi;Koumassi;True;Montre-moi le chemin pour Koumassi.
+Marie_2026-10-24;T08.wav;parakeet + secours;whisper;3.93;0.0;Koumassi;Koumassi;True;Montre-moi le chemin pour Koumassi.
+Marie_2026-10-24;T09.wav;whisper seul;whisper;3.45;0.167;Port-Bouët;Port-Bouët;True;Je vais pas à Port-Bouët, mais je ne veux pas trop marcher.
+Marie_2026-10-24;T09.wav;parakeet + secours;whisper;4.52;0.167;Port-Bouët;Port-Bouët;True;Je vais pas à Port-Bouët, mais je ne veux pas trop marcher.
+Marie_2026-10-24;T10.wav;whisper seul;whisper;3.21;0.0;Bingerville;Bingerville;True;C'est quel bus SOTRA pour Bingerville ?
+Marie_2026-10-24;T10.wav;parakeet + secours;whisper;4.39;0.0;Bingerville;Bingerville;True;C'est quel bus SOTRA pour Bingerville ?
+Marie_2026-10-24;T11.wav;whisper seul;whisper;3.94;0.25;Anyama;Anyama;True;Je vais à Anyama avec 500 francs.
+Marie_2026-10-24;T11.wav;parakeet + secours;parakeet;0.99;0.375;Anyama;Anyama;True;Je vais à Anyama avec Sing Sungu.
+Marie_2026-10-24;T12.wav;whisper seul;whisper;3.77;0.6;Adjamé 220 Logements;Adjamé Liberté;False;Je quitte Yopougon, je vais aller Adjamé de sauve-logement.
+Marie_2026-10-24;T12.wav;parakeet + secours;whisper;5.77;0.6;Adjamé 220 Logements;Adjamé Liberté;False;Je quitte Yopougon, je vais aller Adjamé de sauve-logement.
+Marie_2026-10-24;T13.wav;whisper seul;whisper;3.69;0.375;Riviera Palmeraie;Riviera Palmeraie;True;Pour aller à Riviera-Palmeré, je fais comme moi.
+Marie_2026-10-24;T13.wav;parakeet + secours;parakeet;1.22;0.875;Riviera Palmeraie;Riviera Palmeraie;True;Poiler arrivera Palmeret, je fais comme moi.
+Marie_2026-10-24;T14.wav;whisper seul;whisper;3.77;0.222;Abobo Baoulé;Abobo Baoulé;True;Je suis à Adjamé, je vais à Bobo-Bowli.
+Marie_2026-10-24;T14.wav;parakeet + secours;parakeet;0.97;0.222;Abobo Baoulé;Abobo Baoulé;True;Je suis à Adjame. Je vais à Bobo Baoulé.
+Marie_2026-10-24;T15.wav;whisper seul;whisper;3.47;0.273;Siporex;Siporex;True;Je veux aller à Sipores, j'ai deux saufs en seulement.
+Marie_2026-10-24;T15.wav;parakeet + secours;whisper;4.51;0.273;Siporex;Siporex;True;Je veux aller à Sipores, j'ai deux saufs en seulement.
+Marie_2026-10-24;T16.wav;whisper seul;whisper;3.01;0.375;Angré;Plateau;False;Comment je vais engrer de plus le plateau ?
+Marie_2026-10-24;T16.wav;parakeet + secours;whisper;4.03;0.375;Angré;Plateau;False;Comment je vais engrer de plus le plateau ?
+Marie_2026-10-24;T17.wav;whisper seul;whisper;3.1;0.143;Gare de Bassam;Gare de Bassam;True;Je pas à la gare de Bassam.
+Marie_2026-10-24;T17.wav;parakeet + secours;whisper;3.8;0.143;Gare de Bassam;Gare de Bassam;True;Je pas à la gare de Bassam.
+Marie_2026-10-24;T18.wav;whisper seul;whisper;3.22;0.2;CHU de Cocody;CHU de Cocody;True;Je dois aller au chute de Cocody, c'est Hujon.
+Marie_2026-10-24;T18.wav;parakeet + secours;whisper;4.23;0.2;CHU de Cocody;CHU de Cocody;True;Je dois aller au chute de Cocody, c'est Hujon.
+Marie_2026-10-24;T19.wav;whisper seul;whisper;3.38;0.4;Riviera 2;Marraie;False;Je vais à l'arrivée Rade 2. Le couler c'est combien ?
+Marie_2026-10-24;T19.wav;parakeet + secours;whisper;4.33;0.4;Riviera 2;Marraie;False;Je vais à l'arrivée Rade 2. Le couler c'est combien ?
+Marie_2026-10-24;T20.wav;whisper seul;whisper;3.21;0.25;Williamsville;Williamsville;True;Je veux aller à Williamsville, en Tassi Cominale.
+Marie_2026-10-24;T20.wav;parakeet + secours;parakeet;1.0;0.125;Williamsville;Williamsville;True;Je veux aller à Williamsville, en taxi communale.
+Marie_2026-10-24;T21.wav;whisper seul;whisper;3.14;0.167;Attécoubé;Attécoubé;True;Montre-moi et trajet pour Attécoubé.
+Marie_2026-10-24;T21.wav;parakeet + secours;parakeet;0.8;0.167;Attécoubé;Attécoubé;True;Montre-moi un trajet pour Atékoube.
+Marie_2026-10-24;T22.wav;whisper seul;whisper;3.06;0.364;Zone 4;Ana;False;Je vais aller à Zankat, il y a un bus.
+Marie_2026-10-24;T22.wav;parakeet + secours;parakeet;0.85;0.182;Zone 4;Zone 4;True;Je vais aller à Zone 4. Il y a un bus.
+Marie_2026-10-24;T23.wav;whisper seul;whisper;2.97;0.667;Vridi;;False;Je veux pas avouer dit ce soir.
+Marie_2026-10-24;T23.wav;parakeet + secours;whisper;3.63;0.667;Vridi;;False;Je veux pas avouer dit ce soir.
+Marie_2026-10-24;T24.wav;whisper seul;whisper;3.0;0.143;Gonzagueville;Gonzagueville;True;Comment je fais pour aller à Gonzacville ?
+Marie_2026-10-24;T24.wav;parakeet + secours;whisper;3.92;0.143;Gonzagueville;Gonzagueville;True;Comment je fais pour aller à Gonzacville ?
+Marie_2026-10-24;T25.wav;whisper seul;whisper;3.22;0.111;Niangon;Niangon;True;Je veux aller à Nyongon, mais pas en Gbaka.
+Marie_2026-10-24;T25.wav;parakeet + secours;whisper;4.18;0.111;Niangon;Niangon;True;Je veux aller à Nyongon, mais pas en Gbaka.
+Marie_2026-10-24;T26.wav;whisper seul;whisper;3.16;0.0;Aéroport;Aéroport;True;Je vais à l'aéroport. C'est quel chemin ?
+Marie_2026-10-24;T26.wav;parakeet + secours;parakeet;0.85;0.0;Aéroport;Aéroport;True;Je vais à l'aéroport. C'est quel chemin.
+Marie_2026-10-24;T27.wav;whisper seul;whisper;3.71;0.0;Treichville;Treichville;True;Je suis à Koumassi. Je veux aller à Treichville en wôrô-wôrô.
+Marie_2026-10-24;T27.wav;parakeet + secours;whisper;23.41;0.0;Treichville;Treichville;True;Je suis à Koumassi. Je veux aller à Treichville en wôrô-wôrô.
+Marie_2026-10-24;T28.wav;whisper seul;whisper;3.64;0.091;Yopougon;Yopougon;True;Mon frère, je vais à Yopougon. C'est combien le bagarre ?
+Marie_2026-10-24;T28.wav;parakeet + secours;parakeet;1.22;0.091;Yopougon;Yopougon;True;Mon frère, je vais à Yopougon. C'est combien le bacar?
+Marie_2026-10-24;T29.wav;whisper seul;whisper;4.75;0.3;Abobo;Abobo;True;Je quitte Cocody pour Abobo. Je vais le mouiller chez.
+Marie_2026-10-24;T29.wav;parakeet + secours;parakeet;1.33;0.3;Abobo;Abobo;True;Je quitte Cocodie pour Abobo. Je veux le mouïcher.
+Marie_2026-10-24;T30.wav;whisper seul;whisper;4.0;0.25;Plateau;Plateau;True;Je veux aller au plateau avant 8h.
+Marie_2026-10-24;T30.wav;parakeet + secours;parakeet;1.07;0.25;Plateau;Plateau;True;Je veux aller au plateau avant 8h
+Marie_2026-10-24;T31.wav;whisper seul;whisper;4.05;0.429;;;;Il y a la bouchon sur mon trajet.
+Marie_2026-10-24;T31.wav;parakeet + secours;parakeet;0.86;0.429;;;;Il y a la bouchon sur mon trajet.
+Marie_2026-10-24;T32.wav;whisper seul;whisper;3.46;0.333;;;;Je descends ou ?
+Marie_2026-10-24;T32.wav;parakeet + secours;parakeet;0.93;0.0;;;;Je descends où?
+Marie_2026-10-24;T33.wav;whisper seul;whisper;3.5;0.0;;;;Ça fait combien ?
+Marie_2026-10-24;T33.wav;parakeet + secours;whisper;4.01;0.0;;;;Ça fait combien ?
+Marie_2026-10-24;T34.wav;whisper seul;whisper;3.16;0.4;;Cabine Bleue;;J'arrive à Kaleu.
+Marie_2026-10-24;T34.wav;parakeet + secours;whisper;9.81;0.4;;Cabine Bleue;;J'arrive à Kaleu.
+Marie_2026-10-24;T35.wav;whisper seul;whisper;4.17;0.0;;;;Oui, c'est ça.
+Marie_2026-10-24;T35.wav;parakeet + secours;parakeet;0.88;0.0;;;;Oui, c'est ça.
+Marie_2026-10-24;T36.wav;whisper seul;whisper;3.42;1.0;Riviera Palmeraie;;False;Non, ça arrivera pas le mur.
+Marie_2026-10-24;T36.wav;parakeet + secours;whisper;4.13;1.0;Riviera Palmeraie;;False;Non, ça arrivera pas le mur.
+Marie_2026-10-24;T37.wav;whisper seul;whisper;3.53;0.182;;;;Il y a un assidon sur le pont. Je vais signaler.
+Marie_2026-10-24;T37.wav;parakeet + secours;parakeet;0.86;0.0;;;;Il y a un accident sur le pont. Je veux signaler.
+Marie_2026-10-24;T38.wav;whisper seul;whisper;3.43;0.571;;Arrêt CIRT;;C'est quoi le coulet d'Ossira ?
+Marie_2026-10-24;T38.wav;parakeet + secours;whisper;4.25;0.571;;Arrêt CIRT;;C'est quoi le coulet d'Ossira ?
+Marie_2026-10-24;T39.wav;whisper seul;whisper;3.92;0.167;;;;Le bateau-bus match le dimanche.
+Marie_2026-10-24;T39.wav;parakeet + secours;whisper;4.16;0.167;;;;Le bateau-bus match le dimanche.
+Marie_2026-10-24;T40.wav;whisper seul;whisper;3.54;0.0;Marcory;Marcory;True;Je veux aller à Marcory, mais je ne veux pas prendre le bateau.
+Marie_2026-10-24;T40.wav;parakeet + secours;parakeet;1.02;0.077;Marcory;Marcory;True;Je veux aller à Makori, mais je ne veux pas prendre le bateau.

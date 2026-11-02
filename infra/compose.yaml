@@ -36,8 +36,11 @@ services:
       CORS_ORIGIN: http://localhost:8080
       # production (default): only CORS_ORIGIN (services/api/src/cors.ts), like the community service.
       SIRA_ENV: ${SIRA_ENV:-production}
+      # Signalements des voyageurs : gardés dans ce fichier, sur le volume api_runtime, d'un redémarrage à l'autre.
+      SIRA_REPORTS_FILE: /app/runtime/reports.json
     volumes:
       - ../data:/data:ro,Z
+      - api_runtime:/app/runtime:Z
     expose: ["4000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -145,6 +148,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  api_runtime:
   voice_cache:
   postgres_data:
   valkey_data:

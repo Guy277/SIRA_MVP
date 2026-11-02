@@ -92,7 +92,22 @@ function show(data) {
   $("raw").textContent = JSON.stringify(data, null, 2);
   context = data.context || null;
   // Seule la voix de SIRA (pierre) parle : pas de voix du navigateur en secours.
-  if (data.reply_audio?.base64) { $("audio").hidden = false; $("audio").src = `data:${data.reply_audio.mime};base64,${data.reply_audio.base64}`; $("audio").play().catch(() => {}); }
+  if (data.reply_audio?.base64) playParts(`data:${data.reply_audio.mime};base64,${data.reply_audio.base64}`, (data.reply_parts || []).slice(1));
+}
+
+// Phrase par phrase : la première voix arrive avec la réponse, les suivantes sont demandées à /voice/tts.
+let spoken = 0;
+async function playParts(first, rest) {
+  const turn = ++spoken, audio = $("audio");
+  audio.hidden = false;
+  const next = rest.map((text) => fetch(`${BASE}/voice/tts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
+    .then((r) => (r.ok ? r.blob() : null)).catch(() => null));
+  for (const source of [first, ...next]) {
+    const value = await source;
+    if (turn !== spoken || !value) return;
+    audio.src = typeof value === "string" ? value : URL.createObjectURL(value);
+    await new Promise((done) => { audio.onended = done; audio.onerror = done; audio.play().catch(done); });
+  }
 }
 
 async function send() {

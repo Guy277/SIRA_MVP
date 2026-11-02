@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import re
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 from . import normalize as nz
 from .knowledge import Retriever
+from .llm import LocalLLM
 from .nlu import NLUModel
 from .personal import clean_places, find_place
 from .resolver import Match, PlaceResolver, norm, same_name
@@ -33,8 +34,30 @@ QUESTIONS = {
 }
 # Réponses où l'app doit faire répéter (et proposer d'écrire ou la carte au 2e échec).
 RETRY_REASONS = {"low_intent_confidence", "unresolvable_place"}
+
+NOTHING_HEARD = "Pardon, je n'ai rien entendu. Tu peux répéter un peu plus fort, s'il te plaît ?"
+PLACE_AGAIN = "Pardon, je n'ai pas bien compris le lieu. Tu peux le redire ?"
+WHERE_TO = "D'accord. Dis-moi où tu veux aller."
+STOP_NEEDS_DESTINATION = "Dis-moi ta destination, je te montre où prendre ton transport."
+NO_MATCHING_TRIP = "Je n'ai pas trouvé de trajet qui respecte ta demande. Essaie avec un autre budget ou un autre point de départ."
+DEFAULT_REPLY = "Je n'ai pas bien compris. Dis-moi où tu veux aller."
+# Réponses toujours identiques (les autres dépendent du lieu dit).
+OTHER_REPLIES = {
+    "traffic_status": "Dis-moi l'endroit, par exemple « ça bouche à Adjamé ? », et je regarde les signalements des voyageurs.",
+    "reroute": "D'accord, je recalcule un autre passage depuis ta position.",
+    "ask_nearby_landmark": "Je te montre les repères autour de toi sur la carte.",
+    "voice_help": "Je peux te trouver un trajet, te dire le prix, la durée, ou où prendre ton gbaka, ton wôrô-wôrô ou ton bus. Dis par exemple : je vais au Plateau.",
+    "confirm": "C'est noté.",
+    "out_of_scope": "Je suis SIRA, je t'aide pour tes déplacements à Abidjan. Dis-moi où tu veux aller.",
+}
+# Ce que SIRA dit souvent, mot pour mot : sa voix est préparée au démarrage du service (main.py).
+FIXED_REPLIES = (NOTHING_HEARD, PLACE_AGAIN, WHERE_TO, STOP_NEEDS_DESTINATION, NO_MATCHING_TRIP, DEFAULT_REPLY,
+                 *(q for q in QUESTIONS.values() if "{" not in q), *OTHER_REPLIES.values())
 # Un lieu dit seul (« Cocody ! ») classé dans ces intentions veut dire « je vais là ».
 PLACE_ALONE_INTENTS = {"confirm", "out_of_scope", "voice_help"}
+# Raisons qui disent qu'une phrase a peut-être été mal entendue : elle repasse alors par Whisper (main.py).
+UNSURE_HEARING = {"unresolvable_place", "ambiguous_place", "low_place_confidence", "place_without_coordinates",
+                  "low_intent_confidence"}
 # Lieux du voyageur (Maison, Travail…) de la question en cours. Le dialogue sert toutes les requêtes à la fois :
 # ils sont propres à chaque appel de ask(), jamais gardés sur l'objet.
 _PERSONAL: ContextVar[list[dict]] = ContextVar("personal_places", default=[])
@@ -47,6 +70,20 @@ TRIP_ACTION_BY_INTENT = {"ask_eta": "trip_eta", "ask_fare": "trip_price", "ask_t
                          "find_stop": "trip_stops", "traffic_status": "trip_incidents"}
 # … seulement si CamemBERT est sûr de lui (« il va pleuvoir demain ? » sort en traffic_status à 0,60).
 TRIP_INTENT_MIN_CONFIDENCE = 0.8
+
+# LLM local (llm.py) : appelé seulement quand les règles ne savent pas répondre. Ses outils sont traduits ici vers
+# ce que SIRA sait déjà faire ; il ne fournit jamais lui-même un prix, une durée ou un arrêt.
+LLM_ROUTE_REASONS = {"low_intent_confidence", "unresolvable_place", "missing_destination"}
+LLM_PREFERENCES = {"rapide": "fast", "moins_cher": "cheap", "equilibre": "balanced", "peu_de_marche": "min_walking"}
+LLM_INTENT_BY_PREFERENCE = {"fast": "ask_fastest", "cheap": "ask_cheapest"}
+LLM_MODES = {"gbaka": "gbaka", "woro": "woro", "sotra": "sotra", "bateau": "boat", "taxi": "taxi"}
+LLM_TRIP_SUBJECTS = {"arret": "trip_stops", "prix": "trip_price", "arrivee": "trip_eta", "incidents": "trip_incidents"}
+TRIP_INTENT_BY_ACTION = {"trip_eta": "ask_eta", "trip_price": "ask_fare", "trip_stops": "ask_transfer",
+                         "trip_incidents": "traffic_status"}
+LLM_INCIDENTS = {"accident": "accident", "bouchon": "bouchon", "inondation": "inondation", "route_barree": "route barrée",
+                 "autre": "incident"}
+NO_INFO = "Je n'ai pas encore cette information. Je peux te trouver un trajet : dis-moi où tu veux aller."
+LLM_MAX_REPLY = 300
 
 
 @dataclass
@@ -73,7 +110,8 @@ class Understanding:
 class VoiceDialog:
     def __init__(self, nlu: NLUModel, resolver: PlaceResolver, place_threshold: float, place_margin: float,
                  intent_min_confidence: float, plan_journeys: Callable[[dict], dict] | None = None,
-                 knowledge: Retriever | None = None, trips: TripAnswers | None = None, faq_threshold: float = 0.65):
+                 knowledge: Retriever | None = None, trips: TripAnswers | None = None, faq_threshold: float = 0.65,
+                 llm: LocalLLM | None = None):
         self.nlu = nlu
         self.resolver = resolver
         self.place_threshold = place_threshold
@@ -83,6 +121,7 @@ class VoiceDialog:
         self.knowledge = knowledge
         self.trips = trips
         self.faq_threshold = faq_threshold
+        self.llm = llm
 
     # ------------------------------------------------------------------ comprendre
     def _place(self, entity: dict, sentence: str = "") -> tuple[dict, str | None]:
@@ -210,6 +249,16 @@ class VoiceDialog:
             return None if reason else self._point(info)
         return None
 
+    def needs_better_hearing(self, text: str, position: dict | None = None, places: list | None = None) -> bool:
+        """La transcription rapide (Parakeet) a-t-elle pu mal entendre ? Oui quand un lieu ou l'intention ne sont pas
+        sûrs, ou qu'un trajet n'a pas de destination (« je vais à Jami ») : la phrase repasse alors par Whisper."""
+        token = _PERSONAL.set(clean_places(places))
+        try:
+            u = self.understand(text, position)
+        finally:
+            _PERSONAL.reset(token)
+        return bool(UNSURE_HEARING & set(u.reasons)) or (u.intent in NEEDS_DESTINATION and "missing_destination" in u.reasons)
+
     def ask(self, text: str, position: dict | None = None, context: dict | None = None, trip: dict | None = None,
             places: list | None = None) -> dict:
         """trip : le trajet suivi dans l'application (calculé par SIRA-MORE), pour « je descends où ? ».
@@ -253,18 +302,24 @@ class VoiceDialog:
         if u.intent == "confirm" and pending and pending.get("destination") and pending.get("origin"):
             if yes_no(text) == "yes" or not any(e["label"] in ("DESTINATION", "ORIGIN", "PLACE") for e in u.entities):
                 return self._plan(u, pending, prefix="Ya foye. ")
-            return self._reply(u, "Pardon, je n'ai pas bien compris le lieu. Tu peux le redire ?", context={"pending_request": pending})
+            return self._reply(u, PLACE_AGAIN, context={"pending_request": pending})
         # « Non, c'est Riviera Palmeraie » : on corrige la destination de la demande en attente
         if u.intent == "deny":
             if pending and "destination" in u.places and not u.places["destination"]["reason"]:
                 fixed = dict(pending, destination=self._point(u.places["destination"]))
                 return self._plan(u, fixed, prefix="D'accord. ")
-            return self._reply(u, "D'accord. Dis-moi où tu veux aller.", context={"pending_request": pending} if pending else None)
+            return self._reply(u, WHERE_TO, context={"pending_request": pending} if pending else None)
 
         # FAQ et questions sur le trajet en cours (« c'est quoi un gbaka ? », « je descends où ? »)
         answered = self._knowledge_reply(u, text, position, trip)
         if answered:
             return answered
+
+        # Les règles ne sauraient que faire répéter ou refuser : le LLM local tente sa chance (s'il est branché).
+        if self.llm is not None and self._wants_llm(u):
+            helped = self._llm_reply(u, text, position, trip)
+            if helped:
+                return helped
 
         if u.intent in ROUTE_INTENTS:
             if u.needs_confirmation:
@@ -275,7 +330,7 @@ class VoiceDialog:
                                                       "name": dest["match"]["canonical"]}
                 return self._reply(u, u.question, context={"pending_request": pending_request})
             if u.intent in ("find_stop", "ask_transfer") and not u.journey_request.get("destination"):
-                return self._reply(u, "Dis-moi ta destination, je te montre où prendre ton transport.")
+                return self._reply(u, STOP_NEEDS_DESTINATION)
             return self._plan(u, u.journey_request)
 
         if u.intent == "out_of_scope":  # hors sujet : refus poli, sans faire répéter
@@ -283,6 +338,102 @@ class VoiceDialog:
         if "low_intent_confidence" in u.reasons:  # « euh », phrase mal transcrite : on fait répéter poliment
             return self._reply(u, u.question)
         return self._reply(u, self._other_intent_reply(u))
+
+    # ------------------------------------------------------------------ LLM local (chef d'orchestre)
+    def _wants_llm(self, u: Understanding) -> bool:
+        if u.intent in ROUTE_INTENTS:
+            return bool(LLM_ROUTE_REASONS & set(u.reasons))
+        if u.intent == "out_of_scope" or "low_intent_confidence" in u.reasons:
+            return True
+        # Intention sans réponse prévue : les règles diraient « Je n'ai pas bien compris ».
+        return u.intent not in OTHER_REPLIES and u.intent not in ("report_incident", "report_road_condition", "confirm", "deny")
+
+    def _said_place(self, said: str) -> tuple[dict | None, dict | None]:
+        """Le lieu nommé par le LLM, vérifié comme les autres (lieux du voyageur, puis répertoire) : (point, info)."""
+        said = (said or "").strip()[:120]
+        if not said:
+            return None, None
+        mine = find_place(said, _PERSONAL.get())
+        if mine:
+            return {"lat": mine["lat"], "lon": mine["lon"], "name": mine["canonical"]}, \
+                {"heard": said, "match": mine, "alternatives": [], "reason": None}
+        info, reason = self._place({"text": said}, said)
+        return (None if reason else self._point(info)), info
+
+    def _llm_reply(self, u: Understanding, text: str, position: dict | None, trip: dict | None) -> dict | None:
+        decision = self.llm.decide(text, _PERSONAL.get(), in_trip=trip is not None)
+        if decision is None:
+            return None
+        args = decision.args
+        payload = None
+        if decision.tool == "calculer_trajet":
+            payload = self._llm_trip(u, args, position)
+        elif decision.tool == "trajet_en_cours":
+            action = LLM_TRIP_SUBJECTS.get(str(args.get("sujet")), "trip_summary")
+            if trip is None:
+                payload = self._reply(u, NO_TRIP, kind="info")
+            elif self.trips is not None:
+                reply, live = self.trips.answer(action, trip, position)
+                payload = self._reply(replace(u, intent=TRIP_INTENT_BY_ACTION.get(action, u.intent)), reply, sources=live, kind="info")
+        elif decision.tool == "signaler_incident":
+            word = LLM_INCIDENTS.get(str(args.get("type")), "incident")
+            _, info = self._said_place(str(args.get("lieu") or ""))
+            reported = replace(u, intent="report_incident", reasons=[], places=dict(u.places),
+                               entities=[*u.entities, {"label": "INCIDENT_TYPE", "text": word, "start": 0, "end": 0, "score": 1.0}])
+            if info and not info.get("reason"):
+                reported.places["place"] = info
+            payload = self._reply(reported, self._other_intent_reply(reported), kind="info")
+        elif decision.tool == "chercher_info":
+            question = str(args.get("question") or text)[:300]
+            hits = self.knowledge.search(question, 1) if self.knowledge else []
+            hit = hits[0] if hits and hits[0].score >= self.faq_threshold else None
+            payload = self._reply(u, hit.passage.answer if hit else NO_INFO, sources=[hit.passage.id] if hit else [], kind="info")
+        elif decision.text and not re.search(r"\d", decision.text) and len(decision.text) <= LLM_MAX_REPLY:
+            # Sans outil : seulement une phrase sans aucun chiffre (refus poli, salutation). Un chiffre écrit sans
+            # outil serait inventé : on garde alors la réponse des règles.
+            payload = self._reply(u, decision.text, kind="info")
+        if payload is None:
+            return None
+        payload["sources"] = [*payload.get("sources", []), "llm"]
+        payload["llm"] = {"outil": decision.tool, "arguments": args, "secondes": decision.seconds}
+        return payload
+
+    def _llm_trip(self, u: Understanding, args: dict, position: dict | None) -> dict:
+        destination, info = self._said_place(str(args.get("destination") or ""))
+        route = replace(u, intent="navigate_to", reasons=[], places=dict(u.places))
+        if destination is None:
+            route.reasons = ["unresolvable_place" if info else "missing_destination"]
+            if info:
+                route.places["destination"] = info
+            return self._reply(route, self._question(route))
+        route.places["destination"] = info
+        origin = _position_point(position)
+        if str(args.get("depart") or "").strip():
+            origin, origin_info = self._said_place(str(args["depart"]))
+            if origin is None:
+                route.reasons = ["unresolvable_place"]
+                route.places = {"origin": origin_info} if origin_info else {}
+                return self._reply(route, self._question(route))
+            route.places["origin"] = origin_info
+        preference = LLM_PREFERENCES.get(str(args.get("preference")), "balanced")
+        route.intent = LLM_INTENT_BY_PREFERENCE.get(preference, "navigate_to")
+        excluded = sorted({LLM_MODES[m] for m in args.get("modes_exclus") or [] if m in LLM_MODES})
+        request: dict[str, Any] = {"origin": origin, "destination": destination, "preference": preference,
+                                   "constraints": {"excludedModes": excluded}}
+        budget = args.get("budget_fcfa")
+        if isinstance(budget, (int, float)) and 0 < budget <= 100_000:
+            request["budget"] = int(budget)
+        preferred = sorted({LLM_MODES[m] for m in args.get("modes_preferes") or [] if m in LLM_MODES})
+        if preferred:
+            request["preferredModes"] = preferred
+        departure = nz.departure_at(str(args.get("heure") or "")) if args.get("heure") else None
+        if departure:
+            request["departureAt"] = departure
+        route.journey_request = request
+        if origin is None:
+            route.reasons = ["missing_origin"]
+            return self._reply(route, self._question(route), context={"pending_request": request})
+        return self._plan(route, request)
 
     def _knowledge_reply(self, u: Understanding, text: str, position: dict | None, trip: dict | None) -> dict | None:
         """Réponse de la FAQ, ou calculée sur le trajet en cours ; None si la phrase ne leur est pas destinée."""
@@ -353,13 +504,8 @@ class VoiceDialog:
         return {
             "report_incident": f"Merci. Je prépare le signalement{f' « {incident} »' if incident else ''} vers {name}. Confirme-le sur l'écran pour prévenir les autres voyageurs.",
             "report_road_condition": f"Merci. Je prépare le signalement de l'état de la route vers {name}. Confirme-le sur l'écran.",
-            "traffic_status": "Dis-moi l'endroit, par exemple « ça bouche à Adjamé ? », et je regarde les signalements des voyageurs.",
-            "reroute": "D'accord, je recalcule un autre passage depuis ta position.",
-            "ask_nearby_landmark": "Je te montre les repères autour de toi sur la carte.",
-            "voice_help": "Je peux te trouver un trajet, te dire le prix, la durée, ou où prendre ton gbaka, ton wôrô-wôrô ou ton bus. Dis par exemple : je vais au Plateau.",
-            "confirm": "C'est noté.",
-            "out_of_scope": "Je suis SIRA, je t'aide pour tes déplacements à Abidjan. Dis-moi où tu veux aller.",
-        }.get(u.intent, "Je n'ai pas bien compris. Dis-moi où tu veux aller.")
+            **OTHER_REPLIES,
+        }.get(u.intent, DEFAULT_REPLY)
 
 
 class JourneyServiceError(RuntimeError):
@@ -430,7 +576,7 @@ def _choose(result: dict, journeys: list[dict], request: dict) -> tuple[dict, st
 def describe_journeys(result: dict, request: dict, intent: str) -> str:
     journeys = result.get("journeys") or []
     if not journeys:
-        return "Je n'ai pas trouvé de trajet qui respecte ta demande. Essaie avec un autre budget ou un autre point de départ."
+        return NO_MATCHING_TRIP
     chosen, note = _choose(result, journeys, request)
     dest = (request.get("destination") or {}).get("name", "ta destination")
     duration = chosen.get("duration")

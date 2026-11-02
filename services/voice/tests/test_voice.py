@@ -2,11 +2,14 @@
 
 Lancer : npm run test:voice   (ou  python -m unittest discover -s services/voice/tests -v)
 """
+import base64
+import io
 import json
 import os
 import re
 import sys
 import unittest
+import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,11 +19,13 @@ os.environ.setdefault("VOICE_GAZETTEER", str(FIXTURES / "gazetteer_test.json"))
 os.environ.setdefault("VOICE_MODELS_DIR", str(FIXTURES / "absent"))
 os.environ.setdefault("VOICE_PIPER_MODEL", str(FIXTURES / "absent.onnx"))
 os.environ.setdefault("VOICE_PRELOAD", "0")  # les tests n'utilisent pas les gros modèles
+os.environ.setdefault("VOICE_PARAKEET_DIR", str(FIXTURES / "absent"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
 from services.voice.app import normalize as nz  # noqa: E402
 from services.voice.app.config import PLACE_MARGIN, PLACE_THRESHOLD  # noqa: E402
+from services.voice.app import dialog as dialog_module  # noqa: E402
 from services.voice.app.dialog import JourneyServiceError, VoiceDialog  # noqa: E402
 from services.voice.app.knowledge import KnowledgeBase  # noqa: E402
 from services.voice.app.main import create_app  # noqa: E402
@@ -203,6 +208,250 @@ class LieuxDuVoyageurTest(unittest.TestCase):
         from services.voice.app.personal import clean_places
         kept = clean_places([*self.PLACES, "Maison", {"kind": "home", "lat": "x", "lon": 1}, {"label": "Ab", "title": "A", "lat": 5.3, "lon": -4}])
         self.assertEqual([p["label"] for p in kept], ["Maison", "Travail", "Chez Maman"])
+
+
+class ParakeetPuisWhisperTest(unittest.TestCase):
+    """Parakeet (≈ 0,5 s) d'abord ; Whisper (3 à 4,5 s) seulement quand Parakeet n'est pas sûr du lieu ou de l'intention."""
+
+    class Ear:
+        def __init__(self, text):
+            self.text, self.calls = text, 0
+
+        def transcribe(self, audio):
+            self.calls += 1
+            return {"text": self.text, "duration_s": 1.0, "speech_detected": bool(self.text), "avg_logprob": None}
+
+    def state(self, fast_text, slow_text="je vais au plato"):
+        state = type("State", (), {})()
+        state.fast_asr, state.asr = self.Ear(fast_text), self.Ear(slow_text)
+        return state
+
+    def test_parakeet_suffit_quand_c_est_sur(self):
+        from services.voice.app.main import hear
+        state = self.state("je vais au plato")
+        transcript = hear(state, b"audio", lambda text: False)
+        self.assertEqual((transcript["moteur"], state.asr.calls), ("parakeet", 0))
+
+    def test_whisper_reecoute_quand_ce_n_est_pas_sur(self):
+        from services.voice.app.main import hear
+        state = self.state("je vais à jami")
+        transcript = hear(state, b"audio", lambda text: True)
+        self.assertEqual((transcript["moteur"], transcript["text"], transcript["secours"]), ("whisper", "je vais au plato", True))
+        self.assertIn("parakeet_s", transcript)
+
+    def test_whisper_quand_parakeet_n_entend_rien_ou_manque(self):
+        from services.voice.app.main import hear
+        self.assertEqual(hear(self.state(""), b"audio", lambda text: False)["moteur"], "whisper")
+        state = self.state("x")
+        state.fast_asr = None  # Parakeet pas installé : Whisper seul, sans « secours »
+        transcript = hear(state, b"audio", lambda text: False)
+        self.assertEqual((transcript["moteur"], transcript["secours"]), ("whisper", False))
+
+    def test_lieu_pas_sur_dans_la_phrase(self):
+        d = VoiceDialog(FakeNLU(), PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5, Planner())
+        self.assertTrue(d.needs_better_hearing("je vais à jamizou", POSITION))  # lieu inconnu : Whisper réécoute
+        self.assertFalse(d.needs_better_hearing("je vais au plato", POSITION))
+        places = [{"kind": "home", "label": "Maison", "title": "Riviera Palmeraie", "lat": 5.3631, "lon": -3.9594}]
+        self.assertFalse(d.needs_better_hearing("je rentre à la maison", POSITION, places))  # lieu du voyageur : sûr
+
+    def test_api_choisit_le_moteur(self):
+        planner = Planner()
+        with TestClient(create_app(nlu=FakeNLU(), planner=planner, live=FakeLive())) as client:
+            client.app.state.fast_asr, client.app.state.asr = self.Ear("je vais au plato"), self.Ear("je vais au plato")
+            body = client.post("/voice/query", files={"audio": ("v.webm", b"abc", "audio/webm")}, data={"speak": "false", "lat": "5.3467", "lon": "-3.9951"}).json()
+            self.assertEqual((body["transcript"]["moteur"], client.app.state.asr.calls), ("parakeet", 0))
+            client.app.state.fast_asr = self.Ear("je vais à jamizou")
+            body = client.post("/voice/query", files={"audio": ("v.webm", b"abc", "audio/webm")}, data={"speak": "false", "lat": "5.3467", "lon": "-3.9951"}).json()
+            self.assertEqual(body["transcript"]["moteur"], "whisper")
+            self.assertEqual(planner.calls[-1]["destination"]["name"], "Plateau")
+
+
+class WhisperQuiSEmballeTest(unittest.TestCase):
+    """Whisper a mis 23 s et 26 s sur deux phrases (2026-10-25) : il relançait le décodage et répétait les mots."""
+
+    class Ear:
+        def __init__(self, result):
+            self.result, self.calls = result, 0
+
+        def transcribe(self, audio):
+            self.calls += 1
+            return {"duration_s": 1.0, "speech_detected": True, "avg_logprob": None, "repetitive": False, **self.result}
+
+    def state(self, fast_text, slow):
+        state = type("State", (), {})()
+        state.fast_asr = self.Ear({"text": fast_text})
+        state.asr = self.Ear(slow)
+        return state
+
+    def test_boucle_reconnue(self):
+        from services.voice.app.speech import collapse_repeats, is_repetitive
+        self.assertTrue(is_repetitive("je vais à Adjamé Adjamé Adjamé Adjamé Adjamé Adjamé Adjamé"))
+        self.assertTrue(is_repetitive("je descends à la gare je descends à la gare je descends à la gare je descends à la gare"))
+        self.assertFalse(is_repetitive("Je quitte Yopougon, je vais au Plateau en gbaka avec deux cents francs."))
+        self.assertFalse(is_repetitive("Tu veux dire Riviera 2 ou Riviera 3 ?"))
+        self.assertEqual(collapse_repeats("je vais au Plateau Plateau Plateau Plateau"), "je vais au Plateau")
+
+    def test_parakeet_gardé_quand_whisper_boucle(self):
+        from services.voice.app.main import hear
+        state = self.state("je vais à jami", {"text": "je vais à Adjamé", "repetitive": True})
+        transcript = hear(state, b"audio", lambda text: True)
+        self.assertEqual((transcript["moteur"], transcript["text"], transcript["whisper_ecarte"]), ("parakeet", "je vais à jami", True))
+
+    def test_parakeet_gardé_quand_whisper_n_entend_rien(self):
+        from services.voice.app.main import hear
+        transcript = hear(self.state("je vais à jami", {"text": "", "speech_detected": False}), b"audio", lambda text: True)
+        self.assertEqual((transcript["moteur"], transcript["text"]), ("parakeet", "je vais à jami"))
+
+    def test_whisper_gardé_quand_il_va_bien(self):
+        from services.voice.app.main import hear
+        transcript = hear(self.state("je vais à jami", {"text": "je vais à Adjamé"}), b"audio", lambda text: True)
+        self.assertEqual((transcript["moteur"], transcript["text"]), ("whisper", "je vais à Adjamé"))
+
+    def test_whisper_borné(self):
+        """Une seule température et un plafond de jetons proportionnel à la durée de la phrase."""
+        import numpy as np
+        from services.voice.app.speech import Transcriber
+        seen = {}
+
+        class Model:
+            def transcribe(self, samples, **options):
+                seen.update(options)
+                segment = type("Segment", (), {"text": " Adjamé Adjamé Adjamé Adjamé Adjamé Adjamé Adjamé Adjamé", "avg_logprob": -0.2})()
+                return [segment], None
+
+        t = Transcriber("small", "cpu", "int8", ["Adjamé"], 30.0, beam_size=5, temperature=0.0, tokens_per_second=8.0)
+        t._model = Model()
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as w:
+            w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+            w.writeframes((np.zeros(16000 * 3)).astype("<i2").tobytes())
+        result = t.transcribe(buffer.getvalue())
+        self.assertEqual(seen["temperature"], 0.0)
+        self.assertEqual(seen["max_new_tokens"], 16 + 24)  # 3 s d'audio
+        self.assertEqual(t.max_tokens(60), 224)
+        self.assertTrue(result["repetitive"])
+        self.assertEqual(result["text"], "Adjamé")
+
+
+class LLMLocalTest(unittest.TestCase):
+    """Ministral 3 3B (llm.py) : appelé seulement quand les règles ne savent pas, et jamais pour donner un chiffre."""
+
+    class NLU:
+        def __init__(self, intent="navigate_to", confidence=0.95):
+            self.intent, self.confidence = intent, confidence
+
+        def predict(self, text):
+            return self.intent, self.confidence, []
+
+    class LLM:
+        def __init__(self, decision):
+            self.decision, self.calls = decision, []
+
+        def decide(self, text, saved_places=None, in_trip=False):
+            self.calls.append({"text": text, "places": saved_places, "in_trip": in_trip})
+            return self.decision
+
+    class Knowledge:
+        def search(self, text, k=4):
+            from services.voice.app.knowledge import Hit, Passage
+            if "coulé" in text.lower():
+                return [Hit(Passage("sira-coule", ["c'est quoi le coulé"], "Le coulé, c'est l'option la moins chère."), 0.95)]
+            return []
+
+    def dialog(self, nlu, decision, planner=None):
+        from services.voice.app.llm import Decision
+        llm = self.LLM(decision if decision is None or isinstance(decision, Decision) else Decision(**decision))
+        d = VoiceDialog(nlu, PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5,
+                        planner or Planner(), self.Knowledge(), llm=llm)
+        return d, llm
+
+    def test_pas_de_llm_quand_les_regles_suffisent(self):
+        d, llm = self.dialog(FakeNLU(), {"tool": "chercher_info", "args": {}})
+        reply = d.ask("Je vais au Plateau", POSITION)
+        self.assertEqual((reply["kind"], llm.calls), ("journeys", []))
+        self.assertNotIn("llm", reply["sources"])
+
+    def test_phrase_mal_classee_le_llm_calcule_le_trajet(self):
+        planner = Planner()
+        d, llm = self.dialog(self.NLU("navigate_to", 0.3), {"tool": "calculer_trajet",
+                             "args": {"destination": "Adjamé", "preference": "moins_cher", "budget_fcfa": 500, "modes_exclus": ["taxi"]}}, planner)
+        reply = d.ask("euh on part comment pour adjamé là", POSITION)
+        self.assertEqual(len(llm.calls), 1)
+        request = planner.calls[0]
+        self.assertEqual((request["destination"]["name"], request["preference"], request["budget"], request["constraints"]["excludedModes"]),
+                         ("Adjamé", "cheap", 500, ["taxi"]))
+        self.assertEqual(request["origin"]["name"], POSITION["name"])  # départ non dit : la position, jamais supposée
+        self.assertEqual(reply["kind"], "journeys")
+        self.assertIn("llm", reply["sources"])
+        self.assertIn("sira-more", reply["sources"])  # les chiffres viennent du moteur
+        self.assertEqual(reply["llm"]["outil"], "calculer_trajet")
+
+    def test_lieu_du_llm_inconnu_on_redemande_sans_calculer(self):
+        planner = Planner()
+        d, _ = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "calculer_trajet", "args": {"destination": "Zorglubville"}}, planner)
+        reply = d.ask("emmène moi à zorglubville", POSITION)
+        self.assertEqual(planner.calls, [])
+        self.assertEqual(reply["kind"], "retry")
+        self.assertIn("Zorglubville", reply["reply_text"])
+
+    def test_lieu_du_voyageur_par_le_llm(self):
+        planner = Planner()
+        d, llm = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "calculer_trajet", "args": {"destination": "Maison"}}, planner)
+        places = [{"kind": "home", "label": "Maison", "title": "Riviera Palmeraie", "lat": 5.37, "lon": -3.96}]
+        d.ask("je rentre", POSITION, places=places)
+        self.assertEqual(planner.calls[0]["destination"]["name"], "Riviera Palmeraie")
+        self.assertEqual(llm.calls[0]["places"][0]["title"], "Riviera Palmeraie")
+
+    def test_un_chiffre_sans_outil_est_refuse(self):
+        d, _ = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": None, "text": "Le gbaka coûte 300 francs."})
+        reply = d.ask("le gbaka c'est combien", POSITION)
+        self.assertNotIn("300", reply["reply_text"])
+        self.assertNotIn("llm", reply["sources"])
+
+    def test_phrase_sans_chiffre_et_llm_absent(self):
+        d, _ = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": None, "text": "Je m'occupe seulement de tes trajets à Abidjan."})
+        self.assertEqual(d.ask("raconte une blague", POSITION)["reply_text"], "Je m'occupe seulement de tes trajets à Abidjan.")
+        d, _ = self.dialog(self.NLU("out_of_scope", 0.9), None)  # LLM arrêté ou trop lent : la réponse des règles
+        self.assertIn("SIRA", d.ask("raconte une blague", POSITION)["reply_text"])
+
+    def test_definition_toujours_par_la_base(self):
+        d, _ = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "chercher_info", "args": {"question": "c'est quoi le coulé"}})
+        self.assertEqual(d.ask("le coulé là c'est quoi", POSITION)["reply_text"], "Le coulé, c'est l'option la moins chère.")
+        d, _ = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "chercher_info", "args": {"question": "horaires de la piscine"}})
+        self.assertEqual(d.ask("la piscine ouvre quand", POSITION)["reply_text"], dialog_module.NO_INFO)
+
+    def test_trajet_en_cours_et_signalement(self):
+        d, llm = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "trajet_en_cours", "args": {"sujet": "arret"}})
+        self.assertEqual(d.ask("je descends où", POSITION)["reply_text"], dialog_module.NO_TRIP)
+        self.assertFalse(llm.calls[0]["in_trip"])
+        d, _ = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "signaler_incident", "args": {"type": "inondation", "lieu": "Adjamé"}})
+        reply = d.ask("y a l'eau partout à adjamé", POSITION)
+        self.assertEqual(reply["understanding"]["intent"], "report_incident")
+        self.assertTrue(any(e["label"] == "INCIDENT_TYPE" and e["text"] == "inondation" for e in reply["understanding"]["entities"]))
+        self.assertIn("Adjamé", reply["reply_text"])
+
+    def test_client_llama_server(self):
+        from services.voice.app.llm import LocalLLM, SYSTEM
+        sent = {}
+
+        def post(url, payload, timeout):
+            sent.update(url=url, payload=payload, timeout=timeout)
+            return {"choices": [{"message": {"tool_calls": [{"function": {"name": "calculer_trajet", "arguments": "{\"destination\": \"Adjamé\"}"}}]}}]}
+
+        llm = LocalLLM("http://127.0.0.1:8300/", 12, post=post)
+        decision = llm.decide("je vais à adjamé", [{"kind": "home", "label": "Maison", "title": "Riviera Palmeraie", "lat": 5.3, "lon": -4.0}])
+        self.assertEqual((decision.tool, decision.args), ("calculer_trajet", {"destination": "Adjamé"}))
+        self.assertEqual((sent["url"], sent["timeout"]), ("http://127.0.0.1:8300/v1/chat/completions", 12))
+        messages = sent["payload"]["messages"]
+        self.assertEqual(messages[0]["content"], SYSTEM)  # partie fixe d'abord : gardée en cache par llama-server
+        self.assertIn("Riviera Palmeraie", messages[1]["content"])
+        self.assertTrue(sent["payload"]["cache_prompt"])
+        bad = LocalLLM("http://x", post=lambda *a: {"choices": [{"message": {"tool_calls": [{"function": {"name": "rm_rf", "arguments": "{}"}}]}}]})
+        self.assertIsNone(bad.decide("x"))
+
+        def down(*a):
+            raise TimeoutError("trop lent")
+        self.assertIsNone(LocalLLM("http://x", post=down).decide("x"))
 
 
 class ResolverTest(unittest.TestCase):
@@ -772,6 +1021,19 @@ class SpeechSettingsTest(unittest.TestCase):
         self.assertIn("Yopougon", t.prompt)
         self.assertFalse(t.loaded)  # rien n'est chargé tant qu'on ne s'en sert pas (ni dans les tests)
 
+    def test_prompt_garde_les_communes_d_abidjan(self):
+        # Les lieux hors réseau (Dabou, Alépé…) chassaient Yopougon et Treichville du prompt (coupé à 15 noms).
+        from services.voice.app import config
+        from services.voice.app.speech import Transcriber
+        gazetteer = config.LOCAL_MODELS / "sira_models_v0.4" / "gazetteer_v0.4.json"  # le vrai, pas celui des tests
+        if not gazetteer.exists():
+            self.skipTest("répertoire de lieux absent")
+        resolver = PlaceResolver(gazetteer, config.LIEUX_COMPLEMENTS)
+        t = Transcriber("small", "cpu", "int8", resolver.place_names(kinds=("commune",)), 30)
+        for commune in ("Yopougon", "Treichville", "Port-Bouët", "Songon"):
+            self.assertIn(commune, t.prompt)
+        self.assertNotIn("Dabou", t.prompt)
+
     def test_vitesse_de_lecture(self):
         from services.voice.app import config
         self.assertTrue(0.7 <= config.SPEECH_RATE <= 1.5)
@@ -784,6 +1046,84 @@ class SpeechSettingsTest(unittest.TestCase):
         with TestClient(app):
             pierre = app.state.tts
             self.assertEqual((pierre.noise_scale, pierre.noise_w, pierre.speaker_id), (0.5, 0.6, 1))
+
+
+class PhraseParPhraseTest(unittest.TestCase):
+    """SIRA commence à parler dès que sa première phrase est prête (mesuré : 0,5 s au lieu de 3,4 s pour un trajet)."""
+
+    class CountingVoice:
+        available, loaded = True, True
+
+        def __init__(self):
+            self.said = []
+
+        def warm(self):
+            pass
+
+        def synthesize(self, text):
+            self.said.append(text)
+            return f"voix:{text}".encode()
+
+    def test_decoupe_en_phrases(self):
+        from services.voice.app.speech import split_sentences
+        text = ("Le plus rapide pour aller à Adjamé : le gbaka, puis le wôrô-wôrô. 500 francs, 35 minutes. "
+                "Il y a 2 autres options sur l'écran.")
+        self.assertEqual(split_sentences(text), ["Le plus rapide pour aller à Adjamé : le gbaka, puis le wôrô-wôrô.",
+                                                 "500 francs, 35 minutes.", "Il y a 2 autres options sur l'écran."])
+        # Les deux-points ne coupent pas ; une question reste entière ; rien à dire = aucune phrase.
+        self.assertEqual(split_sentences("Dis par exemple : je vais au Plateau."), ["Dis par exemple : je vais au Plateau."])
+        self.assertEqual(split_sentences("Tu peux répéter, s'il te plaît ? Dis-moi où."), ["Tu peux répéter, s'il te plaît ?", "Dis-moi où."])
+        self.assertEqual(split_sentences("  "), [])
+
+    def test_cache_produit_chaque_phrase_une_fois(self):
+        from services.voice.app.speech import SpeechUnavailable, SpokenCache
+        made, fail = [], {"Panne."}
+
+        def produce(text):
+            made.append(text)
+            if text in fail:
+                raise SpeechUnavailable("voix absente")
+            return text.encode(), "audio/wav"
+        cache = SpokenCache(produce, size=3)
+        cache.prepare(["Une.", "Deux."])
+        self.assertEqual(cache.get("Deux."), (b"Deux.", "audio/wav"))  # attend la préparation, sans refaire
+        self.assertEqual(cache.get(" Une. "), (b"Une.", "audio/wav"))
+        self.assertEqual(made, ["Une.", "Deux."])
+        with self.assertRaises(SpeechUnavailable):
+            cache.get("Panne.")
+        fail.clear()
+        self.assertEqual(cache.get("Panne."), (b"Panne.", "audio/wav"))  # une panne n'est pas gardée : on réessaie
+        cache.get("Trois.")
+        self.assertEqual(len(cache), 3)  # les plus anciennes phrases sortent
+
+    def test_premiere_phrase_envoyee_la_suite_preparee(self):
+        app = create_app(nlu=FakeNLU(), planner=Planner(), live=FakeLive())
+        with TestClient(app) as client:
+            voice = app.state.tts = self.CountingVoice()
+            body = client.post("/voice/ask", json={"text": "je vais au plato", "position": POSITION, "speak": True}).json()
+            parts = body["reply_parts"]
+            self.assertGreater(len(parts), 1)
+            self.assertEqual(" ".join(parts), body["reply_text"])
+            self.assertEqual(base64.b64decode(body["reply_audio"]["base64"]), f"voix:{parts[0]}".encode())
+            # L'application demande la suite : elle était déjà en préparation, Piper ne la refait pas.
+            for part in parts[1:]:
+                r = client.post("/voice/tts", json={"text": part})
+                self.assertEqual(r.content, f"voix:{part}".encode())
+            self.assertEqual(sorted(voice.said), sorted(parts))
+
+    def test_phrases_fixes_pretes_au_demarrage(self):
+        from services.voice.app.dialog import FIXED_REPLIES, NOTHING_HEARD, OTHER_REPLIES
+        from services.voice.app.main import warm_speech
+        self.assertIn(OTHER_REPLIES["voice_help"], FIXED_REPLIES)
+        self.assertFalse(any("{" in reply for reply in FIXED_REPLIES))
+        app = create_app(nlu=FakeNLU(), planner=Planner(), live=FakeLive())
+        with TestClient(app) as client:
+            voice = app.state.tts = self.CountingVoice()
+            app.state.fast_asr, app.state.asr = None, type("NoASR", (), {"loaded": False, "warm": lambda self: None})()
+            warm_speech(app.state)
+            client.post("/voice/tts", json={"text": NOTHING_HEARD})
+            self.assertEqual(voice.said.count(NOTHING_HEARD), 1)  # préparée au démarrage, pas refaite
+            self.assertGreaterEqual(len(app.state.spoken), len(FIXED_REPLIES))
 
 
 class ShortAnswerTest(unittest.TestCase):

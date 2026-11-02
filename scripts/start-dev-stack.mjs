@@ -67,11 +67,12 @@ if (smokeTest) {
   run(npm, ["--prefix", "services/api", "run", "build"]);
 }
 
-const start = (name, command, args, env = {}, cwd = root) => {
+const start = (name, command, args, env = {}, cwd = root, quiet = false) => {
   const child = spawn(command, args, {
     cwd,
     env: { ...process.env, ...env },
-    stdio: "inherit",
+    // quiet : programme très bavard (llama-server) ; on ne garde que son arrêt éventuel.
+    stdio: quiet ? "ignore" : "inherit",
     shell: isWindows && command.endsWith(".cmd"),
   });
   child.siraName = name;
@@ -105,10 +106,26 @@ const voiceVenvPython = isWindows
   ? join(root, "services", "voice", ".venv", "Scripts", "python.exe")
   : join(root, "services", "voice", ".venv", "bin", "python");
 const voiceEnabled = !smokeTest && process.env.SIRA_VOICE !== "false" && existsSync(voiceVenvPython);
+
+// LLM local, chef d'orchestre de la voix (services/voice/app/llm.py) : Ministral 3 3B dans llama-server (port 8300),
+// seulement s'il est installé dans services/models/llm/ (voir services/models/README.md). SIRA_LLM=false le coupe.
+// Il ne sert que quand les règles ne savent pas répondre ; sinon la voix ne l'attend jamais.
+const llmDir = join(root, "services", "models", "llm");
+const llmServer = join(llmDir, "llama.cpp", isWindows ? "llama-server.exe" : "llama-server");
+const llmModel = join(llmDir, process.env.SIRA_LLM_MODEL || "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf");
+const llmEnabled = voiceEnabled && process.env.SIRA_LLM !== "false" && existsSync(llmServer) && existsSync(llmModel);
+if (llmEnabled) {
+  const llmChild = start("LLM local", llmServer, [
+    "-m", llmModel, "--host", "127.0.0.1", "--port", "8300", "--ctx-size", "4096", "--jinja",
+  ], {}, root, true);
+  llmChild.siraExpectedExit = true; // sans LLM, la voix répond avec ses règles habituelles
+  llmChild.on("exit", (code) => { if (!stopping) console.warn(`[SIRA] LLM local arrêté (code ${code}) : la voix continue sans lui.`); });
+}
+
 if (voiceEnabled) {
   const voiceChild = start("assistant vocal", voiceVenvPython, [
     "-m", "uvicorn", "services.voice.app.main:app", "--host", "127.0.0.1", "--port", "8200",
-  ], { SIRA_API_URL: "http://127.0.0.1:4000/api/v1" });
+  ], { SIRA_API_URL: "http://127.0.0.1:4000/api/v1", VOICE_LLM_URL: llmEnabled ? "http://127.0.0.1:8300" : "" });
   voiceChild.siraExpectedExit = true; // un souci de modèles vocaux ne doit pas arrêter toute la stack
 } else if (!smokeTest) {
   console.log("[SIRA] Assistant vocal non installé (optionnel) : npm run voice:setup pour l'activer.");
@@ -201,6 +218,12 @@ try {
       waitForJson("http://127.0.0.1:8200/health", 180_000)
         .then((voice) => console.log(`[SIRA] Assistant vocal prêt (${voice.status}) : page de test http://localhost:8200`))
         .catch(() => console.warn("[SIRA] L'assistant vocal ne répond pas : voir services/voice/README.md"));
+    }
+    if (llmEnabled) {
+      // Chargement du modèle (2,1 Go) : jusqu'à une minute ou deux sur le PC de dev.
+      waitForJson("http://127.0.0.1:8300/health", 300_000)
+        .then(() => console.log("[SIRA] LLM local prêt (Ministral 3 3B) : il aide la voix quand les règles ne suffisent pas"))
+        .catch(() => console.warn("[SIRA] Le LLM local ne répond pas : la voix continue avec ses règles"));
     }
     if (mobileNote) console.log(`[SIRA] ${mobileNote}`);
     // Tester sur un téléphone : adresses du PC, profil réseau Windows, mobile/.env (README « Tester sur téléphone »).

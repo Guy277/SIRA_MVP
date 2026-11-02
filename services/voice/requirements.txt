@@ -13,3 +13,5 @@ huggingface_hub>=0.24.0
 faster-whisper>=1.1.0
 # PyAV 19 ne connaît plus av.open(metadata_errors=…), qu'utilise faster-whisper 1.2 : tout audio devient « illisible ».
 av>=11,<19
+# Transcription rapide (Parakeet TDT 0.6B v3, int8 ONNX), passée avant Whisper.
+onnx-asr==0.12.0

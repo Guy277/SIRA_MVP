@@ -138,9 +138,19 @@ async function fetchVoice(text: string): Promise<Response | null> {
   }
 }
 
-// SIRA's own voice for a sentence written by the app, from the cache when possible.
-async function cachedVoice(text: string): Promise<string | null> {
+// SIRA's own voice for a sentence, from the cache when possible. The same sentence
+// asked twice at once (prepared, then said) is fetched only once.
+const inflight = new Map<string, Promise<string | null>>();
+function cachedVoice(text: string): Promise<string | null> {
   const key = textKey(text);
+  const known = inflight.get(key);
+  if (known) return known;
+  const loading = loadVoice(text, key).finally(() => inflight.delete(key));
+  inflight.set(key, loading);
+  return loading;
+}
+
+async function loadVoice(text: string, key: string): Promise<string | null> {
   if (Platform.OS === 'web') {
     const known = webCache.get(key);
     if (known) return known;
@@ -211,7 +221,7 @@ export async function say(text: string, kind: SpeechKind = 'guidance', audioBase
   const mine = ++sentence;
   const done = new Promise<void>((resolve) => { finish = resolve; });
   const uri = await audioUri(audioBase64, audioMime, text);
-  if (mine !== sentence) return false;  // a newer sentence took over
+  if (mine !== sentence || interrupted === mine) return false;  // a newer sentence took over, or « Stop »
   // SIRA's voice unavailable (offline, service stopped): the sentence stays on screen, unspoken.
   if (!uri) { finished(); return false; }
   try {
@@ -235,6 +245,19 @@ export async function say(text: string, kind: SpeechKind = 'guidance', audioBase
   await Promise.race([done, timeout]);
   if (mine === sentence) setSpeaking(false);
   return mine === sentence && interrupted !== mine;
+}
+
+// A reply of several sentences, said one after the other. The first one's voice came
+// with the answer; the next ones are asked for while it plays (the voice service is
+// already preparing them), so SIRA starts talking without waiting for the whole reply.
+export async function sayParts(parts: string[], kind: SpeechKind = 'answer', firstAudioBase64: string | null = null,
+  audioMime = 'audio/mpeg'): Promise<boolean> {
+  const [first, ...rest] = parts;
+  if (!first || !allowed(kind)) return false;
+  rest.forEach((text) => { void cachedVoice(text).catch(() => null); });
+  if (!(await say(first, kind, firstAudioBase64, audioMime))) return false;
+  for (const text of rest) if (!(await say(text, kind))) return false;
+  return true;
 }
 
 // A screen that speaks once per situation: `key` names the situation (a search,

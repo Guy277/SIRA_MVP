@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { savedPlaces, voicePlaces } from '@/lib/saved-places';
 import { askByText, askByVoice, type Coordinates, type VoiceAudio, type VoiceContext, type VoiceReply, type VoiceTrip } from '@/lib/sira-api';
 import { useMicrophone } from '@/lib/use-microphone';
-import { say, stopSpeaking } from '@/lib/voice';
+import { sayParts, stopSpeaking } from '@/lib/voice';
 import { MIC_NEEDS_HTTPS, needsSecureContext } from '@/lib/secure-context';
 
 export type VoicePhase = 'idle' | 'recording' | 'thinking' | 'answered' | 'error';
@@ -49,11 +49,13 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
     context.current = answer.context;
     retries.current = answer.kind === 'retry' ? retries.current + 1 : 0;
     const giveUp = answer.kind === 'retry' && retries.current >= MAX_RETRIES;
-    const shown = giveUp ? { ...answer, reply_text: OFFER_OTHER_WAY, reply_audio: null } : answer;
+    const shown = giveUp ? { ...answer, reply_text: OFFER_OTHER_WAY, reply_parts: [OFFER_OTHER_WAY], reply_audio: null } : answer;
     setOfferTyping(giveUp);
     setReply(shown);
     setBusy('answered');
-    if (aloud) await say(shown.reply_text, 'answer', shown.reply_audio?.base64 ?? null, shown.reply_audio?.mime);
+    // Older voice service (no reply_parts): its audio is the whole reply.
+    const parts = shown.reply_parts?.length ? shown.reply_parts : [shown.reply_text];
+    if (aloud) await sayParts(parts, 'answer', shown.reply_audio?.base64 ?? null, shown.reply_audio?.mime);
     if (!open.current) return;
     setHeard(shown);
     // A question or « répète » : listen again right away, hands-free.

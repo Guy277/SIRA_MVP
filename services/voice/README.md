@@ -14,9 +14,11 @@ Micro → Silero VAD + Whisper (voix → texte)
 | Brique | Modèle | Licence | Entraînement |
 |---|---|---|---|
 | Détecter la parole | Silero VAD (intégré à faster-whisper) | MIT | aucun |
-| Transcrire | Whisper `small` int8 (`turbo` possible) via faster-whisper | MIT | aucun pour l'instant |
+| Transcrire vite | Parakeet TDT 0.6B v3 int8 (ONNX, `onnx-asr`), ≈ 0,5 s par phrase | CC BY 4.0 | aucun pour l'instant |
+| Transcrire en secours | Whisper `small` int8 via faster-whisper, quand Parakeet n'est pas sûr d'un lieu | MIT | aucun pour l'instant |
 | Comprendre | CamemBERTv2 fine-tuné sur le dataset SIRA fr-CI v0.4 | MIT | notebook Colab |
 | Retrouver le lieu | règles phonétiques + RapidFuzz, 2 259 lieux (GTFS AbidjanTransport) + compléments | code SIRA / ODbL | aucun |
+| Aider quand les règles ne savent pas | Ministral 3 3B Q4_K_M dans llama-server (`app/llm.py`) : choisit un outil de SIRA, ne donne jamais un chiffre lui-même | Apache 2.0 | aucun |
 | Parler | Piper `fr_FR-upmc-medium`, « pierre » (homme) : la seule voix de SIRA, envoyée en MP3 | CC BY-SA 4.0 | aucun |
 
 **Compléments du répertoire de lieux** (`knowledge/lieux_complements.json`, dans Git) : le répertoire du notebook
@@ -58,7 +60,8 @@ est cherché dans cet ordre :
 ```
 services/models/voice/
 ├── sira_models_v0.4/   CamemBERTv2 fine-tunés (intent + entités) + 2 259 lieux  (≈ 890 Mo)
-├── whisper/small/      Whisper (faster-whisper)                                 (≈ 480 Mo)
+├── parakeet-tdt-0.6b-v3-int8/  Parakeet, transcription rapide (onnx-asr)          (≈ 670 Mo)
+├── whisper/small/      Whisper (faster-whisper), en secours                     (≈ 480 Mo)
 └── piper/              voix fr_FR-upmc-medium, « pierre » (≈ 76 Mo)
 ```
 
@@ -96,13 +99,19 @@ npm run dev:voice
 | POST | `/voice/ask` | JSON `{text, position?, context?, trip?, speak?}` | pareil, à partir de texte |
 | POST | `/voice/understand` | JSON `{text, position?}` | compréhension seule (intent, entités, lieux, `journey_request`) |
 | POST | `/voice/answer` | multipart : `audio` | réponse courte pendant le trajet : `{transcript, answer: "yes"/"no"/null, amount}` (prix en FCFA, `null` s'il n'est pas clairement dit) — sans NLU ni calcul de trajet |
-| POST | `/voice/tts` | JSON `{text}` | `audio/wav` |
+| POST | `/voice/tts` | JSON `{text}` | voix de la phrase (`audio/mpeg`, ou `audio/wav` si l'encodage MP3 échoue) |
 | GET | `/voice/health` | — | état des composants |
 
 **Trajet en cours** (`trip`, aussi en champ multipart de `/voice/query`) : le trajet suivi dans l'app
 (`voiceTrip()` dans `mobile/lib/sira-api.ts`). Il permet de répondre à « je descends où ? », « ça fait combien ? »,
 « j'arrive à quelle heure ? » ou « y a des bouchons sur mon trajet ? » avec les chiffres de SIRA-MORE et les signalements
 des voyageurs. La réponse contient `sources` : fiche de la FAQ (`modes.gbaka`), `sira-more`, `signalements`, `lieux`.
+
+**SIRA parle phrase par phrase** : `reply_parts` découpe `reply_text` en phrases et `reply_audio` est la voix de la
+**première** seulement, envoyée sans attendre les autres. L'app joue `reply_audio`, puis demande les phrases suivantes
+à `/voice/tts` : le service les prépare déjà pendant ce temps (`SpokenCache`, en mémoire). Les phrases fixes de
+`dialog.py` (`FIXED_REPLIES`) sont produites au démarrage. Mesuré : premier son d'un trajet en ~0,5 à 1 s au lieu de
+1,3 à 3,4 s (`benchmarks/2026-10-25_latence-piper-llm.md`).
 
 **Dialogue de confirmation** : quand SIRA doute (lieu ambigu, destination manquante…), la réponse contient
 `reply_text` (la question) et `context`. L'app renvoie ce `context` tel quel avec la phrase suivante :
@@ -121,6 +130,7 @@ curl -X POST http://localhost:4000/api/v1/voice/ask -H "content-type: applicatio
 export type VoiceReply = {
   transcript?: { text: string };
   reply_text: string;
+  reply_parts?: string[];  // phrases de reply_text ; reply_audio = voix de reply_parts[0]
   context: Record<string, unknown> | null;
   journeys: JourneysResponse | null;
   reply_audio: { mime: string; base64: string } | null;
@@ -149,7 +159,13 @@ Si `reply_audio` est vide (Piper non installé), afficher `reply_text` sans le l
 | `VOICE_MODELS_DIR` | `services/models/voice/sira_models_v0.4` | modèles entraînés sur Colab |
 | `VOICE_WHISPER_MODEL` | `small` | `small` (rapide, CPU), `turbo` (plus précis), `large-v3` (GPU) |
 | `VOICE_WHISPER_DEVICE` / `VOICE_WHISPER_COMPUTE` | `cpu` / `int8` | `cuda` / `float16` avec un GPU |
-| `VOICE_WHISPER_BEAM` | `5` | précision de la transcription ; `1` ≈ 20 % plus rapide mais déforme des lieux |
+| `VOICE_WHISPER_BEAM` | `5` | précision de Whisper ; `1` ne fait gagner que 0,4 à 1,3 s et peut boucler (26 s mesurées le 25/10) |
+| `VOICE_WHISPER_TEMPERATURE` | `0` | une seule température : Whisper ne relance plus le décodage sur une phrase douteuse (cause des 23 et 26 s) |
+| `VOICE_WHISPER_TOKENS_PER_S` | `8` | plafond de jetons par seconde d'audio (+ 16) ; une boucle est coupée, et Parakeet est gardé si Whisper boucle ou ne rend rien |
+| `VOICE_LLM_URL` | vide | adresse de llama-server (Ministral 3 3B) ; vide = pas de LLM. `npm run dev:stack` le lance (port 8300) si `services/models/llm/` le contient ; `SIRA_LLM=false` le coupe |
+| `VOICE_LLM_TIMEOUT_S` | `20` | au-delà, la voix répond avec ses règles habituelles |
+| `VOICE_ASR` | `hybride` | `hybride` : Parakeet d'abord, Whisper si le lieu ou l'intention ne sont pas sûrs ; `whisper` : Whisper seul |
+| `VOICE_PARAKEET_DIR` | `services/models/voice/parakeet-tdt-0.6b-v3-int8` | modèle Parakeet ; absent, le service utilise Whisper seul |
 | `VOICE_SPEECH_RATE` | `1.1` | vitesse de la voix de SIRA (`1.0` = voix d'origine) |
 | `VOICE_NOISE_SCALE` / `VOICE_NOISE_W` | `0.5` / `0.6` | intonation de Piper : plus bas = plus régulier (choisi à l'écoute le 2026-10-25 ; valeurs du modèle `0.667` / `0.8`) |
 | `VOICE_AUDIO_FORMAT` | `mp3` | voix envoyée à l'appli : `mp3` (≈ 9 fois plus léger, arrive vite en 3G) ou `wav` |

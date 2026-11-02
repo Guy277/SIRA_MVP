@@ -38,6 +38,19 @@ WHISPER_MODEL = str(_WHISPER_LOCAL) if (_WHISPER_LOCAL / "model.bin").exists() e
 # Recherche large (5) : ≈ 20 % plus lente que 1 sur CPU, mais garde « je quitte Yopougon » et « je descends où »
 # que la recherche simple déformait (mesuré sur 8 phrases). Le gain de vitesse vient du prompt court (speech.py).
 WHISPER_BEAM = max(1, int(_float("VOICE_WHISPER_BEAM", 5)))
+# Garde-fous contre une transcription qui s'emballe (23 s sur une phrase de Marie, 26 s sur une de Franck, mesurés
+# le 2026-10-25) : Whisper relançait le décodage à des températures plus hautes et répétait les mêmes mots.
+# - Une seule température (0) : pas de nouveaux essais de plus en plus aléatoires sur une phrase douteuse.
+# - Au plus WHISPER_TOKENS_PER_S jetons par seconde d'audio (+ 16) : une commande parlée en produit ~3 à 5 par seconde.
+WHISPER_TEMPERATURE = max(0.0, _float("VOICE_WHISPER_TEMPERATURE", 0.0))
+WHISPER_TOKENS_PER_S = max(4.0, _float("VOICE_WHISPER_TOKENS_PER_S", 8.0))
+# Transcription rapide d'abord : Parakeet TDT 0.6B v3 (NVIDIA, CC BY 4.0, int8 ONNX via onnx-asr), ≈ 0,5 s par phrase
+# contre 3 à 4,5 s pour Whisper sur le PC de dev (mesuré le 2026-10-25), mais moins sûr sur les noms d'Abidjan.
+# « hybride » : Parakeet, puis Whisper seulement quand le lieu ou l'intention ne sont pas sûrs ; « whisper » : Whisper seul.
+ASR_MODE = os.environ.get("VOICE_ASR", "hybride")
+if ASR_MODE not in ("hybride", "whisper"):
+    ASR_MODE = "hybride"
+PARAKEET_DIR = _path("VOICE_PARAKEET_DIR", LOCAL_MODELS / "parakeet-tdt-0.6b-v3-int8")
 WHISPER_DEVICE = os.environ.get("VOICE_WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE = os.environ.get("VOICE_WHISPER_COMPUTE", "int8")
 
@@ -77,6 +90,12 @@ INTENT_MIN_CONFIDENCE = _float("VOICE_INTENT_MIN_CONFIDENCE", 0.5)
 # FAQ : fiches Markdown ; une fiche répond au-dessus de ce score (0 à 1, réglé sur services/voice/tests).
 KNOWLEDGE_DIR = _path("VOICE_KNOWLEDGE_DIR", SERVICE_ROOT / "knowledge")
 FAQ_THRESHOLD = _float("VOICE_FAQ_THRESHOLD", 0.65)
+
+# LLM local, chef d'orchestre (llm.py) : Ministral 3 3B dans llama-server. Vide = pas de LLM (les règles seules).
+# npm run dev:stack le lance tout seul et remplit cette adresse si le modèle est dans services/models/llm/.
+LLM_URL = os.environ.get("VOICE_LLM_URL", "").strip()
+# ~7 s par réponse sur le PC de dev sans GPU (mesuré le 2026-10-24) ; au-delà, les règles reprennent la main.
+LLM_TIMEOUT_S = max(1.0, _float("VOICE_LLM_TIMEOUT_S", 20.0))
 
 # Compléments du répertoire de lieux (dans Git) : lieux ajoutés, coordonnées manquantes, variantes d'orthographe et
 # commune exacte de chaque lieu (scripts/corriger_lieux.py). Appliqués au chargement par PlaceResolver.

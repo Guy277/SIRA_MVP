@@ -241,6 +241,8 @@ export type VoiceReply = {
   context: VoiceContext;
   journey_request: VoiceJourneyRequest | null;
   journeys: (JourneysResponse & { categories?: Record<CategoryName, string[]> }) | null;
+  // SIRA speaks sentence by sentence: reply_audio is the voice of reply_parts[0] only.
+  reply_parts?: string[];
   reply_audio: { mime: string; base64: string } | null;
   understanding: { intent: string; needs_confirmation: boolean; reasons: string[]; entities?: Array<{ label: string; text: string }> } | null;
   error?: string | null;

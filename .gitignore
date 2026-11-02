@@ -67,3 +67,6 @@ services/community/data/dev-jwt-secret
 
 # voix enregistrées pour tester ou entraîner la voix (vraies personnes) : jamais dans Git
 services/voice/enregistrements/
+
+# signalements des voyageurs gardés par l'API en local (services/api/runtime/reports.json)
+services/api/runtime/
