@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
+import { alertBadge, useAlertCount } from '@/lib/reports';
 
 const { width } = Dimensions.get('window');
 
@@ -42,6 +43,7 @@ export default function ReportEventScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
+  const alertCount = useAlertCount();
   const insets = useSafeAreaInsets();
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   useSpeech('report:choose', REPORT_CHOOSE);
@@ -125,9 +127,11 @@ export default function ReportEventScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="notifications" size={22} color="#000000" />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.badgeText}>5</Text>
-            </View>
+            {alertCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.badgeText}>{alertBadge(alertCount)}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 

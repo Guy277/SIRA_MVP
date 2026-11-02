@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,86 +15,36 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
+import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, useLiveReports } from '@/lib/reports';
+import type { TrafficReport } from '@/lib/sira-api';
 
 const { width } = Dimensions.get('window');
 
-type NotificationType = 'accident' | 'traffic' | 'route' | 'signalement';
-
 interface NotificationItem {
   id: string;
-  type: NotificationType;
   title: string;
   message: string;
   time: string;
+  createdAt: number;
   iconName: keyof typeof Ionicons.glyphMap;
+  color: string;
 }
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: '1',
-    type: 'accident',
-    title: 'Accident signalé',
-    message: 'Un accident a été signalé sur ton itinéraire vers Cocody.',
-    time: 'Il y a 10 min',
-    iconName: 'car-sport',
-  },
-  {
-    id: '2',
-    type: 'traffic',
-    title: 'Embouteillage',
-    message: "Fort ralentissement détecté sur la voie de l'Indénié. Ton trajet pourrait prendre du retard.",
-    time: 'Il y a 18 min',
-    iconName: 'car',
-  },
-  {
-    id: '3',
-    type: 'route',
-    title: 'Itinéraire optimisé',
-    message: "Ton itinéraire a été mis à jour. Une nouvelle route te permet d'arriver 8 min plus tôt.",
-    time: 'Il y a 1h',
-    iconName: 'navigate',
-  },
-  {
-    id: '4',
-    type: 'signalement',
-    title: 'Signalement pris en compte',
-    message: 'Merci pour ton signalement ! Ton information a été enregistrée et transmise aux équipes.',
-    time: 'Hier à 18h20',
-    iconName: 'warning',
-  },
-  {
-    id: '5',
-    type: 'route',
-    title: 'Itinéraire optimisé',
-    message: "Ton itinéraire a été mis à jour. Une nouvelle route te permet d'arriver 8 min plus tôt.",
-    time: 'Il y a 1h',
-    iconName: 'navigate',
-  },
-  {
-    id: '6',
-    type: 'accident',
-    title: 'Accident signalé',
-    message: 'Un accident a été signalé sur ton itinéraire vers Cocody.',
-    time: 'Il y a 10 min',
-    iconName: 'car-sport',
-  },
-  {
-    id: '7',
-    type: 'signalement',
-    title: 'Signalement pris en compte',
-    message: 'Merci pour ton signalement ! Ton information a été enregistrée et transmise aux équipes.',
-    time: 'Hier à 18h20',
-    iconName: 'warning',
-  },
-  {
-    id: '8',
-    type: 'route',
-    title: 'Itinéraire optimisé',
-    message: "Ton itinéraire a été mis à jour. Une nouvelle route te permet d'arriver 12 min plus tôt.",
-    time: 'Hier à 14h15',
-    iconName: 'navigate',
-  },
-];
+// One alert per report still active, live (Socket.IO + reload, lib/reports.ts):
+// what travellers really reported, never an example written in the app.
+function toNotification(report: TrafficReport): NotificationItem {
+  const style = REPORT_STYLE[report.type] ?? REPORT_STYLE.other;
+  const votes = report.confirmations > 0 ? ` · ${report.confirmations} confirmation${report.confirmations > 1 ? 's' : ''}` : '';
+  return {
+    id: report.id,
+    title: report.title,
+    message: `${report.location} · ${REPORT_STATUS_LABEL[report.status]}${votes}${report.description ? `. ${report.description}` : ''}`,
+    time: timeAgo(report.createdAt),
+    createdAt: Date.parse(report.createdAt) || 0,
+    iconName: style.icon,
+    color: style.color,
+  };
+}
 
 export default function NotificationsScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
@@ -103,12 +53,17 @@ export default function NotificationsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const { reports } = useLiveReports();
+  const notifications = useMemo(
+    () => reports.map(toNotification).sort((a, b) => b.createdAt - a.createdAt),
+    [reports],
+  );
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const filteredNotifications = INITIAL_NOTIFICATIONS.filter((item) => {
+  const filteredNotifications = notifications.filter((item) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -184,7 +139,11 @@ export default function NotificationsScreen() {
           {filteredNotifications.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="notifications-off-outline" size={48} color="#B0B0B0" />
-              <Text style={styles.emptyText}>Aucune notification trouvée</Text>
+              <Text style={styles.emptyText}>
+                {notifications.length === 0
+                  ? 'Aucune alerte en ce moment. Les signalements des voyageurs apparaissent ici en direct.'
+                  : 'Aucune notification trouvée'}
+              </Text>
             </View>
           ) : (
             filteredNotifications.map((item) => {
@@ -199,11 +158,11 @@ export default function NotificationsScreen() {
                 <TouchableOpacity
                   key={item.id}
                   style={styles.notificationCard}
-                  onPress={() => router.push('/notification-accident-detail')}
+                  onPress={() => router.push({ pathname: '/traffic', params: { incident: item.id } })}
                   activeOpacity={0.85}
                 >
                   {/* Left Orange Circle Icon */}
-                  <View style={styles.iconCircle}>
+                  <View style={[styles.iconCircle, { backgroundColor: item.color }]}>
                     <Ionicons name={item.iconName} size={24} color="#FFFFFF" />
                   </View>
 
@@ -224,7 +183,7 @@ export default function NotificationsScreen() {
                   {/* Right Action Circle Button */}
                   <TouchableOpacity
                     style={styles.actionCircle}
-                    onPress={() => router.push('/notification-accident-detail')}
+                    onPress={() => router.push({ pathname: '/traffic', params: { incident: item.id } })}
                     activeOpacity={0.8}
                   >
                     <Ionicons

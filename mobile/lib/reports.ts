@@ -72,6 +72,15 @@ function connect() {
   void reload();
 }
 
+// Number on the bell of every screen: the travellers' reports still active, live. 0 = no badge.
+export function useAlertCount() {
+  return useLiveReports().reports.length;
+}
+
+export function alertBadge(count: number) {
+  return count > 99 ? '99+' : String(count);
+}
+
 export function useLiveReports() {
   useEffect(() => {
     subscribers += 1;

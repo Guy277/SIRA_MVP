@@ -25,6 +25,7 @@ import { alternativesText, arrivalTime, formatClock, formatDistance, formatDurat
 import { fareSummaries, type ApiLeg, type Coordinates, type FareSummary, type LegMode } from '@/lib/sira-api';
 import { notify } from '@/lib/notify';
 import { goBack } from '@/lib/navigation';
+import { alertBadge, useAlertCount } from '@/lib/reports';
 
 const STEP_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
   walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus-outline', woro: 'car-sport', taxi: 'car', boat: 'boat',
@@ -78,6 +79,7 @@ const { height } = Dimensions.get('window');
 
 export default function RouteDetailScreen() {
   const router = useRouter();
+  const alertCount = useAlertCount();
   const { isFavorite: checkIsFavorite, toggleFavorite } = useFavorites();
 
   const store = useJourneyStore();
@@ -230,9 +232,11 @@ export default function RouteDetailScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="notifications" size={22} color="#000000" />
-              <View style={styles.notificationBadge}>
-                <Text style={styles.badgeText}>5</Text>
-              </View>
+              {alertCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.badgeText}>{alertBadge(alertCount)}</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity

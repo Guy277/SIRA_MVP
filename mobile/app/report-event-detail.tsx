@@ -23,7 +23,7 @@ import { createReport, type Coordinates } from '@/lib/sira-api';
 import { REPORT_FAILED, REPORT_SENT, reportDetailSpeech } from '@/lib/spoken';
 import { say, useSpeech } from '@/lib/voice';
 import { locateUser, nearestPlaceLabel } from '@/lib/places';
-import { REPORT_TYPE_BY_CATEGORY, upsertReport } from '@/lib/reports';
+import { REPORT_TYPE_BY_CATEGORY, upsertReport, alertBadge, useAlertCount } from '@/lib/reports';
 import { journeyStore } from '@/lib/journey-store';
 import { goBack } from '@/lib/navigation';
 
@@ -33,6 +33,7 @@ export default function ReportEventDetailScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
+  const alertCount = useAlertCount();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ categoryId?: string; title?: string }>();
 
@@ -141,9 +142,11 @@ export default function ReportEventDetailScreen() {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="notifications" size={22} color="#000000" />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.badgeText}>5</Text>
-            </View>
+            {alertCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.badgeText}>{alertBadge(alertCount)}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 

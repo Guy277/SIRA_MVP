@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SideMenuModal } from '@/components/side-menu-modal';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
+import { alertBadge, useAlertCount } from '@/lib/reports';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ export default function NotificationAccidentDetailScreen() {
   // The action buttons stay above the bottom bar.
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
+  const alertCount = useAlertCount();
   const [showSideMenu, setShowSideMenu] = React.useState(false);
 
   return (
@@ -56,9 +58,11 @@ export default function NotificationAccidentDetailScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="notifications" size={22} color="#000000" />
-              <View style={styles.notificationBadge}>
-                <Text style={styles.badgeText}>5</Text>
-              </View>
+              {alertCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.badgeText}>{alertBadge(alertCount)}</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity

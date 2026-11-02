@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Text, TextInput } from '@/components/sira-text';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +17,7 @@ import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
 import { notify } from '@/lib/notify';
 import { voteReport, type TrafficReport } from '@/lib/sira-api';
-import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, upsertReport, useLiveReports } from '@/lib/reports';
+import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, upsertReport, useLiveReports, alertBadge, useAlertCount } from '@/lib/reports';
 import { formatClock } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
 
@@ -34,9 +34,13 @@ const PANEL_TYPES: Record<string, string[]> = {
 
 export default function TrafficScreen() {
   const router = useRouter();
+  const alertCount = useAlertCount();
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // A notification opens its incident directly (Notifications → « incident »).
+  const { incident } = useLocalSearchParams<{ incident?: string }>();
+  const [selectedId, setSelectedId] = useState<string | null>(incident ?? null);
+  useEffect(() => { if (incident) setSelectedId(incident); }, [incident]);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panelFilter, setPanelFilter] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
@@ -147,9 +151,11 @@ export default function TrafficScreen() {
               activeOpacity={0.7}
             >
               <Ionicons name="notifications" size={22} color="#000000" />
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>5</Text>
-              </View>
+              {alertCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{alertBadge(alertCount)}</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             {/* Warning Triangle Report Icon */}
