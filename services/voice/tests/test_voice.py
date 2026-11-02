@@ -443,8 +443,10 @@ class LLMLocalTest(unittest.TestCase):
         self.assertEqual((decision.tool, decision.args), ("calculer_trajet", {"destination": "Adjamé"}))
         self.assertEqual((sent["url"], sent["timeout"]), ("http://127.0.0.1:8300/v1/chat/completions", 12))
         messages = sent["payload"]["messages"]
-        self.assertEqual(messages[0]["content"], SYSTEM)  # partie fixe d'abord : gardée en cache par llama-server
-        self.assertIn("Riviera Palmeraie", messages[1]["content"])
+        # Un seul message system, puis la question : le modèle de Ministral refuse un second message system (500).
+        self.assertEqual([m["role"] for m in messages], ["system", "user"])
+        self.assertTrue(messages[0]["content"].startswith(SYSTEM))  # partie fixe d'abord : gardée en cache par llama-server
+        self.assertIn("Riviera Palmeraie", messages[0]["content"])
         self.assertTrue(sent["payload"]["cache_prompt"])
         bad = LocalLLM("http://x", post=lambda *a: {"choices": [{"message": {"tool_calls": [{"function": {"name": "rm_rf", "arguments": "{}"}}]}}]})
         self.assertIsNone(bad.decide("x"))

@@ -2,7 +2,7 @@
 // A custom font has one file per weight and Android does not pick the bold file
 // from `fontWeight`, so each weight is turned into its own Montserrat file here.
 // Screens keep writing `fontWeight: '800'` as usual.
-import { createContext, forwardRef, useContext } from 'react';
+import { createContext, forwardRef, useContext, type ComponentRef } from 'react';
 import {
   Platform,
   StyleSheet,
@@ -64,7 +64,9 @@ function withFont(style: StyleProp<TextStyle>, inherits: boolean): StyleProp<Tex
   return [style, { fontFamily: montserratFamily(flat.fontWeight), fontWeight: 'normal' }];
 }
 
-export const Text = forwardRef<NativeText, TextProps>(function Text({ style, ...props }, ref) {
+// ComponentRef: since React Native 0.88 (Expo 58), Text and TextInput are no longer classes,
+// so their name is not the type of their ref any more.
+export const Text = forwardRef<ComponentRef<typeof NativeText>, TextProps>(function Text({ style, ...props }, ref) {
   const nested = useContext(InsideText);
   const text = <NativeText ref={ref} {...props} style={withFont(style, nested)} />;
   return nested ? text : <InsideText.Provider value>{text}</InsideText.Provider>;
@@ -73,6 +75,6 @@ export const Text = forwardRef<NativeText, TextProps>(function Text({ style, ...
 // Reanimated's Animated.Text wraps React Native's own Text: this one keeps Montserrat.
 export const AnimatedText = Animated.createAnimatedComponent(Text);
 
-export const TextInput = forwardRef<NativeTextInput, TextInputProps>(function TextInput({ style, ...props }, ref) {
+export const TextInput = forwardRef<ComponentRef<typeof NativeTextInput>, TextInputProps>(function TextInput({ style, ...props }, ref) {
   return <NativeTextInput ref={ref} {...props} style={withFont(style, false)} />;
 });

@@ -58,7 +58,7 @@ export default function ChatScreen() {
     ? `Pose-moi une question sur ton trajet vers ${arrival?.name}, ou sur les transports d'Abidjan.`
     : "Pose-moi une question sur les transports d'Abidjan ou sur l'application, ou dis-moi où tu veux aller.")]);
   const [draft, setDraft] = useState('');
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
   // Each new answer joins the conversation (with what was heard, when spoken).
   const shownReply = useRef<VoiceReply | null>(null);

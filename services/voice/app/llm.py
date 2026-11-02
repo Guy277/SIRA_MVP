@@ -101,8 +101,10 @@ class LocalLLM:
     def decide(self, text: str, saved_places: list[dict] | None = None, in_trip: bool = False) -> Decision | None:
         """None si le LLM ne répond pas à temps ou répond quelque chose d'illisible : les règles reprennent la main."""
         payload = {
-            "messages": [{"role": "system", "content": SYSTEM},
-                         {"role": "system", "content": _context(saved_places or [], in_trip)},
+            # UN seul message system : le modèle de Ministral refuse le second (« Only user, assistant and tool roles
+            # are supported », erreur 500 à chaque question, vu le 2026-11-02). Les consignes fixes restent en tête,
+            # le contexte du voyageur après : llama-server garde toujours la partie fixe en cache.
+            "messages": [{"role": "system", "content": f"{SYSTEM}\n\n{_context(saved_places or [], in_trip)}"},
                          {"role": "user", "content": text}],
             "tools": TOOLS, "temperature": 0, "max_tokens": self.max_tokens,
             "cache_prompt": True,  # llama-server : la partie fixe (consignes + outils) n'est lue qu'une fois
