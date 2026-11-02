@@ -42,7 +42,8 @@ def main() -> None:
     state = type("State", (), {})()
     state.fast_asr = ParakeetTranscriber(config.PARAKEET_DIR, config.MAX_AUDIO_SECONDS)
     state.asr = Transcriber(config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE,
-                            resolver.place_names(kinds=("commune",)), config.MAX_AUDIO_SECONDS, config.WHISPER_BEAM)
+                            resolver.place_names(kinds=("commune",)), config.MAX_AUDIO_SECONDS, config.WHISPER_BEAM,
+                            config.WHISPER_TEMPERATURE, config.WHISPER_TOKENS_PER_S)
     whisper_only = type("State", (), {"fast_asr": None, "asr": state.asr})()
     nlu.predict("Je veux aller au Plateau")
     state.fast_asr.warm()
@@ -60,6 +61,7 @@ def main() -> None:
                 wer = bv.word_error_rate(sample["texte"], transcript["text"]) if sample["texte"] else None
                 rows.append({"voix": folder.name, "fichier": Path(sample["fichier"]).name, "circuit": circuit,
                              "moteur": transcript["moteur"], "secondes": round(seconds, 2),
+                             "boucle": bool(transcript.get("repetitive") or transcript.get("whisper_ecarte")),
                              "wer": round(wer, 3) if wer is not None else None, "lieu_attendu": sample["lieu"] or "",
                              "lieu_trouve": found or "", "lieu_juste": bv.same_place(sample["lieu"], found),
                              "texte": transcript["text"]})
@@ -68,8 +70,10 @@ def main() -> None:
 
     lines = ["# Parakeet d'abord, Whisper en secours", "",
              f"- **Machine :** {bv.machine_info()['processeur']} · {datetime.now():%Y-%m-%d %H:%M}",
-             f"- **Whisper :** {config.WHISPER_NAME}, beam {config.WHISPER_BEAM}, int8 · **Parakeet :** TDT 0.6B v3 int8",
-             "", "| Voix | Circuit | Temps moyen | Pire | Repasse par Whisper | WER | Bon lieu |", "|---|---|---|---|---|---|---|"]
+             f"- **Whisper :** {config.WHISPER_NAME}, beam {config.WHISPER_BEAM}, int8, température {config.WHISPER_TEMPERATURE:g}, "
+             f"au plus {config.WHISPER_TOKENS_PER_S:g} jetons/s (+ 16) · **Parakeet :** TDT 0.6B v3 int8",
+             "", "| Voix | Circuit | Temps moyen | Pire | Repasse par Whisper | Whisper boucle | WER | Bon lieu |",
+             "|---|---|---|---|---|---|---|---|"]
     for voice in dict.fromkeys(r["voix"] for r in rows):
         for circuit in ("whisper seul", "parakeet + secours"):
             items = [r for r in rows if r["voix"] == voice and r["circuit"] == circuit]
@@ -77,7 +81,7 @@ def main() -> None:
             places = [r["lieu_juste"] for r in items if r["lieu_juste"] is not None]
             fallback = sum(r["moteur"] == "whisper" for r in items) if circuit != "whisper seul" else len(items)
             lines.append(f"| {voice} | {circuit} | {statistics.mean(r['secondes'] for r in items):.2f} s | "
-                         f"{max(r['secondes'] for r in items):.2f} s | {fallback}/{len(items)} | "
+                         f"{max(r['secondes'] for r in items):.2f} s | {fallback}/{len(items)} | {sum(r['boucle'] for r in items)} | "
                          f"{100 * statistics.mean(wers):.1f} % | {sum(places)}/{len(places)} |")
     out = ROOT / "services" / "voice" / "benchmarks" / f"{datetime.now():%Y-%m-%d_%H%M}_hybride"
     out.mkdir(parents=True, exist_ok=True)

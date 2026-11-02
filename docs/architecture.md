@@ -125,7 +125,7 @@ En production, `SIRA_ENV=production` est transmis à l'API comme au service des 
 
 ## Limites connues du MVP
 
-- Signalements gardés en mémoire par l'API (perdus au redémarrage).
+- Signalements gardés par l'API dans un seul fichier JSON (`SIRA_REPORTS_FILE`) : ils survivent à un redémarrage, mais supposent une seule instance de l'API.
 - Retards liés aux incidents : valeurs-types par catégorie.
 - Données ouvertes de 2021 : le transport informel demande une collecte terrain.
 - OpenFreeMap et le Valhalla public n'ont pas de garantie de service : prévoir un hébergement pour la production.
