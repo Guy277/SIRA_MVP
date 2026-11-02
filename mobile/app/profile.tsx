@@ -75,6 +75,19 @@ export default function ProfileScreen() {
       onPress: () => router.push('/chat'),
     },
     {
+      // SIRA starts silent: the traveller turns its voice on here.
+      id: 'voice',
+      title: 'Voix de SIRA',
+      iconName: 'volume-high',
+      onPress: () => router.push('/voice-settings'),
+    },
+    {
+      id: 'settings',
+      title: 'Paramètres',
+      iconName: 'settings-outline',
+      onPress: () => router.push('/settings'),
+    },
+    {
       id: 'privacy',
       title: 'Confidentialité',
       iconName: 'lock-closed',
