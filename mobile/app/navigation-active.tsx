@@ -26,7 +26,7 @@ import { goBack, goHome } from '@/lib/navigation';
 import { currentToken } from '@/lib/session';
 import { arrivalPhrase, placeForTitle } from '@/lib/saved-places';
 import { alightSoonSpeech, arrivalSpeech, fareQuestion, gpsEvent, gpsHint, minutes, spokenJourney, startSpeech, stepSpeech } from '@/lib/guidance';
-import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
+import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
 import { useSpokenQuestion } from '@/lib/use-spoken-question';
 
 const { height } = Dimensions.get('window');
@@ -38,7 +38,6 @@ const MODE_COLORS: Record<LegMode, string> = {
   walk: '#10B981', wait: '#64748B', transfer: '#7C3AED', sotra: '#F26522', gbaka: '#F26522', woro: '#1E6091', taxi: '#1E6091', boat: '#0284C7',
 };
 // Speaker button, as in Google Maps: all spoken → alerts only → muted.
-const VOICE_ICONS: Record<VoiceMode, keyof typeof Ionicons.glyphMap> = { on: 'volume-high', alerts: 'notifications', off: 'volume-mute' };
 
 export default function NavigationActiveScreen() {
   const router = useRouter();
@@ -386,7 +385,7 @@ export default function NavigationActiveScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Voix : ${VOICE_MODE_LABELS[voiceMode]}. Touche pour changer.`}
             >
-              <Ionicons name={VOICE_ICONS[voiceMode]} size={22} color={voiceMode === 'off' ? '#94A3B8' : '#F26522'} />
+              <Ionicons name={VOICE_MODE_ICONS[voiceMode]} size={22} color={voiceMode === 'off' ? '#94A3B8' : '#F26522'} />
             </TouchableOpacity>
           </View>
 

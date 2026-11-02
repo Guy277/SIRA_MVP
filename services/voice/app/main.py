@@ -87,6 +87,8 @@ def build_state(app: FastAPI, nlu=None, planner=None, live=None):
     if config.PRELOAD:
         # En arrière-plan : le service répond tout de suite, et la première phrase n'attend plus 10 à 20 s.
         threading.Thread(target=warm_speech, args=(state,), daemon=True, name="voice-warmup").start()
+        if state.llm is not None:  # les consignes du LLM en cache : sa première réponse ne dépasse plus le délai
+            threading.Thread(target=state.llm.warm, daemon=True, name="llm-warmup").start()
 
 
 def warm_speech(state) -> None:
@@ -204,7 +206,9 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
     @app.post("/voice/ask")
     async def ask(request: TextRequest):
         position = request.position.model_dump() if request.position else None
-        payload = await run_in_threadpool(dialog().ask, request.text, position, request.context, request.trip, request.places)
+        # Question écrite : SIRA demande de reformuler, pas de « répéter plus fort ».
+        payload = await run_in_threadpool(dialog().ask, request.text, position, request.context, request.trip, request.places,
+                                          True)
         return await run_in_threadpool(with_audio, payload, request.speak)
 
     @app.post("/voice/query")

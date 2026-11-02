@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { goBack } from '@/lib/navigation';
-import { useVoiceMode, VOICE_MODE_LABELS } from '@/lib/voice';
+import { useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
 
 interface SettingItem {
   id: string;
@@ -47,7 +47,7 @@ export default function SettingsScreen() {
       id: 'voice',
       title: 'Voix de SIRA',
       subtitle: VOICE_MODE_LABELS[voiceMode],
-      iconName: 'volume-high',
+      iconName: VOICE_MODE_ICONS[voiceMode],
       onPress: () => router.push('/voice-settings'),
     },
     {

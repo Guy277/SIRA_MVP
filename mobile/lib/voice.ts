@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
+import type { Ionicons } from '@expo/vector-icons';
 import { apiBaseUrl } from '@/lib/sira-api';
 
 export type VoiceMode = 'on' | 'alerts' | 'off';
@@ -22,6 +23,8 @@ export type SpeechKind = 'guidance' | 'alert' | 'answer' | 'greeting';
 const KEY = 'sira-voice-mode';
 const MODES: VoiceMode[] = ['on', 'alerts', 'off'];
 export const VOICE_MODE_LABELS: Record<VoiceMode, string> = { on: 'Voix activée', alerts: 'Alertes seulement', off: 'Voix coupée' };
+// One icon per setting, the same on every screen (home, trip, profile, settings).
+export const VOICE_MODE_ICONS: Record<VoiceMode, keyof typeof Ionicons.glyphMap> = { on: 'volume-high', alerts: 'notifications', off: 'volume-mute' };
 export const VOICE_MODE_DETAILS: Record<VoiceMode, string> = {
   on: 'SIRA te salue, te guide pendant le trajet et répond à voix haute.',
   alerts: 'SIRA parle seulement pour les alertes du trajet et pour répondre à tes questions.',

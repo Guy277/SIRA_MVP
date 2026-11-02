@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { goBack } from '@/lib/navigation';
-import { chooseVoiceMode, useVoiceMode, VOICE_MODE_DETAILS, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
+import { chooseVoiceMode, useVoiceMode, VOICE_MODE_DETAILS, VOICE_MODE_ICONS, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
 
 // SIRA's voice is off until the traveller turns it on here (or with the speaker button).
 const OPTIONS: VoiceMode[] = ['on', 'alerts', 'off'];
@@ -64,7 +64,10 @@ export default function VoiceSettingsScreen() {
                     style={styles.radioIcon}
                   />
                   <View style={styles.cardTextCol}>
-                    <Text style={styles.cardTitle}>{VOICE_MODE_LABELS[option]}</Text>
+                    <View style={styles.titleRow}>
+                      <Ionicons name={VOICE_MODE_ICONS[option]} size={17} color={selected ? '#F26522' : '#475569'} />
+                      <Text style={styles.cardTitle}>{VOICE_MODE_LABELS[option]}</Text>
+                    </View>
                     <Text style={styles.cardSubtitle}>{VOICE_MODE_DETAILS[option]}</Text>
                   </View>
                 </TouchableOpacity>
@@ -162,11 +165,16 @@ const styles = StyleSheet.create({
   cardTextCol: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#000000',
-    marginBottom: 2,
     letterSpacing: -0.1,
   },
   cardSubtitle: {

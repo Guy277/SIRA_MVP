@@ -47,8 +47,9 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
     }
     if (!open.current) return;
     context.current = answer.context;
-    retries.current = answer.kind === 'retry' ? retries.current + 1 : 0;
-    const giveUp = answer.kind === 'retry' && retries.current >= MAX_RETRIES;
+    // Only spoken questions count: a typed one was not « badly heard », so no « I can't hear you ».
+    retries.current = aloud && answer.kind === 'retry' ? retries.current + 1 : 0;
+    const giveUp = aloud && answer.kind === 'retry' && retries.current >= MAX_RETRIES;
     const shown = giveUp ? { ...answer, reply_text: OFFER_OTHER_WAY, reply_parts: [OFFER_OTHER_WAY], reply_audio: null } : answer;
     setOfferTyping(giveUp);
     setReply(shown);

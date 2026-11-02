@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.request
@@ -32,7 +33,9 @@ tu ne donnes jamais une définition de mémoire.
 Ne suppose jamais le lieu de départ : s'il n'est pas dit, laisse « depart » vide (SIRA prend la position du voyageur).
 Le voyageur peut être en train de suivre un trajet : pour « je descends où », « ça fait combien », « j'arrive
 quand », utilise trajet_en_cours.
-Hors du transport à Abidjan, réponds poliment que tu ne t'occupes que des trajets, sans appeler d'outil."""
+Hors du transport à Abidjan, réponds poliment que tu ne t'occupes que des trajets, sans appeler d'outil.
+Tu ES SIRA : parle à la première personne (« je »), jamais de SIRA comme d'un autre assistant.
+Ta réponse est lue à voix haute : texte simple, sans émoji, sans astérisques ni mise en forme, sans liste."""
 
 MODES = ["gbaka", "woro", "sotra", "bateau", "taxi"]
 TOOLS = [
@@ -98,17 +101,33 @@ class LocalLLM:
         self.timeout_s, self.max_tokens = timeout_s, max_tokens
         self._post = post or _post_json
 
-    def decide(self, text: str, saved_places: list[dict] | None = None, in_trip: bool = False) -> Decision | None:
-        """None si le LLM ne répond pas à temps ou répond quelque chose d'illisible : les règles reprennent la main."""
-        payload = {
+    def _payload(self, text: str, saved_places: list[dict], in_trip: bool, max_tokens: int) -> dict:
+        return {
             # UN seul message system : le modèle de Ministral refuse le second (« Only user, assistant and tool roles
             # are supported », erreur 500 à chaque question, vu le 2026-11-02). Les consignes fixes restent en tête,
             # le contexte du voyageur après : llama-server garde toujours la partie fixe en cache.
-            "messages": [{"role": "system", "content": f"{SYSTEM}\n\n{_context(saved_places or [], in_trip)}"},
+            "messages": [{"role": "system", "content": f"{SYSTEM}\n\n{_context(saved_places, in_trip)}"},
                          {"role": "user", "content": text}],
-            "tools": TOOLS, "temperature": 0, "max_tokens": self.max_tokens,
+            "tools": TOOLS, "temperature": 0, "max_tokens": max_tokens,
             "cache_prompt": True,  # llama-server : la partie fixe (consignes + outils) n'est lue qu'une fois
         }
+
+    def warm(self, attempts: int = 12, wait_s: float = 10.0) -> bool:
+        """Au démarrage du service : un premier appel fait lire et garder en cache les consignes et les outils.
+        Sans lui, la première vraie question dépassait le délai (20 s, vu le 2026-11-02) et les règles reprenaient.
+        llama-server peut encore charger le modèle : on réessaie quelques fois."""
+        for _ in range(attempts):
+            try:
+                self._post(f"{self.url}/v1/chat/completions", self._payload("Bonjour", [], False, 1), 180.0)
+                return True
+            except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+                time.sleep(wait_s)
+        log.warning("LLM local pas prêt après %d essais : la première question pourra être lente", attempts)
+        return False
+
+    def decide(self, text: str, saved_places: list[dict] | None = None, in_trip: bool = False) -> Decision | None:
+        """None si le LLM ne répond pas à temps ou répond quelque chose d'illisible : les règles reprennent la main."""
+        payload = self._payload(text, saved_places or [], in_trip, self.max_tokens)
         start = time.perf_counter()
         try:
             reply = self._post(f"{self.url}/v1/chat/completions", payload, self.timeout_s)
@@ -130,4 +149,17 @@ class LocalLLM:
                 log.warning("Outil inconnu demandé par le LLM, ignoré : %s", name)
                 return None
             return Decision(tool=name, args=args, seconds=seconds)
-        return Decision(tool=None, text=(message.get("content") or "").strip(), seconds=seconds)
+        return Decision(tool=None, text=clean_reply(message.get("content") or ""), seconds=seconds)
+
+
+# Émojis et pictogrammes : la voix de SIRA les lirait mal, et ils n'ont pas leur place dans ses réponses.
+_EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️‍]+")
+
+
+def clean_reply(text: str) -> str:
+    """Une phrase du LLM, prête à être affichée et dite : sans émoji ni mise en forme Markdown (**gras**, `code`,
+    titres, puces), les lignes réunies. Les consignes le demandent déjà ; ceci rattrape les oublis du modèle."""
+    text = _EMOJI.sub("", text)
+    text = re.sub(r"(\*\*|__|`)", "", text)
+    text = re.sub(r"(?m)^\s*(#{1,6}\s+|[-*•]\s+)", "", text)
+    return re.sub(r"\s+", " ", text).strip()

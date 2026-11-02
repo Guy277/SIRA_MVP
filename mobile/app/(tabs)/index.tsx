@@ -24,7 +24,7 @@ import { useSavedPlaces } from '@/lib/saved-places';
 import { VoiceAssistantSheet } from '@/components/voice-assistant-sheet';
 import type { VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
-import { cycleVoiceMode, useVoiceMode, VOICE_MODE_LABELS, type VoiceMode } from '@/lib/voice';
+import { cycleVoiceMode, useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
 import { useHomeGreeting } from '@/lib/use-home-greeting';
 import { notify } from '@/lib/notify';
 import { playIntroToday } from '@/lib/motion';
@@ -47,7 +47,6 @@ const CHARACTER_LEFT = (39 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 const SEARCH_PILL_WIDTH = (364 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 const SEARCH_PILL_HEIGHT = (58 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 
-const VOICE_ICONS: Record<VoiceMode, keyof typeof Ionicons.glyphMap> = { on: 'volume-high', alerts: 'notifications', off: 'volume-mute' };
 
 // A line of the bubble: « SIRA » in bold.
 const bubbleLine = (line: string) => line.split(/(SIRA)/).map((part, index) =>
@@ -213,7 +212,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Voix : ${VOICE_MODE_LABELS[voiceMode]}. Touche pour changer.`}
           >
-            <Ionicons name={VOICE_ICONS[voiceMode]} size={18} color={voiceMode === 'off' ? '#94A3B8' : '#FFFFFF'} />
+            <Ionicons name={VOICE_MODE_ICONS[voiceMode]} size={18} color={voiceMode === 'off' ? '#94A3B8' : '#FFFFFF'} />
           </TouchableOpacity>
         </View>
 

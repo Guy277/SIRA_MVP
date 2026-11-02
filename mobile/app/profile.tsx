@@ -19,6 +19,7 @@ import { ProfilePhotoModal } from '@/components/profile-photo-modal';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { useSession } from '@/lib/session';
 import { goBack } from '@/lib/navigation';
+import { useVoiceMode, VOICE_MODE_ICONS } from '@/lib/voice';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const tabBarSpace = useTabBarSpace();
   const account = useSession()?.user;
   const router = useRouter();
+  const voiceMode = useVoiceMode();
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false);
@@ -78,7 +80,7 @@ export default function ProfileScreen() {
       // SIRA starts silent: the traveller turns its voice on here.
       id: 'voice',
       title: 'Voix de SIRA',
-      iconName: 'volume-high',
+      iconName: VOICE_MODE_ICONS[voiceMode],
       onPress: () => router.push('/voice-settings'),
     },
     {

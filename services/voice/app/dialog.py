@@ -36,6 +36,11 @@ QUESTIONS = {
 RETRY_REASONS = {"low_intent_confidence", "unresolvable_place"}
 
 NOTHING_HEARD = "Pardon, je n'ai rien entendu. Tu peux répéter un peu plus fort, s'il te plaît ?"
+# Question écrite (« Discuter avec SIRA ») : « répète plus fort » n'a pas de sens, on demande de reformuler.
+TYPED_AGAIN = "Pardon, je n'ai pas bien compris. Tu peux reformuler, ou me dire où tu veux aller ?"
+# « J'ai besoin d'aide », « tu sers à quoi ? » : ce que SIRA sait faire, tout de suite (sans attendre le LLM).
+_HELP = re.compile(r"\b(aide|aider|aidez|help|secours|tu sers a quoi|tu fais quoi|que sais tu faire|"
+                   r"qu'est ce que tu (?:sais|peux) faire|comment ca marche|comment tu marches?)\b")
 PLACE_AGAIN = "Pardon, je n'ai pas bien compris le lieu. Tu peux le redire ?"
 WHERE_TO = "D'accord. Dis-moi où tu veux aller."
 STOP_NEEDS_DESTINATION = "Dis-moi ta destination, je te montre où prendre ton transport."
@@ -260,14 +265,18 @@ class VoiceDialog:
         return bool(UNSURE_HEARING & set(u.reasons)) or (u.intent in NEEDS_DESTINATION and "missing_destination" in u.reasons)
 
     def ask(self, text: str, position: dict | None = None, context: dict | None = None, trip: dict | None = None,
-            places: list | None = None) -> dict:
+            places: list | None = None, typed: bool = False) -> dict:
         """trip : le trajet suivi dans l'application (calculé par SIRA-MORE), pour « je descends où ? ».
-        places : les lieux du voyageur (Maison, Travail…), lus pour cette question seulement."""
+        places : les lieux du voyageur (Maison, Travail…), lus pour cette question seulement.
+        typed : question écrite, pas dite : SIRA demande de reformuler au lieu de « répéter plus fort »."""
         token = _PERSONAL.set(clean_places(places))
         try:
-            return self._ask(text, position, context, trip)
+            payload = self._ask(text, position, context, trip)
         finally:
             _PERSONAL.reset(token)
+        if typed:
+            payload["reply_text"] = _for_typed(payload["reply_text"])
+        return payload
 
     def _ask(self, text: str, position: dict | None, context: dict | None, trip: dict | None) -> dict:
         u = self.understand(text, position)
@@ -314,6 +323,9 @@ class VoiceDialog:
         answered = self._knowledge_reply(u, text, position, trip)
         if answered:
             return answered
+
+        if u.intent != "voice_help" and not u.places.get("destination") and _HELP.search(norm(text)):
+            u = replace(u, intent="voice_help", reasons=[], question=None)
 
         # Les règles ne sauraient que faire répéter ou refuser : le LLM local tente sa chance (s'il est branché).
         if self.llm is not None and self._wants_llm(u):
@@ -480,10 +492,33 @@ class VoiceDialog:
             result = self.plan_journeys(api_request)
         except JourneyServiceError as error:
             return self._reply(u, prefix + error.spoken, request=request, error=str(error))
+        if not result.get("journeys") and request.get("budget"):
+            cheaper = self._over_budget(u, api_request, request, prefix)
+            if cheaper:
+                return cheaper
         chosen = _choose(result, result.get("journeys") or [], request)[0] if result.get("journeys") else None
         payload = self._reply(u, prefix + describe_journeys(result, request, u.intent), request=request, journeys=result,
                               sources=["sira-more"])
         payload["chosen_id"] = chosen.get("id") if chosen else None
+        return payload
+
+    def _over_budget(self, u: Understanding, api_request: dict, request: dict, prefix: str) -> dict | None:
+        """« Koumassi avec 100 francs » : aucun trajet dans ce budget. Plutôt que « rien trouvé », SIRA donne le moins
+        cher sans budget, avec le prix calculé par SIRA-MORE (jamais un prix deviné). None si rien non plus."""
+        try:
+            wider = self.plan_journeys({k: v for k, v in api_request.items() if k != "budget"})
+        except JourneyServiceError:
+            return None
+        priced = [j for j in wider.get("journeys") or [] if isinstance(j.get("price"), (int, float))]
+        if not priced:
+            return None
+        cheapest = min(priced, key=lambda j: j["price"])
+        dest = (request.get("destination") or {}).get("name", "ta destination")
+        text = (f"{prefix}Avec {request['budget']} francs, je ne trouve pas de trajet pour aller à {dest}. "
+                f"Le moins cher coûte {_price(cheapest['price'])} : {_spoken_route(cheapest)}. Il est sur l'écran.")
+        payload = self._reply(u, text, request={k: v for k, v in request.items() if k != "budget"}, journeys=wider,
+                              sources=["sira-more"])
+        payload["chosen_id"] = cheapest.get("id")
         return payload
 
     @staticmethod
@@ -571,6 +606,14 @@ def _choose(result: dict, journeys: list[dict], request: dict) -> tuple[dict, st
     if request.get("preference") == "fast":
         return min(with_mode, key=lambda j: j.get("duration") or 10**6), ""
     return min(with_mode, key=lambda j: j.get("price") if j.get("price") is not None else 10**9), ""
+
+
+def _for_typed(text: str) -> str:
+    """Une réponse prévue pour la voix, dite à quelqu'un qui a écrit sa question."""
+    if text in (QUESTIONS["low_intent_confidence"], NOTHING_HEARD):
+        return TYPED_AGAIN
+    return text.replace("Tu peux répéter, ou", "Tu peux vérifier l'orthographe, ou").replace(
+        "Tu peux le redire ?", "Tu peux le réécrire ?")
 
 
 def describe_journeys(result: dict, request: dict, intent: str) -> str:
