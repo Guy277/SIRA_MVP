@@ -40,6 +40,9 @@ VALIDATION_SHARE = 0.10
 MIN_S, MAX_S = 0.5, 30.0  # Whisper lit des fenêtres de 30 s au plus
 _ZIP_NAME = re.compile(r"SIRA_entrainement_voix_(?P<who>.+?)_(?P<date>\d{4}-\d{2}-\d{2})\.zip$", re.I)
 _TEST = re.compile(r"(^|[\\/])test([\\/]|$)|SIRA_test_voix_", re.I)
+# Enregistrements dont l'audio ne dit pas la phrase attendue (autre phrase, coupé, vide) : relevés à l'écoute ou par
+# transcription (Parakeet et Whisper d'accord entre eux, pas avec le texte). Ils apprendraient une erreur à Whisper.
+EXCLUDED = Path(__file__).with_name("enregistrements_ecartes.csv")
 
 
 def decode(data: bytes) -> np.ndarray:
@@ -108,6 +111,14 @@ def items(source: Path):
             yield row["fichier"], z.read(name) if name else None, row["texte"]
 
 
+def excluded(path: Path = EXCLUDED) -> dict[str, str]:
+    """« paul-elie_E202 » → raison, depuis enregistrements_ecartes.csv (fichier;raison)."""
+    if not path.exists():
+        return {}
+    rows = csv.DictReader(io.StringIO(path.read_text(encoding="utf-8-sig")), delimiter=";")
+    return {(r.get("fichier") or "").strip(): (r.get("raison") or "").strip() for r in rows if (r.get("fichier") or "").strip()}
+
+
 def validation_phrases(texts: list[str]) -> set[str]:
     """10 % des phrases, toujours les mêmes d'une fois à l'autre (tirage fixé par le texte lui-même)."""
     keyed = sorted(set(texts), key=lambda t: hashlib.sha1(t.encode("utf-8")).hexdigest())
@@ -126,11 +137,14 @@ def main() -> None:
     if not lots:
         sys.exit(f"Aucun lot d'entraînement dans {args.entree} (SIRA_entrainement_voix_<prénom>_<date>.zip ou dossier avec attendu.csv).")
     rows, problems = [], []
+    skip = excluded()
     for who, source in lots:
         print(f"[SIRA] {source.name} → locuteur « {who} »")
         for name, data, text in items(source):
             if data is None:
                 problems.append(f"{source.name}/{name} : audio absent"); continue
+            if f"{who}_{name}" in skip:
+                problems.append(f"{source.name}/{name} : écarté ({skip[f'{who}_{name}']})"); continue
             try:
                 audio = decode(data)
             except Exception as error:  # fichier abîmé
