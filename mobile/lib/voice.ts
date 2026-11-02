@@ -1,5 +1,7 @@
 // SIRA's voice, shared by every screen (greeting, assistant, guidance, alerts).
-// Three settings as in Google Maps: all spoken, alerts only, or muted.
+// Three settings as in Google Maps: all spoken, alerts only, or muted. Muted until the
+// traveller turns it on (Paramètres → Voix de SIRA, or the speaker button): opening SIRA
+// never starts talking by itself.
 // SIRA speaks with ONE voice only: its own Piper voice « pierre » (services/voice), a man
 // like the character. No other voice, not even the phone's: without SIRA's voice (offline,
 // service stopped) the sentence stays on screen, unspoken.
@@ -20,8 +22,15 @@ export type SpeechKind = 'guidance' | 'alert' | 'answer' | 'greeting';
 const KEY = 'sira-voice-mode';
 const MODES: VoiceMode[] = ['on', 'alerts', 'off'];
 export const VOICE_MODE_LABELS: Record<VoiceMode, string> = { on: 'Voix activée', alerts: 'Alertes seulement', off: 'Voix coupée' };
+export const VOICE_MODE_DETAILS: Record<VoiceMode, string> = {
+  on: 'SIRA te salue, te guide pendant le trajet et répond à voix haute.',
+  alerts: 'SIRA parle seulement pour les alertes du trajet et pour répondre à tes questions.',
+  off: 'SIRA ne parle pas : tout reste écrit à l’écran.',
+};
 
-let mode: VoiceMode = 'on';
+// Until the traveller chooses, SIRA stays silent.
+export const DEFAULT_VOICE_MODE: VoiceMode = 'off';
+let mode: VoiceMode = DEFAULT_VOICE_MODE;
 const listeners = new Set<() => void>();
 
 const readSetting = (key: string) => (Platform.OS === 'web' ? Promise.resolve(window.localStorage.getItem(key)) : SecureStore.getItemAsync(key));
@@ -36,7 +45,7 @@ export async function loadVoiceMode() {
   try {
     const saved = await readSetting(KEY);
     if (saved && (MODES as string[]).includes(saved)) { mode = saved as VoiceMode; listeners.forEach((l) => l()); }
-  } catch { /* réglage illisible : voix activée */ }
+  } catch { /* réglage illisible : voix coupée */ }
 }
 
 export function setVoiceMode(next: VoiceMode) {
@@ -46,11 +55,16 @@ export function setVoiceMode(next: VoiceMode) {
   if (next === 'off') stopSpeaking();
 }
 
-// Speaker button: on → alerts only → off → on, and SIRA says the new setting.
-export function cycleVoiceMode() {
-  const next = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+// The traveller picked a setting: SIRA says it, so they hear what they turned on.
+export function chooseVoiceMode(next: VoiceMode) {
   setVoiceMode(next);
   if (next !== 'off') void say(next === 'on' ? 'Voix activée.' : 'Je te préviens seulement des alertes.', 'alert');
+}
+
+// Speaker button: on → alerts only → off → on.
+export function cycleVoiceMode() {
+  const next = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+  chooseVoiceMode(next);
   return next;
 }
 
