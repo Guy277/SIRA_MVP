@@ -30,7 +30,9 @@
     "data:import": "node scripts/import-transport-postgis.mjs",
     "data:import:postgis": "node scripts/import-transport-postgis-db.mjs",
     "data:osm": "node scripts/build-transport-osm.mjs",
-    "data:audit:postgis": "node scripts/audit-transport-postgis.mjs"
+    "data:audit:postgis": "node scripts/audit-transport-postgis.mjs",
+    "data:lieux": "node scripts/import-lieux.mjs",
+    "lieux:prechauffer": "node scripts/prechauffer-lieux.mjs"
   },
   "dependencies": {
     "pg": "^8.23.0"

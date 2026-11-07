@@ -20,8 +20,20 @@ export function knownPlace(title: string) {
   return registry.get(title) ?? null;
 }
 
+// Demo mode: EXPO_PUBLIC_SIRA_POSITION_DEMO="5.4410,-4.0090" (Abobo) fixes the traveller's position,
+// so a presentation shows the same places and journeys wherever it is given.
+function demoPosition(): Coordinates | null {
+  const [latitude, longitude] = (process.env.EXPO_PUBLIC_SIRA_POSITION_DEMO ?? '').split(',').map(Number);
+  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : null;
+}
+
 // Asks for location permission only when the user picks "Ma position actuelle".
 export async function locateUser(): Promise<Coordinates> {
+  const demo = demoPosition();
+  if (demo) {
+    rememberPlace(CURRENT_LOCATION, demo);
+    return demo;
+  }
   if (needsSecureContext()) throw new Error(POSITION_NEEDS_HTTPS);
   const permission = await Location.requestForegroundPermissionsAsync();
   if (permission.status !== 'granted') throw new Error('Autorise la localisation pour partir de ta position.');

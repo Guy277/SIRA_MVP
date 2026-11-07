@@ -20,6 +20,7 @@ Adresse de l’API : déduite automatiquement de la machine qui fait tourner Exp
 | --- | --- |
 | `app/` | écrans (expo-router) |
 | `lib/sira-api.ts` | seul point d’accès à l’API (trajets, signalements, comptes, tarifs) |
+| `lib/lieux.ts`, `lib/use-lieux.ts`, `components/lieux-*.tsx`, `app/lieu.tsx`, `app/y-aller.tsx` | catégories de la carte (Saveurs du coin, pharmacies de garde…), fiche d’un lieu, lien `siraproj://y-aller` : voir `docs/lieux.md` |
 | `lib/journey-store.ts` | recherche, trajet choisi et trajet suivi, partagés entre écrans |
 | `lib/journey-format.ts` | textes, heures et prix affichés (français clair, pas de jargon) |
 | `lib/places.ts` | coordonnées des lieux (recherche, raccourcis, GPS) |

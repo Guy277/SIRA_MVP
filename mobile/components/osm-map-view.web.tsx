@@ -4,8 +4,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
 import type { Map as MapLibreMap, Marker as MapLibreMarker, GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
+import type { MapPlace, MapPadding } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -17,6 +19,11 @@ interface OsmMapViewProps {
   focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
   onReportPress?: (report: TrafficReport) => void;
+  // Lieux du quotidien (catégories de l'accueil) et position du voyageur ; la carte se cadre sur eux.
+  places?: MapPlace[];
+  onPlacePress?: (id: string) => void;
+  userPosition?: Coordinates | null;
+  padding?: MapPadding;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
@@ -30,7 +37,13 @@ function markerElement(className: string, text = '') {
   return node;
 }
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], focusCoordinates, reports = [], onReportPress, style }: OsmMapViewProps) {
+// Icône MaterialCommunityIcons dessinée avec la police déjà chargée par l'appli.
+const glyph = (name: string) => {
+  const code = (MaterialCommunityIcons.glyphMap as Record<string, number>)[name];
+  return code ? String.fromCodePoint(code) : '';
+};
+
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, style }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -75,6 +88,16 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         if (onReportPress) { node.style.cursor = 'pointer'; node.addEventListener('click', () => onReportPress(report)); }
         add({ latitude: report.lat, longitude: report.lon }, node);
       });
+      if (userPosition) add(userPosition, markerElement('sira-map-user'));
+      places.forEach((place) => {
+        const node = markerElement(`sira-map-place${place.highlighted ? ' sira-map-place--garde' : ''}`, glyph(place.icon));
+        node.style.background = place.color;
+        node.title = place.label;
+        node.setAttribute('role', 'button');
+        node.setAttribute('aria-label', place.label);
+        if (onPlacePress) { node.style.cursor = 'pointer'; node.addEventListener('click', () => onPlacePress(place.id)); }
+        add({ latitude: place.lat, longitude: place.lon }, node);
+      });
 
       (map.getSource('journey') as GeoJSONSource | undefined)?.setData({
         type: 'FeatureCollection',
@@ -85,14 +108,17 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         type: 'FeatureCollection',
         features: focus ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: focus.map((point) => [point.longitude, point.latitude]) } }] : [],
       });
-      const points = focus ?? (routeCoordinates.length ? routeCoordinates : [start, end].filter((point): point is Coordinates => Boolean(point)));
+      const placePoints = places.length ? [...places.map((place) => ({ latitude: place.lat, longitude: place.lon })), ...(userPosition ? [userPosition] : [])] : [];
+      const points = focus ?? (routeCoordinates.length ? routeCoordinates : placePoints.length ? placePoints : [start, end].filter((point): point is Coordinates => Boolean(point)));
       if (points.length >= 2) {
         const lons = points.map((point) => point.longitude); const lats = points.map((point) => point.latitude);
-        map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 50, duration: 600, maxZoom: 15 });
+        map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: padding ?? 50, duration: 600, maxZoom: 16 });
+      } else if (points.length === 1) {
+        map.easeTo({ center: [points[0].longitude, points[0].latitude], zoom: 15, duration: 600, padding: padding ?? undefined });
       }
     });
     return () => { active = false; };
-  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, focusCoordinates, reports, onReportPress]);
+  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, padding]);
 
   return (
     <View style={[styles.container, style]}>
@@ -107,6 +133,9 @@ const MARKER_CSS = `
 .sira-map-end { width: 20px; height: 20px; border-radius: 50%; background: #F26522; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
 .sira-map-report { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #DC2626; border: 2px solid #fff; font: 800 12px system-ui; }
 .sira-map-report--pending { opacity: .6; }
+.sira-map-user { width: 16px; height: 16px; border-radius: 50%; background: #2563EB; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(37,99,235,.2); }
+.sira-map-place { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); font: 17px 'material-community'; }
+.sira-map-place--garde { width: 36px; height: 36px; font-size: 20px; border: 3px solid #FACC15; }
 `;
 
 export default OsmMapView;

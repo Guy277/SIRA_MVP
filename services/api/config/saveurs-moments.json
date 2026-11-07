@@ -1,0 +1,8 @@
+{
+  "_lisezmoi": "Spécialités de « Saveurs du coin » mises en tête de liste selon l'heure (heure d'Abidjan). PROPOSITION À VALIDER PAR L'ÉQUIPE : ce n'est pas une donnée mesurée, seulement un ordre d'affichage. Modifiable sans toucher au code ; l'API la relit à son démarrage. Spécialités possibles : choukouya, banane_braisee, alloco, garba, gbofloto, crecre, placali, maquis.",
+  "moments": [
+    { "nom": "matin", "de": "05:00", "a": "10:59", "specialites": ["gbofloto"] },
+    { "nom": "midi", "de": "11:00", "a": "15:59", "specialites": ["garba", "placali"] },
+    { "nom": "soir", "de": "16:00", "a": "23:59", "specialites": ["choukouya", "alloco", "banane_braisee", "maquis"] }
+  ]
+}

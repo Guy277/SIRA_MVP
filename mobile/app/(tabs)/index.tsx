@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
   TouchableOpacity,
   Dimensions,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
 } from 'react-native';
@@ -19,10 +20,16 @@ import { LocationSuggestionsList } from '@/components/location-suggestions-list'
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { OsmMapView } from '@/components/osm-map-view';
 import { firstName, useSession, useSessionRestored } from '@/lib/session';
-import { distanceM, ensureCurrentPlace, isOwnPosition, rememberPlace, useCurrentPlace } from '@/lib/places';
+import { distanceM, ensureCurrentPlace, isOwnPosition, knownPlace, rememberPlace, useCurrentPlace } from '@/lib/places';
+import { LieuxCategories } from '@/components/lieux-categories';
+import { LieuxPanneau } from '@/components/lieux-panneau';
+import { MapLocationPicker } from '@/components/map-location-picker';
+import type { MapPadding, MapPlace } from '@/components/osm-map-types';
+import { COULEUR_CATEGORIE, ICONE_CATEGORIE, type CategorieCarte } from '@/lib/lieux';
+import { useCategoriesLieux, useLieux } from '@/lib/use-lieux';
 import { useSavedPlaces } from '@/lib/saved-places';
 import { VoiceAssistantSheet } from '@/components/voice-assistant-sheet';
-import type { VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
+import type { Coordinates, VoiceJourneyRequest, VoiceReply } from '@/lib/sira-api';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { cycleVoiceMode, useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
 import { useHomeGreeting } from '@/lib/use-home-greeting';
@@ -42,6 +49,11 @@ const CHARACTER_WIDTH = (324 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
 const CHARACTER_HEIGHT = (486 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const CHARACTER_TOP = (414 / DESIGN_CANVAS_HEIGHT) * SCREEN_HEIGHT;
 const CHARACTER_LEFT = (39 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
+
+// Panel of everyday places (categories row): the lower part of the screen, the map stays above.
+const PANNEAU_LIEUX_HAUTEUR = Math.round(SCREEN_HEIGHT * 0.46);
+// Places are framed between the categories row and the panel.
+const CADRAGE_LIEUX: MapPadding = { top: 150, bottom: PANNEAU_LIEUX_HAUTEUR + 24, left: 40, right: 40 };
 
 // Search Pill specs: Width 364px, Height 58px, Angle 0deg, Opacity 1, Radius 100px, #F26522
 const SEARCH_PILL_WIDTH = (364 / DESIGN_CANVAS_WIDTH) * SCREEN_WIDTH;
@@ -68,6 +80,26 @@ export default function HomeScreen() {
   // The map, the character and the search bar come in once a day.
   const [intro] = useState(() => playIntroToday('home'));
   const voiceMode = useVoiceMode();
+
+  // Everyday places (« Autour de moi », « Saveurs du coin », « Pharmacies de garde »…) around the
+  // traveller, or around a point picked on the map when the position is not available.
+  const { categories, attribution } = useCategoriesLieux();
+  const [categorieLieux, setCategorieLieux] = useState<CategorieCarte | null>(null);
+  const [pointChoisi, setPointChoisi] = useState<{ title: string; coordinates: Coordinates } | null>(null);
+  const [choixPoint, setChoixPoint] = useState(false);
+  const positionGps = here.status === 'ready' && !here.outside ? here.coordinates : null;
+  const positionLieux = positionGps ?? pointChoisi?.coordinates ?? null;
+  const sansPosition = positionLieux || here.status === 'locating' ? null
+    : here.status === 'unavailable' ? here.reason
+    : 'Tu es hors du Grand Abidjan : choisis un point à Abidjan.';
+  const lieux = useLieux(categorieLieux, positionLieux);
+  const pointsLieux = lieux.points?.lieux;
+  const placesCarte = useMemo<MapPlace[]>(() => (pointsLieux ?? []).map((lieu) => ({
+    id: lieu.id, lat: lieu.lat, lon: lieu.lon, label: lieu.nom, highlighted: lieu.deGarde,
+    color: COULEUR_CATEGORIE[lieu.categorie], icon: ICONE_CATEGORIE[lieu.categorie],
+  })), [pointsLieux]);
+  // A place opens its card; « Y aller » leaves from the picked point when there is no GPS.
+  const ouvrirLieu = (id: string) => router.push({ pathname: '/lieu', params: { id, ...(positionGps || !pointChoisi ? {} : { from: pointChoisi.title }) } });
 
   // Just back from a trip: the way back is one touch away (people often make the
   // round trip), and SIRA says goodbye instead of « Akwaba ».
@@ -189,9 +221,18 @@ export default function HomeScreen() {
       <StatusBar style="dark" />
 
       {/* Real OpenStreetMap Interactive Canvas */}
-      <OsmMapView style={styles.backgroundImage} />
+      <OsmMapView
+        style={styles.backgroundImage}
+        places={categorieLieux ? placesCarte : undefined}
+        onPlacePress={ouvrirLieu}
+        userPosition={categorieLieux ? positionLieux : null}
+        padding={CADRAGE_LIEUX}
+      />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* With a category on, the map underneath must take touches (markers, moving the map). */}
+      <SafeAreaView style={styles.safeArea} edges={['top']} pointerEvents={categorieLieux ? 'box-none' : 'auto'}>
+        {/* Header and categories row stay together at the top (the safe area spreads its children). */}
+        <View style={styles.topGroup} pointerEvents="box-none">
         {/* Top Header Bar with Circular Black Back Button */}
         <View style={styles.topHeader}>
           {/* Home is the first screen of the app: its back arrow leads to the
@@ -216,14 +257,18 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Everyday places, as in Google Maps: one category at a time, touched again to come back. */}
+        <LieuxCategories categories={categories} active={categorieLieux} onChange={setCategorieLieux} />
+        </View>
+
         {/* SIRA's bubble, above the character's head: pops up with the voice,
             « Akwaba Guy ! » writes itself, then the other lines come. It grows
             upwards, so it never covers the character. */}
-        {message && (
+        {message && !categorieLieux && (
           <Animated.View
             key={message.key}
             entering={message.animate ? ZoomIn.delay(150).springify().damping(14) : FadeIn.duration(250)}
-            style={[styles.speechBubble, { top: Math.max(56, CHARACTER_TOP - 20 - bubbleHeight) }]}
+            style={[styles.speechBubble, { top: Math.max(categories.length ? 112 : 56, CHARACTER_TOP - 20 - bubbleHeight) }]}
             onLayout={(event) => setBubbleHeight(event.nativeEvent.layout.height)}
             accessibilityLiveRegion="polite"
           >
@@ -248,16 +293,16 @@ export default function HomeScreen() {
         )}
 
         {/* 3D Animated Assistant Character - Designer Specs (324x486 at Top: 414px, Left: 39px, Angle: 0deg, Opacity: 1) */}
-        <Animated.View entering={intro ? FadeInDown.duration(500) : FadeIn.duration(250)} style={styles.characterContainer} pointerEvents="none">
+        {!categorieLieux && <Animated.View entering={intro ? FadeInDown.duration(500) : FadeIn.duration(250)} style={styles.characterContainer} pointerEvents="none">
           <Image
             source={require('@/assets/images/sira-character-assistant.png')}
             style={styles.characterImage}
             contentFit="contain"
           />
-        </Animated.View>
+        </Animated.View>}
 
         {/* Bottom Destination Section */}
-        <Animated.View entering={intro ? FadeInUp.delay(900).duration(400) : FadeIn.duration(250)} style={styles.bottomBarContainer}>
+        {!categorieLieux && <Animated.View entering={intro ? FadeInUp.delay(900).duration(400) : FadeIn.duration(250)} style={styles.bottomBarContainer}>
           {/* Way back after a trip (« Retour vers Treichville »): the reverse journey in one touch. */}
           {wayBackLabel && (
             <TouchableOpacity
@@ -322,8 +367,33 @@ export default function HomeScreen() {
               <Ionicons name="mic" size={22} color="#FFFFFF" />
             </TouchableOpacity>
           </TouchableOpacity>
-        </Animated.View>
+        </Animated.View>}
       </SafeAreaView>
+
+      {categorieLieux && (
+        <LieuxPanneau
+          categorie={categorieLieux}
+          lieux={lieux}
+          attribution={attribution}
+          sansPosition={sansPosition}
+          onChoisirPosition={() => setChoixPoint(true)}
+          onOuvrir={ouvrirLieu}
+          hauteur={PANNEAU_LIEUX_HAUTEUR}
+        />
+      )}
+
+      {/* No GPS: the places are looked for around a point picked on the map. */}
+      <Modal visible={choixPoint} animationType="slide" onRequestClose={() => setChoixPoint(false)}>
+        <MapLocationPicker
+          purpose="departure"
+          onBack={() => setChoixPoint(false)}
+          onConfirm={(title) => {
+            const coordinates = knownPlace(title);
+            if (coordinates) setPointChoisi({ title, coordinates });
+            setChoixPoint(false);
+          }}
+        />
+      </Modal>
 
       {/* Yango Full Screen Location Modal */}
       <YangoLocationModal
@@ -368,6 +438,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     justifyContent: 'space-between',
+  },
+  topGroup: {
+    zIndex: 30,
   },
   topHeader: {
     flexDirection: 'row',

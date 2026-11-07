@@ -12,5 +12,9 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
+# Copie de secours des pharmacies de garde (lue si la liste en ligne échoue).
+COPY secours ./secours
+# Réglages modifiables sans recompiler (ordre des Saveurs selon l'heure).
+COPY config ./config
 EXPOSE 4000
 CMD ["node", "dist/main.js"]

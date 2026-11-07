@@ -6,9 +6,10 @@ import MapView, {
   Polyline,
   PROVIDER_DEFAULT,
 } from 'react-native-maps';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
+import type { MapPadding, MapPlace } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -21,6 +22,11 @@ interface OsmMapViewProps {
   focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
   onReportPress?: (report: TrafficReport) => void;
+  // Lieux du quotidien (catégories de l'accueil) et position du voyageur ; la carte se cadre sur eux.
+  places?: MapPlace[];
+  onPlacePress?: (id: string) => void;
+  userPosition?: Coordinates | null;
+  padding?: MapPadding;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
@@ -49,6 +55,10 @@ export function OsmMapView({
   focusCoordinates,
   reports = [],
   onReportPress,
+  places = [],
+  onPlacePress,
+  userPosition,
+  padding,
   style,
   showIntermediateStations = false,
 }: OsmMapViewProps) {
@@ -70,6 +80,11 @@ export function OsmMapView({
           edgePadding: { top: 70, right: 60, bottom: 70, left: 60 },
           animated: true,
         });
+      } else if (places.length > 0) {
+        mapRef.current.fitToCoordinates(
+          [...places.map((place) => ({ latitude: place.lat, longitude: place.lon })), ...(userPosition ? [userPosition] : [])],
+          { edgePadding: padding ?? { top: 70, right: 60, bottom: 70, left: 60 }, animated: true },
+        );
       } else if (startCoords && endCoords) {
         mapRef.current.fitToCoordinates([startCoords, endCoords], {
           edgePadding: { top: 70, right: 60, bottom: 70, left: 60 },
@@ -77,7 +92,7 @@ export function OsmMapView({
         });
       }
     }
-  }, [activeRoute, focusCoordinates, startCoords, endCoords]);
+  }, [activeRoute, focusCoordinates, startCoords, endCoords, places, userPosition, padding]);
 
   return (
     <View style={[styles.container, style]}>
@@ -136,6 +151,26 @@ export function OsmMapView({
           >
             <View style={[styles.reportMarker, report.status === 'reported' && styles.reportMarkerPending]}>
               <Ionicons name="warning" size={12} color="#FFFFFF" />
+            </View>
+          </Marker>
+        ))}
+
+        {/* Traveller's position and everyday places (categories of the home screen) */}
+        {userPosition && (
+          <Marker coordinate={userPosition} anchor={{ x: 0.5, y: 0.5 }} title="Ma position">
+            <View style={styles.userMarker} />
+          </Marker>
+        )}
+        {places.map((place) => (
+          <Marker
+            key={place.id}
+            coordinate={{ latitude: place.lat, longitude: place.lon }}
+            title={place.label}
+            anchor={{ x: 0.5, y: 0.5 }}
+            onPress={() => onPlacePress?.(place.id)}
+          >
+            <View style={[styles.placeMarker, place.highlighted && styles.placeMarkerGarde, { backgroundColor: place.color }]}>
+              <MaterialCommunityIcons name={place.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={place.highlighted ? 19 : 16} color="#FFFFFF" />
             </View>
           </Marker>
         ))}
@@ -209,6 +244,30 @@ const styles = StyleSheet.create({
   },
   reportMarkerPending: {
     opacity: 0.6,
+  },
+  userMarker: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  placeMarker: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeMarkerGarde: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: '#FACC15',
   },
   endMarkerBadge: {
     alignItems: 'center',
