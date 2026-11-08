@@ -20,8 +20,8 @@ import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-t
 import { playIntroToday } from '@/lib/motion';
 import { goBack } from '@/lib/navigation';
 import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
-import { alertBadge, REPORT_STYLE, useAlertCount, useLiveReports } from '@/lib/reports';
-import { CATEGORY_TYPE, summarizeReports, type ReportCategory } from '@/lib/report-summary-core';
+import { alertBadge, useAlertCount, useLiveReports } from '@/lib/reports';
+import { summarizeReports, type ReportCategory } from '@/lib/report-summary-core';
 
 const { width } = Dimensions.get('window');
 
@@ -52,8 +52,8 @@ const CATEGORIES: EventCategory[] = [
   { id: 'autre', title: 'Autre évènement', iconName: 'ellipsis-horizontal', iconFamily: 'Ionicons' },
 ];
 
-// Each kind in the colour it has everywhere else in SIRA (lib/reports.ts).
-const colorOf = (category: ReportCategory) => (REPORT_STYLE[CATEGORY_TYPE[category]] ?? REPORT_STYLE.other).color;
+// SIRA's orange for every kind: the icon and the name tell them apart (white, black and orange only).
+const SIRA_ORANGE = '#F26522';
 
 function CategoryIcon({ category, size, color = '#FFFFFF' }: { category: EventCategory; size: number; color?: string }) {
   return category.iconFamily === 'FontAwesome5'
@@ -95,7 +95,6 @@ export default function ReportEventScreen() {
   const countLabel = (count: number) => (near ? `${count} signalé${count > 1 ? 's' : ''} près de toi` : `${count} signalé${count > 1 ? 's' : ''} en ce moment`);
 
   const card = (category: EventCategory, index: number) => {
-    const color = colorOf(category.id);
     const count = summary.byCategory[category.id] ?? 0;
     const wide = category.id === 'autre';
     return (
@@ -104,9 +103,9 @@ export default function ReportEventScreen() {
           onPress={() => handleSelectCategory(category)}
           accessibilityRole="button"
           accessibilityLabel={`${category.title.replace('\n', ' ')}${count ? `, ${countLabel(count)}` : ''}`}
-          style={({ pressed }) => [styles.categoryCard, wide && styles.wideCard, pressed && styles.categoryCardPressed, pressed && { borderColor: color }]}
+          style={({ pressed }) => [styles.categoryCard, wide && styles.wideCard, pressed && styles.categoryCardPressed, pressed && { borderColor: SIRA_ORANGE }]}
         >
-          <View style={[styles.categoryCircleIcon, wide && styles.wideCircleIcon, { backgroundColor: color, shadowColor: color }]}>
+          <View style={[styles.categoryCircleIcon, wide && styles.wideCircleIcon, { backgroundColor: SIRA_ORANGE, shadowColor: SIRA_ORANGE }]}>
             <CategoryIcon category={category} size={wide ? 24 : 26} />
           </View>
           {wide ? (
@@ -120,7 +119,7 @@ export default function ReportEventScreen() {
             </Text>
           )}
           {count > 0 && (
-            <View style={[styles.countPill, { backgroundColor: color }]}>
+            <View style={styles.countPill}>
               <Text style={styles.countPillText}>{count}</Text>
             </View>
           )}
@@ -435,6 +434,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+    backgroundColor: '#111111',
   },
   countPillText: {
     color: '#FFFFFF',
