@@ -113,8 +113,11 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       if (points.length >= 2) {
         const lons = points.map((point) => point.longitude); const lats = points.map((point) => point.latitude);
         map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: padding ?? 50, duration: 600, maxZoom: 16 });
-      } else if (points.length === 1) {
-        map.easeTo({ center: [points[0].longitude, points[0].latitude], zoom: 15, duration: 600, padding: padding ?? undefined });
+      } else if (points.length === 1 && placePoints.length) {
+        // Un seul lieu (fiche sans position du voyageur) : centré dessus. Les autres écrans à un seul point
+        // (signalement, localisation) gardent leur cadrage ; une marge absente ne doit pas être transmise,
+        // MapLibre lirait padding.top sur undefined.
+        map.easeTo({ center: [points[0].longitude, points[0].latitude], zoom: 15, duration: 600, ...(padding ? { padding } : {}) });
       }
     });
     return () => { active = false; };
