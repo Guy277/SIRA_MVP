@@ -2,6 +2,7 @@
 // journey being followed. Screens subscribe with useJourneyStore().
 import { useSyncExternalStore } from 'react';
 import type { ApiJourney, CategoryName, Coordinates } from '@/lib/sira-api';
+import { recordTripFinished, recordTripStart } from '@/lib/trip-history';
 
 export type JourneySearch = {
   departure: { name: string } & Coordinates;
@@ -27,7 +28,8 @@ function set(patch: Partial<State>) {
 export const journeyStore = {
   setSearch: (search: JourneySearch) => set({ search, selectedId: null }),
   select: (selectedId: string) => set({ selectedId }),
-  start: (journey: ApiJourney) => set({ activeJourney: journey }),
+  // The guidance starts: the trip goes into the traveller's history (on the phone).
+  start: (journey: ApiJourney) => { recordTripStart(state.search, journey); set({ activeJourney: journey }); },
   // A rerouted journey replaces the followed one and joins the results.
   replaceActive: (journey: ApiJourney) => set({
     activeJourney: journey,
@@ -35,11 +37,11 @@ export const journeyStore = {
     search: state.search ? { ...state.search, journeys: [journey, ...state.search.journeys] } : state.search,
   }),
   // Arrived: the journey is no longer followed nor chosen (the chat stops talking about it).
-  finish: () => set({
+  finish: () => { recordTripFinished(); set({
     activeJourney: null,
     selectedId: null,
     finished: state.search ? { from: state.search.departure, to: state.search.arrival, at: Date.now(), greeted: false } : state.finished,
-  }),
+  }); },
   // Guidance left before arriving.
   stop: () => set({ activeJourney: null }),
   markFinishedGreeted: () => { if (state.finished) set({ finished: { ...state.finished, greeted: true } }); },

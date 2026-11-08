@@ -5,205 +5,109 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
-  Dimensions,
   Platform,
-  Alert,
+  Share,
 } from 'react-native';
 import { Text, TextInput } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { useFavorites } from '@/hooks/use-favorites';
+import { formatDuration, formatPrice } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
+import { notify } from '@/lib/notify';
+import { rememberPlace } from '@/lib/places';
+import {
+  CATEGORY_NAMES, clearTripHistory, deleteTrip, searchTrips, tripTitle, useTripHistory, whenLabel, type TripRecord,
+} from '@/lib/trip-history';
 
-const { width } = Dimensions.get('window');
-
-export interface HistoryItem {
-  id: string;
-  departure: string;
-  arrival: string;
-  title: string;
-  option: string;
-  transport: string;
-  duration: string;
-  costMin: string;
-  costMax: string;
-  costRange: string;
-  date: string;
-}
-
-const MOCK_HISTORY: HistoryItem[] = [
-  {
-    id: '1',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: "Aujourd'hui, 08:30",
-  },
-  {
-    id: '2',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: 'Hier, 17:45',
-  },
-  {
-    id: '3',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '18 Sep, 09:15',
-  },
-  {
-    id: '4',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '17 Sep, 14:20',
-  },
-  {
-    id: '5',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '15 Sep, 08:10',
-  },
-  {
-    id: '6',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '14 Sep, 19:00',
-  },
-  {
-    id: '7',
-    departure: 'Abobo Samaké',
-    arrival: 'Orange Digital Center',
-    title: "D’Abobo Samaké à Orange Digital Center",
-    option: 'Coulé',
-    transport: 'Gbaka',
-    duration: '24 min',
-    costMin: '500F',
-    costMax: '1.500F',
-    costRange: 'entre 500F et 1.500F',
-    date: '12 Sep, 10:45',
-  },
-];
+// The traveller's real trips, recorded on the phone when a guidance starts (lib/trip-history.ts).
+// Figures are SIRA-MORE's estimates at that moment, never the price actually paid.
+const option = (trip: TripRecord) => (trip.category ? CATEGORY_NAMES[trip.category] : 'Autre trajet');
 
 export default function HistoryScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const { addFavorite } = useFavorites();
-  const [historyList, setHistoryList] = useState<HistoryItem[]>(MOCK_HISTORY);
+  const trips = useTripHistory();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<TripRecord | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  const filteredHistory = useMemo(() => {
-    if (!searchQuery.trim()) return historyList;
-    const q = searchQuery.toLowerCase();
-    return historyList.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.transport.toLowerCase().includes(q) ||
-        item.option.toLowerCase().includes(q) ||
-        item.departure.toLowerCase().includes(q) ||
-        item.arrival.toLowerCase().includes(q)
-    );
-  }, [historyList, searchQuery]);
+  const filteredHistory = useMemo(() => searchTrips(trips, searchQuery), [trips, searchQuery]);
 
-  const handleOpenDetail = (item: HistoryItem) => {
+  const handleOpenDetail = (item: TripRecord) => {
     setSelectedItem(item);
     setIsDetailOpen(true);
   };
 
-  const handleOpenMenu = (item: HistoryItem) => {
+  const handleOpenMenu = (item: TripRecord) => {
     setSelectedItem(item);
     setIsMenuOpen(true);
   };
 
   const handleDeleteItem = () => {
-    if (selectedItem) {
-      setHistoryList((prev) => prev.filter((i) => i.id !== selectedItem.id));
-    }
+    if (selectedItem) deleteTrip(selectedItem.id);
     setIsMenuOpen(false);
     setSelectedItem(null);
   };
 
+  // Same departure and arrival, journeys computed again for now (prices and lines may have changed).
+  const repeat = (trip: TripRecord) => {
+    rememberPlace(trip.from.name, { latitude: trip.from.latitude, longitude: trip.from.longitude });
+    rememberPlace(trip.to.name, { latitude: trip.to.latitude, longitude: trip.to.longitude });
+    router.push({ pathname: '/(tabs)/explore', params: { destination: trip.to.name, query: trip.to.name, from: trip.from.name } });
+  };
+
   const handleRepeatRoute = () => {
-    if (selectedItem) {
-      handleOpenDetail(selectedItem);
-    }
+    const trip = selectedItem;
     setIsMenuOpen(false);
+    setIsDetailOpen(false);
     setSelectedItem(null);
+    if (trip) repeat(trip);
   };
 
   const handleAddToFavorites = () => {
     setIsMenuOpen(false);
     if (selectedItem) {
+      const title = tripTitle(selectedItem);
       addFavorite({
-        departure: selectedItem.departure,
-        arrival: selectedItem.arrival,
-        title: selectedItem.title,
-        mode: selectedItem.option,
+        departure: selectedItem.from.name,
+        arrival: selectedItem.to.name,
+        title,
+        mode: option(selectedItem),
         transport: selectedItem.transport,
-        duration: selectedItem.duration,
-        costRange: selectedItem.costRange,
+        duration: formatDuration(selectedItem.durationMin),
+        costRange: formatPrice(selectedItem.priceF),
       });
-      Alert.alert('Favoris', `Le trajet "${selectedItem.title}" a été ajouté à tes favoris.`);
+      notify('Favoris', `Le trajet « ${title} » a été ajouté à tes favoris.`);
     }
     setSelectedItem(null);
   };
 
-  const handleShareRoute = () => {
+  // The phone's own sharing (WhatsApp, SMS…), with the trip in words.
+  const handleShareRoute = async () => {
+    const trip = selectedItem;
     setIsMenuOpen(false);
-    if (selectedItem) {
-      Alert.alert('Partager', `Lien de partage généré pour le trajet "${selectedItem.title}".`);
-    }
     setSelectedItem(null);
+    if (!trip) return;
+    try {
+      await Share.share({ message: `Mon trajet SIRA : ${trip.from.name} → ${trip.to.name}. ${trip.transport}, ${formatDuration(trip.durationMin)}, ${formatPrice(trip.priceF)}.` });
+    } catch {
+      notify('Partage impossible', 'Ce téléphone ne permet pas de partager depuis ici.');
+    }
   };
+
+  const handleClearAll = () => notify('Effacer l’historique', 'Tous tes trajets seront supprimés de ce téléphone.', [
+    { text: 'Effacer', onPress: clearTripHistory },
+    { text: 'Annuler', onPress: () => {} },
+  ]);
 
   return (
     <View style={styles.container}>
@@ -277,14 +181,20 @@ export default function HistoryScreen() {
           ListEmptyComponent={
             <View style={styles.emptyStateContainer}>
               <Ionicons name="time-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyStateTitle}>Aucun historique trouvé</Text>
+              <Text style={styles.emptyStateTitle}>{searchQuery ? 'Aucun trajet trouvé' : 'Pas encore de trajet'}</Text>
               <Text style={styles.emptyStateSubtitle}>
                 {searchQuery
-                  ? 'Aucun résultat ne correspond à ta recherche.'
-                  : "Tu n'as pas encore de trajets enregistrés."}
+                  ? 'Aucun trajet ne correspond à ta recherche.'
+                  : 'Lance un itinéraire : il apparaîtra ici, prêt à être refait en un toucher. Ton historique reste sur ce téléphone.'}
               </Text>
             </View>
           }
+          ListFooterComponent={trips.length > 0 && !searchQuery ? (
+            <TouchableOpacity style={styles.clearAllButton} onPress={handleClearAll} activeOpacity={0.7} accessibilityRole="button">
+              <Ionicons name="trash-outline" size={15} color="#B91C1C" />
+              <Text style={styles.clearAllText}>Effacer l’historique</Text>
+            </TouchableOpacity>
+          ) : undefined}
           renderItem={({ item }) => (
             <View style={styles.card}>
               {/* Card Header Row */}
@@ -299,9 +209,10 @@ export default function HistoryScreen() {
                 </View>
 
                 {/* Title */}
-                <Text style={styles.cardTitle} numberOfLines={2}>
-                  {item.title}
-                </Text>
+                <View style={styles.cardTitleBox}>
+                  <Text style={styles.cardTitle} numberOfLines={2}>{tripTitle(item)}</Text>
+                  <Text style={styles.cardDate}>{whenLabel(item.at)}{item.finished ? ' · arrivé' : ''}</Text>
+                </View>
 
                 {/* Three Dots Menu Button */}
                 <TouchableOpacity
@@ -319,35 +230,35 @@ export default function HistoryScreen() {
                 {/* Row 1: Option | Transport | Durée */}
                 <Text style={styles.detailsLine}>
                   <Text style={styles.labelSpan}>Option : </Text>
-                  <Text style={styles.valueSpan}>{item.option}</Text>
-                  <Text style={styles.spacerSpan}>      </Text>
-                  <Text style={styles.labelSpan}>Transport : </Text>
-                  <Text style={styles.valueSpan}>{item.transport}</Text>
+                  <Text style={styles.valueSpan}>{option(item)}</Text>
                   <Text style={styles.spacerSpan}>      </Text>
                   <Text style={styles.labelSpan}>Durée : </Text>
-                  <Text style={styles.valueSpan}>{item.duration}</Text>
+                  <Text style={styles.valueSpan}>{formatDuration(item.durationMin)}</Text>
+                </Text>
+                <Text style={styles.detailsLine} numberOfLines={1}>
+                  <Text style={styles.labelSpan}>Transport : </Text>
+                  <Text style={styles.valueSpan}>{item.transport}</Text>
                 </Text>
 
-                {/* Row 2: Coût */}
+                {/* Row 2: estimated cost when the trip was computed */}
                 <Text style={styles.detailsLine}>
-                  <Text style={styles.labelSpan}>Coût : entre </Text>
-                  <Text style={styles.valueSpan}>{item.costMin}</Text>
-                  <Text style={styles.labelSpan}> et </Text>
-                  <Text style={styles.valueSpan}>{item.costMax}</Text>
+                  <Text style={styles.labelSpan}>Coût estimé : </Text>
+                  <Text style={styles.valueSpan}>{formatPrice(item.priceF)}</Text>
                 </Text>
               </View>
 
               {/* Action Button: Détail du trajet */}
-              <TouchableOpacity
-                style={styles.detailButton}
-                onPress={() => handleOpenDetail(item)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.plusIconCircle}>
-                  <Ionicons name="add" size={14} color="#F26522" />
-                </View>
-                <Text style={styles.detailButtonText}>Détail du trajet</Text>
-              </TouchableOpacity>
+              <View style={styles.cardActions}>
+                <TouchableOpacity style={styles.detailButton} onPress={() => repeat(item)} activeOpacity={0.85} accessibilityRole="button">
+                  <View style={styles.plusIconCircle}>
+                    <Ionicons name="refresh" size={12} color="#F26522" />
+                  </View>
+                  <Text style={styles.detailButtonText}>Refaire ce trajet</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.detailLink} onPress={() => handleOpenDetail(item)} activeOpacity={0.7} accessibilityRole="button">
+                  <Text style={styles.detailLinkText}>Détail</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         />
@@ -426,7 +337,7 @@ export default function HistoryScreen() {
                 <View style={styles.darkIconCircle}>
                   <Ionicons name="trash-outline" size={18} color="#F26522" />
                 </View>
-                <Text style={styles.menuOptionText}>Supprimer de l'historique</Text>
+                <Text style={styles.menuOptionText}>Supprimer de l’historique</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -453,8 +364,8 @@ export default function HistoryScreen() {
             {/* Header */}
             <View style={styles.historyDetailHeader}>
               <View style={styles.completedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
-                <Text style={styles.completedBadgeText}>Trajet effectué</Text>
+                <Ionicons name={selectedItem?.finished ? 'checkmark-circle' : 'navigate-circle'} size={16} color="#16A34A" />
+                <Text style={styles.completedBadgeText}>{selectedItem?.finished ? 'Arrivé à destination' : 'Trajet commencé'}</Text>
               </View>
               <TouchableOpacity
                 style={styles.closeOrangeBtn}
@@ -466,20 +377,20 @@ export default function HistoryScreen() {
             </View>
 
             {/* Date & Title */}
-            <Text style={styles.historyDetailDate}>{selectedItem?.date}</Text>
-            <Text style={styles.historyDetailTitle}>{selectedItem?.title}</Text>
+            <Text style={styles.historyDetailDate}>{selectedItem ? whenLabel(selectedItem.at) : ''}</Text>
+            <Text style={styles.historyDetailTitle}>{selectedItem ? tripTitle(selectedItem) : ''}</Text>
 
             {/* Departure & Arrival Timeline */}
             <View style={styles.historyTimelineBox}>
               <View style={styles.historyTimelineRow}>
                 <Ionicons name="ellipse" size={12} color="#F26522" />
                 <Text style={styles.historyTimelineLabel}>Départ : </Text>
-                <Text style={styles.historyTimelineValue}>{selectedItem?.departure}</Text>
+                <Text style={styles.historyTimelineValue}>{selectedItem?.from.name}</Text>
               </View>
               <View style={styles.historyTimelineRow}>
                 <Ionicons name="location" size={14} color="#F26522" />
                 <Text style={styles.historyTimelineLabel}>Arrivée : </Text>
-                <Text style={styles.historyTimelineValue}>{selectedItem?.arrival}</Text>
+                <Text style={styles.historyTimelineValue}>{selectedItem?.to.name}</Text>
               </View>
             </View>
 
@@ -487,19 +398,19 @@ export default function HistoryScreen() {
             <View style={styles.historyMetaGrid}>
               <View style={styles.metaBadgeItem}>
                 <Text style={styles.metaBadgeLabel}>Option</Text>
-                <Text style={styles.metaBadgeValue}>{selectedItem?.option}</Text>
+                <Text style={styles.metaBadgeValue}>{selectedItem ? option(selectedItem) : ''}</Text>
               </View>
               <View style={styles.metaBadgeItem}>
                 <Text style={styles.metaBadgeLabel}>Transport</Text>
-                <Text style={styles.metaBadgeValue}>{selectedItem?.transport}</Text>
+                <Text style={styles.metaBadgeValue} numberOfLines={2}>{selectedItem?.transport}</Text>
               </View>
               <View style={styles.metaBadgeItem}>
                 <Text style={styles.metaBadgeLabel}>Durée</Text>
-                <Text style={styles.metaBadgeValue}>{selectedItem?.duration}</Text>
+                <Text style={styles.metaBadgeValue}>{selectedItem ? formatDuration(selectedItem.durationMin) : ''}</Text>
               </View>
               <View style={styles.metaBadgeItem}>
-                <Text style={styles.metaBadgeLabel}>Coût payé</Text>
-                <Text style={styles.metaBadgeValue}>{selectedItem?.costRange}</Text>
+                <Text style={styles.metaBadgeLabel}>Coût estimé</Text>
+                <Text style={styles.metaBadgeValue}>{selectedItem ? formatPrice(selectedItem.priceF) : ''}</Text>
               </View>
             </View>
 
@@ -507,10 +418,7 @@ export default function HistoryScreen() {
             <View style={styles.historyActionsCol}>
               <TouchableOpacity
                 style={styles.historyRepeatBtn}
-                onPress={() => {
-                  setIsDetailOpen(false);
-                  handleRepeatRoute();
-                }}
+                onPress={handleRepeatRoute}
                 activeOpacity={0.85}
               >
                 <Ionicons name="refresh" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
@@ -644,13 +552,46 @@ const styles = StyleSheet.create({
     height: 26,
     tintColor: '#FFFFFF',
   },
-  cardTitle: {
+  cardTitleBox: {
     flex: 1,
+    marginLeft: 10,
+    marginRight: 6,
+  },
+  cardDate: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  detailLink: {
+    paddingVertical: 6,
+  },
+  detailLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#F26522',
+    textDecorationLine: 'underline',
+  },
+  clearAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+  },
+  clearAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#B91C1C',
+  },
+  cardTitle: {
     fontSize: 15,
     fontWeight: '800',
     color: '#000000',
-    marginLeft: 10,
-    marginRight: 6,
     lineHeight: 20,
   },
   optionsButton: {
