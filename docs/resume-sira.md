@@ -79,7 +79,7 @@ L'appli ne parle qu'à l'API ; les autres services restent privés derrière ell
 
 ## Qualité
 
-Environ **330 tests automatiques**, tous au vert le 2026-11-08 : données (13), API (109), appli (28),
+Environ **328 tests automatiques**, tous au vert le 2026-11-08 : données (13), API (109), appli (26),
 SIRA-MORE (43), comptes (21), voix (116). Typage de l'appli et de l'API sans erreur.
 
 ## Limites actuelles

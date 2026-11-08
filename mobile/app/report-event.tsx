@@ -10,9 +10,7 @@ import {
 import { Text } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import Animated, {
-  FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import { REPORT_CHOOSE } from '@/lib/spoken';
 import { useSpeech } from '@/lib/voice';
 import { StatusBar } from 'expo-status-bar';
@@ -23,9 +21,7 @@ import { playIntroToday } from '@/lib/motion';
 import { goBack } from '@/lib/navigation';
 import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
 import { alertBadge, REPORT_STYLE, useAlertCount, useLiveReports } from '@/lib/reports';
-import {
-  CATEGORY_TYPE, countWords, NEAR_RADIUS_M, sinceLabel, summarizeReports, summaryLine, type ReportCategory,
-} from '@/lib/report-summary-core';
+import { CATEGORY_TYPE, summarizeReports, type ReportCategory } from '@/lib/report-summary-core';
 
 const { width } = Dimensions.get('window');
 
@@ -65,17 +61,6 @@ function CategoryIcon({ category, size, color = '#FFFFFF' }: { category: EventCa
     : <Ionicons name={category.iconName as any} size={size} color={color} />;
 }
 
-// The red « EN DIRECT » dot breathes slowly (still when the phone asks for less motion).
-function LiveDot() {
-  const reduced = useReducedMotion();
-  const opacity = useSharedValue(1);
-  useEffect(() => {
-    if (!reduced) opacity.set(withRepeat(withTiming(0.25, { duration: 900 }), -1, true));
-  }, [opacity, reduced]);
-  const pulse = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return <Animated.View style={[styles.liveDot, pulse]} />;
-}
-
 export default function ReportEventScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
@@ -83,13 +68,12 @@ export default function ReportEventScreen() {
   const alertCount = useAlertCount();
   useSpeech('report:choose', REPORT_CHOOSE);
 
-  // The travellers' reports, live, around the traveller (whole Grand Abidjan without their position).
+  // The travellers' active reports, live, counted on each card: around the traveller (whole Grand Abidjan without their position).
   const { reports } = useLiveReports();
   const here = useCurrentPlace();
   useEffect(() => { void ensureCurrentPlace(); }, []);
   const position = here.status === 'ready' && !here.outside ? here.coordinates : null;
   const summary = summarizeReports(reports, position);
-  const radiusKm = NEAR_RADIUS_M / 1000;
   const near = summary.scope === 'near';
 
   // Cards come in one after the other the first time today, then only fade in (lib/motion.ts).
@@ -144,18 +128,6 @@ export default function ReportEventScreen() {
       </Animated.View>
     );
   };
-
-  // What the live card says, from the real reports only.
-  const liveTitle = near ? 'Près de toi' : 'Grand Abidjan';
-  const liveLine = summary.total > 0
-    ? summaryLine(summary)
-    : near ? `Rien de signalé à moins de ${radiusKm} km.` : 'Aucun signalement en cours.';
-  const liveSub = summary.total > 0
-    ? `${near ? `À moins de ${radiusKm} km, dernier` : 'Dernier'} signalement ${summary.latestAt ? sinceLabel(summary.latestAt) : 'récent'}. Tu le vois aussi ? Confirme-le sur la carte.`
-    : near && summary.cityTotal > 0
-      ? `${summary.cityTotal} signalement${summary.cityTotal > 1 ? 's' : ''} ailleurs dans le Grand Abidjan.`
-      : 'Sois le premier à prévenir les autres voyageurs.';
-  const chips = (Object.keys(summary.byCategory) as ReportCategory[]).slice(0, 4);
 
   return (
     <View style={styles.container}>
@@ -219,41 +191,6 @@ export default function ReportEventScreen() {
               contentFit="contain"
             />
           </View>
-
-          {/* What the other travellers are reporting right now (opens the Trafic map). */}
-          <Animated.View entering={entering(0)}>
-            <Pressable
-              onPress={() => router.push('/traffic')}
-              accessibilityRole="button"
-              accessibilityLabel={`${liveTitle}. ${liveLine} ${liveSub} Voir la carte du trafic.`}
-              style={({ pressed }) => [styles.liveCard, pressed && styles.liveCardPressed]}
-            >
-              <View style={styles.liveHead}>
-                <View style={styles.liveBadge}>
-                  <LiveDot />
-                  <Text style={styles.liveBadgeText}>EN DIRECT</Text>
-                </View>
-                <Text style={styles.liveTitle} numberOfLines={1}>{liveTitle}</Text>
-                <Text style={styles.liveLink}>Carte ›</Text>
-              </View>
-              {summary.total > 0 ? (
-                <View style={styles.liveChips}>
-                  {chips.map((category) => {
-                    const color = colorOf(category);
-                    return (
-                      <View key={category} style={[styles.liveChip, { backgroundColor: `${color}1A` }]}>
-                        <CategoryIcon category={CATEGORIES.find((item) => item.id === category)!} size={12} color={color} />
-                        <Text style={[styles.liveChipText, { color }]}>{countWords(category, summary.byCategory[category] ?? 0)}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <Text style={styles.liveLine}>{liveLine}</Text>
-              )}
-              <Text style={styles.liveSub}>{liveSub}</Text>
-            </Pressable>
-          </Animated.View>
 
           {/* Heading Section */}
           <View style={styles.headingSection}>
@@ -501,91 +438,6 @@ const styles = StyleSheet.create({
   },
   countPillText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  liveCard: {
-    marginHorizontal: 16,
-    marginTop: -26,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  liveCardPressed: {
-    backgroundColor: '#FFF8F5',
-  },
-  liveHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  liveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-  },
-  liveBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#B91C1C',
-    letterSpacing: 0.4,
-  },
-  liveTitle: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#111111',
-  },
-  liveLink: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#F26522',
-  },
-  liveLine: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111111',
-    marginTop: 8,
-  },
-  liveSub: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 3,
-    lineHeight: 16,
-  },
-  liveChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 8,
-  },
-  liveChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  liveChipText: {
     fontSize: 11,
     fontWeight: '800',
   },
