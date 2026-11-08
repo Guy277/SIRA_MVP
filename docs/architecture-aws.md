@@ -66,6 +66,7 @@ Les données et les modèles ne sont pas dans Git (trop lourds) : ils existent s
 | Volume | Taille | Contenu | Perdu, est-ce grave ? |
 | --- | --- | --- | --- |
 | `sira-mvp_postgres_data` | 80 Mo | Comptes des voyageurs, codes SMS, prix signalés | **Oui** : ne se recrée pas |
+| `sira-mvp_api_runtime` | < 1 Mo | Signalements des voyageurs (`reports.json`) et réponses « Encore là ? » (`lieux-confirmations.json`), monté sur `/app/runtime` de l'API | Oui pour les réponses ; les signalements expirent seuls (45 min à 7 jours) |
 | `sira-mvp_valhalla_data` | 409 Mo | Carte routière préparée pour Valhalla | Non : se reconstruit (environ 20 min) |
 | `sira-mvp_voice_cache` | < 1 Mo | Cache de la voix | Non |
 | `sira-mvp_valkey_data` | < 1 Mo | Cache de l'API | Non |
@@ -83,9 +84,10 @@ Mesures de la page `/statut/` (`status.json`), écrites chaque minute par `scrip
 
 ## Points à corriger avant de vrais utilisateurs
 
-- **Signalements et réponses « Encore là ? » perdus à chaque mise à jour de l'API.** Le serveur a encore un
-  `infra/compose.yaml` d'avant le 2026-11-02, sans le volume `api_runtime` : ces fichiers sont écrits dans le
-  conteneur et effacés quand il est reconstruit. Correction : `npm run server:update -- infra`.
+Corrigé le 2026-11-08 : les signalements et les réponses « Encore là ? » étaient effacés à chaque reconstruction de
+l'API (ancien `infra/compose.yaml` sur le serveur, sans le volume `api_runtime`). Le volume est en place, et un
+fichier écrit dans `/app/runtime` a été retrouvé après un redémarrage de l'API.
+
 - **Aucune sauvegarde.** Tout est sur un seul disque. À activer dans la console AWS : sauvegardes automatiques du
   disque (instantanés EBS, via Data Lifecycle Manager), quelques centimes par mois pour ces tailles.
 - **Un seul serveur** : s'il s'arrête, tout s'arrête.
