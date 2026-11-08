@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import type { MapPlace, MapPadding } from '@/components/osm-map-types';
+import type { MapPlace, MapPadding, ZoomRequest } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -24,6 +24,10 @@ interface OsmMapViewProps {
   onPlacePress?: (id: string) => void;
   userPosition?: Coordinates | null;
   padding?: MapPadding;
+  // Boutons + / − d'un écran : chaque nouvelle valeur de key zoome de delta niveaux.
+  zoomRequest?: ZoomRequest | null;
+  // Centrer la carte sur le voyageur dès que sa position est connue (écran Trafic).
+  centerOnUser?: boolean;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
@@ -43,7 +47,7 @@ const glyph = (name: string) => {
   return code ? String.fromCodePoint(code) : '';
 };
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, style }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, style }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -82,13 +86,15 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       const add = (coordinates: Coordinates, element: HTMLElement) => markers.current.push(new maplibregl.Marker({ element }).setLngLat([coordinates.longitude, coordinates.latitude]).addTo(map));
       if (start) add(start, markerElement('sira-map-start'));
       if (end) add(end, markerElement('sira-map-end'));
+      // Le voyageur d'abord : incidents et lieux se dessinent par-dessus et restent faciles à toucher.
+      if (userPosition) add(userPosition, markerElement('sira-map-user'));
       reports.forEach((report) => {
-        const node = markerElement(`sira-map-report${report.status === 'reported' ? ' sira-map-report--pending' : ''}`, '!');
+        // Même couleur que la légende de l'écran Trafic : à confirmer, confirmé, fiable.
+        const node = markerElement(`sira-map-report sira-map-report--${report.status}`, '!');
         node.title = `${report.title} — ${report.location}`;
         if (onReportPress) { node.style.cursor = 'pointer'; node.addEventListener('click', () => onReportPress(report)); }
         add({ latitude: report.lat, longitude: report.lon }, node);
       });
-      if (userPosition) add(userPosition, markerElement('sira-map-user'));
       places.forEach((place) => {
         const node = markerElement(`sira-map-place${place.highlighted ? ' sira-map-place--garde' : ''}`, glyph(place.icon));
         node.style.background = place.color;
@@ -123,6 +129,26 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
     return () => { active = false; };
   }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, padding]);
 
+  // Boutons + / − : une demande de zoom par nouvelle key (zoomRequest change de key à chaque toucher).
+  const zoomKey = zoomRequest?.key;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || zoomKey === undefined || !zoomRequest) return;
+    map.easeTo({ zoom: map.getZoom() + zoomRequest.delta, duration: 250 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule une nouvelle key déclenche un zoom
+  }, [ready, zoomKey]);
+
+  // Centré une fois sur le voyageur : ensuite, il déplace la carte librement.
+  const centered = useRef(false);
+  const userLat = userPosition?.latitude;
+  const userLon = userPosition?.longitude;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!centerOnUser || !map || !ready || centered.current || userLat === undefined || userLon === undefined) return;
+    centered.current = true;
+    map.easeTo({ center: [userLon, userLat], zoom: 13.5, duration: 600 });
+  }, [centerOnUser, ready, userLat, userLon]);
+
   return (
     <View style={[styles.container, style]}>
       <style>{MARKER_CSS}</style>
@@ -135,7 +161,9 @@ const MARKER_CSS = `
 .sira-map-start { width: 18px; height: 18px; border-radius: 50%; background: #22C55E; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
 .sira-map-end { width: 20px; height: 20px; border-radius: 50%; background: #F26522; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
 .sira-map-report { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #DC2626; border: 2px solid #fff; font: 800 12px system-ui; }
-.sira-map-report--pending { opacity: .6; }
+.sira-map-report--reported { background: #F59E0B; }
+.sira-map-report--confirmed { background: #EF4444; }
+.sira-map-report--reliable { background: #991B1B; }
 .sira-map-user { width: 16px; height: 16px; border-radius: 50%; background: #2563EB; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(37,99,235,.2); }
 .sira-map-place { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); font: 17px 'material-community'; }
 .sira-map-place--garde { width: 36px; height: 36px; font-size: 20px; border: 3px solid #FACC15; }

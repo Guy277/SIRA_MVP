@@ -20,6 +20,7 @@ import { voteReport, type TrafficReport } from '@/lib/sira-api';
 import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, upsertReport, useLiveReports, alertBadge, useAlertCount } from '@/lib/reports';
 import { formatClock } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
+import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,6 +32,9 @@ const PANEL_TYPES: Record<string, string[]> = {
   inondation: ['flood'],
   autre: ['road_damage', 'breakdown', 'transport', 'other'],
 };
+const PANEL_LABELS: Record<string, string> = {
+  accident: 'Accidents', embouteillage: 'Bouchons', route_bloquee: 'Routes bloquées', inondation: 'Inondations', autre: 'Autres incidents',
+};
 
 export default function TrafficScreen() {
   const router = useRouter();
@@ -41,7 +45,13 @@ export default function TrafficScreen() {
   const { incident } = useLocalSearchParams<{ incident?: string }>();
   const [selectedId, setSelectedId] = useState<string | null>(incident ?? null);
   useEffect(() => { if (incident) setSelectedId(incident); }, [incident]);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  // Boutons + / − : chaque toucher envoie une demande de zoom à la carte (nouvelle key).
+  const [zoomRequest, setZoomRequest] = useState<{ delta: number; key: number } | null>(null);
+  const zoom = (delta: number) => setZoomRequest((previous) => ({ delta, key: (previous?.key ?? 0) + 1 }));
+  // Le voyageur sur la carte (point bleu), et la carte centrée sur lui.
+  const here = useCurrentPlace();
+  useEffect(() => { void ensureCurrentPlace(); }, []);
+  const userPosition = here.status === 'ready' && !here.outside ? here.coordinates : null;
   const [panelFilter, setPanelFilter] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
   const { reports, updatedAt } = useLiveReports();
@@ -81,10 +91,19 @@ export default function TrafficScreen() {
 
       {/* Full Map View */}
       <View style={styles.mapWrapper}>
-        <OsmMapView style={styles.mapImage} reports={filteredIncidents} onReportPress={(report) => setSelectedId(report.id)} />
+        <OsmMapView
+          style={styles.mapImage}
+          reports={filteredIncidents}
+          onReportPress={(report) => setSelectedId(report.id)}
+          userPosition={userPosition}
+          centerOnUser
+          zoomRequest={zoomRequest}
+        />
 
-        {/* Traffic Overlay Legend (Top Left) */}
+        {/* Legend: what the colours of the incidents mean, only when there are incidents to read. */}
+        {filteredIncidents.length > 0 && (
         <View style={styles.legendCard}>
+          <Text style={styles.legendTitle}>État des signalements</Text>
           <View style={styles.legendRow}>
             <View style={[styles.colorDot, { backgroundColor: '#F59E0B' }]} />
             <Text style={styles.legendText}>À confirmer</Text>
@@ -98,6 +117,7 @@ export default function TrafficScreen() {
             <Text style={styles.legendText}>Fiable</Text>
           </View>
         </View>
+        )}
 
         {/* Last Updated Badge (Top Right) */}
         <View style={styles.updatedBadge}>
@@ -105,20 +125,37 @@ export default function TrafficScreen() {
           <Text style={styles.updatedText}>{updatedAt ? `${filteredIncidents.length} signalement(s) · ${formatClock(updatedAt)}` : 'Connexion…'}</Text>
         </View>
 
+        {/* Nothing to show: say so, and how to report (instead of an empty map that looks broken). */}
+        {updatedAt && filteredIncidents.length === 0 && (
+          <View style={styles.emptyCard} accessibilityLiveRegion="polite">
+            <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+            <Text style={styles.emptyText}>
+              {panelFilter
+                ? `Aucun signalement de type « ${PANEL_LABELS[panelFilter]} » en ce moment.`
+                : 'Aucun incident signalé pour le moment.'}
+              {' '}Touche <Text style={styles.emptyStrong}>⚠</Text> en haut pour en signaler un.
+            </Text>
+          </View>
+        )}
+
         {/* Zoom Controls */}
         <View style={styles.zoomControlBox}>
           <TouchableOpacity
             style={styles.zoomButton}
-            onPress={() => setZoomLevel((prev) => Math.min(prev + 0.15, 1.4))}
+            onPress={() => zoom(1)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Zoomer"
           >
             <Ionicons name="add" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.zoomDivider} />
           <TouchableOpacity
             style={styles.zoomButton}
-            onPress={() => setZoomLevel((prev) => Math.max(prev - 0.15, 0.85))}
+            onPress={() => zoom(-1)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Dézoomer"
           >
             <Ionicons name="remove" size={20} color="#FFFFFF" />
           </TouchableOpacity>
@@ -208,6 +245,14 @@ export default function TrafficScreen() {
 
       {/* Floating Bottom Incident Category Panel (Floating above Bottom Navigation Bar) */}
       <View style={styles.bottomFloatingPanelWrapper}>
+        {/* Filter in use: which incidents are shown, and how to see all of them again. */}
+        {panelFilter && (
+          <TouchableOpacity style={styles.filterChip} onPress={() => setPanelFilter(null)} activeOpacity={0.85} accessibilityRole="button"
+            accessibilityLabel={`Filtre ${PANEL_LABELS[panelFilter]}. Toucher pour tout afficher.`}>
+            <Text style={styles.filterChipText}>{PANEL_LABELS[panelFilter]} seulement · {filteredIncidents.length}</Text>
+            <Ionicons name="close" size={14} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
         <View style={styles.categoryCardPanel}>
           <TouchableOpacity
             style={styles.categoryItem}
@@ -462,6 +507,53 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     zIndex: 5,
   },
+  legendTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  emptyCard: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 146 : 136,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    zIndex: 5,
+  },
+  emptyText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#334155',
+  },
+  emptyStrong: {
+    color: '#EF4444',
+    fontWeight: '800',
+  },
+  filterChip: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  filterChipText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
   legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -575,8 +667,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 2,
   },
+  // Filtre en cours : bouton foncé et cerclé, les autres restent orange.
   categoryIconCircleActive: {
-    backgroundColor: '#F26522',
+    backgroundColor: '#1E1E1E',
+    borderWidth: 2,
+    borderColor: '#F26522',
   },
   categoryIconCircle: {
     width: 42,

@@ -6,3 +6,6 @@ export type MapPlace = { id: string; lat: number; lon: number; color: string; ic
 
 // Marge de cadrage, pour que les lieux ne passent pas sous la liste ou la rangée de catégories.
 export type MapPadding = { top: number; bottom: number; left: number; right: number };
+
+// Demande de zoom des boutons + / − : delta en niveaux de zoom (+1, −1) ; key change à chaque toucher.
+export type ZoomRequest = { delta: number; key: number };

@@ -9,7 +9,7 @@ import MapView, {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import type { MapPadding, MapPlace } from '@/components/osm-map-types';
+import type { MapPadding, MapPlace, ZoomRequest } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -27,9 +27,16 @@ interface OsmMapViewProps {
   onPlacePress?: (id: string) => void;
   userPosition?: Coordinates | null;
   padding?: MapPadding;
+  // Boutons + / − d'un écran : chaque nouvelle valeur de key zoome de delta niveaux.
+  zoomRequest?: ZoomRequest | null;
+  // Centrer la carte sur le voyageur dès que sa position est connue (écran Trafic).
+  centerOnUser?: boolean;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
+
+// Même couleur que la légende de l'écran Trafic : à confirmer, confirmé, fiable.
+const REPORT_STATUS_COLOR: Record<string, string> = { reported: '#F59E0B', confirmed: '#EF4444', reliable: '#991B1B' };
 
 // Default Abidjan initial region
 const ABIDJAN_REGION = {
@@ -59,10 +66,38 @@ export function OsmMapView({
   onPlacePress,
   userPosition,
   padding,
+  zoomRequest,
+  centerOnUser = false,
   style,
   showIntermediateStations = false,
 }: OsmMapViewProps) {
   const mapRef = useRef<MapView>(null);
+
+  // Boutons + / − : une demande de zoom par nouvelle key. Un niveau de zoom = l'écart de la région ×2 ou ÷2.
+  const zoomKey = zoomRequest?.key;
+  useEffect(() => {
+    if (zoomKey === undefined || !zoomRequest || !mapRef.current) return;
+    const factor = 2 ** -zoomRequest.delta;
+    mapRef.current.getMapBoundaries().then(({ northEast, southWest }) => {
+      mapRef.current?.animateToRegion({
+        latitude: (northEast.latitude + southWest.latitude) / 2,
+        longitude: (northEast.longitude + southWest.longitude) / 2,
+        latitudeDelta: Math.min(Math.abs(northEast.latitude - southWest.latitude) * factor, 2),
+        longitudeDelta: Math.min(Math.abs(northEast.longitude - southWest.longitude) * factor, 2),
+      }, 250);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule une nouvelle key déclenche un zoom
+  }, [zoomKey]);
+
+  // Centré une fois sur le voyageur : ensuite, il déplace la carte librement.
+  const centered = useRef(false);
+  const userLat = userPosition?.latitude;
+  const userLon = userPosition?.longitude;
+  useEffect(() => {
+    if (!centerOnUser || centered.current || userLat === undefined || userLon === undefined || !mapRef.current) return;
+    centered.current = true;
+    mapRef.current.animateToRegion({ latitude: userLat, longitude: userLon, latitudeDelta: 0.06, longitudeDelta: 0.06 }, 600);
+  }, [centerOnUser, userLat, userLon]);
 
   const startCoords = origin ?? (departureName ? ABIDJAN_COORDINATES_MAP[departureName] : undefined);
   const endCoords = destination ?? (arrivalName ? ABIDJAN_COORDINATES_MAP[arrivalName] : undefined);
@@ -145,11 +180,12 @@ export function OsmMapView({
             key={report.id}
             coordinate={{ latitude: report.lat, longitude: report.lon }}
             title={report.title}
-            description={`${report.location} · ${report.status === 'reported' ? 'à confirmer' : 'confirmé'}`}
+            description={`${report.location} · ${report.status === 'reported' ? 'à confirmer' : report.status === 'reliable' ? 'fiable' : 'confirmé'}`}
             anchor={{ x: 0.5, y: 0.5 }}
+            zIndex={2}
             onPress={() => onReportPress?.(report)}
           >
-            <View style={[styles.reportMarker, report.status === 'reported' && styles.reportMarkerPending]}>
+            <View style={[styles.reportMarker, { backgroundColor: REPORT_STATUS_COLOR[report.status] ?? REPORT_STATUS_COLOR.confirmed }]}>
               <Ionicons name="warning" size={12} color="#FFFFFF" />
             </View>
           </Marker>
@@ -157,7 +193,7 @@ export function OsmMapView({
 
         {/* Traveller's position and everyday places (categories of the home screen) */}
         {userPosition && (
-          <Marker coordinate={userPosition} anchor={{ x: 0.5, y: 0.5 }} title="Ma position">
+          <Marker coordinate={userPosition} anchor={{ x: 0.5, y: 0.5 }} title="Ma position" zIndex={0}>
             <View style={styles.userMarker} />
           </Marker>
         )}
@@ -167,6 +203,7 @@ export function OsmMapView({
             coordinate={{ latitude: place.lat, longitude: place.lon }}
             title={place.label}
             anchor={{ x: 0.5, y: 0.5 }}
+            zIndex={1}
             onPress={() => onPlacePress?.(place.id)}
           >
             <View style={[styles.placeMarker, place.highlighted && styles.placeMarkerGarde, { backgroundColor: place.color }]}>
@@ -241,9 +278,6 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  reportMarkerPending: {
-    opacity: 0.6,
   },
   userMarker: {
     width: 16,
