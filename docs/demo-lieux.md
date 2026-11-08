@@ -5,7 +5,21 @@ Position de démo : Abobo (5.4410, -4.0090). Tout ce qui s'affiche vient des vra
 Les lieux et durées ci-dessous ont été relevés le 7 novembre 2026 ; ils peuvent changer avec un nouvel import
 ou la semaine de garde : **répéter la démo la veille**.
 
-## Avant (15 minutes)
+## Sur iPhone, avec la version en ligne (conseillé pour un pitch)
+
+L'appli tourne sur le serveur de test : https://16-16-129-62.sslip.io (HTTPS, sans le PC, en 4G ou en Wi-Fi).
+La version publiée a la position de démo fixée à Abobo.
+
+1. Sur l'iPhone, ouvrir le lien dans **Safari** (pas Chrome : seul Safari ajoute une vraie appli à l'écran d'accueil).
+2. **Partager** (carré avec une flèche) → **Sur l'écran d'accueil** → **Ajouter** : l'icône SIRA apparaît ; elle
+   ouvre l'appli en plein écran, sans barre de Safari.
+3. Se connecter avec le numéro de démo **07 00 00 00 00** : en mode démo, le code s'affiche à l'écran.
+4. Le matin du pitch, depuis le PC : `npm run lieux:prechauffer -- --api=https://16-16-129-62.sslip.io/api/v1`.
+5. Secours : garder la vidéo de démo sur le téléphone si le réseau de la salle lâche.
+
+Le lien donne accès à l'appli à qui le connaît, avec le code de démo affiché : ne pas le diffuser largement.
+
+## Avant (15 minutes), avec la stack locale
 
 1. Données à jour (la veille) :
    ```bash
