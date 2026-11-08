@@ -2,19 +2,12 @@
 // live list (Socket.IO + periodic reload) and category mapping.
 import { useEffect, useSyncExternalStore } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { CATEGORY_TYPE } from '@/lib/report-summary-core';
 import { apiBaseUrl, listReports, type TrafficReport } from '@/lib/sira-api';
 import type { Ionicons } from '@expo/vector-icons';
 
-// Maquette category ids -> API report types.
-export const REPORT_TYPE_BY_CATEGORY: Record<string, string> = {
-  accident: 'accident',
-  embouteillage: 'traffic',
-  route_bloquee: 'blocked',
-  inondation: 'flood',
-  route_degradee: 'road_damage',
-  vehicule_panne: 'breakdown',
-  autre: 'other',
-};
+// Screen category ids -> API report types (lib/report-summary-core.ts).
+export const REPORT_TYPE_BY_CATEGORY: Record<string, string> = CATEGORY_TYPE;
 
 export const REPORT_STYLE: Record<string, { color: string; icon: keyof typeof Ionicons.glyphMap }> = {
   accident: { color: '#EF4444', icon: 'car-sport' },
