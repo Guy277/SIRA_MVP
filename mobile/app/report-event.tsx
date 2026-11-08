@@ -337,19 +337,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: 'center',
   },
+  // Same type scale as « Comment veux-tu voyager ? » (Explore): titles 800, names 700, help text regular grey.
   mainHeading: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#000000',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111111',
     textAlign: 'center',
-    letterSpacing: 0.4,
   },
   subHeading: {
     fontSize: 13,
-    color: '#4A5568',
+    color: '#6B6B6B',
     textAlign: 'center',
     marginTop: 6,
-    fontWeight: '500',
     paddingHorizontal: 10,
   },
   gridContainer: {
@@ -395,13 +394,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   wideTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#000000',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111111',
   },
   wideHint: {
-    fontSize: 12,
-    color: '#6B7280',
+    fontSize: 13,
+    color: '#6B6B6B',
     marginTop: 2,
   },
   categoryCircleIcon: {
@@ -442,11 +441,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   categoryTitle: {
-    fontSize: NARROW_CARDS ? 10.5 : 12,
-    fontWeight: '800',
-    color: '#000000',
+    fontSize: NARROW_CARDS ? 10.5 : 13,
+    fontWeight: '700',
+    color: '#111111',
     textAlign: 'center',
-    lineHeight: NARROW_CARDS ? 13 : 14,
+    lineHeight: NARROW_CARDS ? 13 : 16,
   },
   bottomBarContainer: {
     flexDirection: 'row',
