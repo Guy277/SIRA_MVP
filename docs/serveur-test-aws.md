@@ -5,6 +5,8 @@ Toute la stack de `infra/compose.yaml` tourne sur une seule machine, derrière *
 automatique). Fichiers : `infra/compose.server.yaml`, `infra/Caddyfile`, `infra/server.env.example`,
 `scripts/server/install.sh`.
 
+Architecture, et où chaque chose est stockée sur le serveur : [architecture-aws.md](architecture-aws.md).
+
 ## Coût (estimation, prix à la demande, eu-north-1)
 
 | Poste | Allumé 24 h/24 | Allumé 12 h par jour en semaine |
