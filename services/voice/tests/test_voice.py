@@ -358,11 +358,14 @@ class LLMLocalTest(unittest.TestCase):
                 return [Hit(Passage("sira-coule", ["c'est quoi le coulé"], "Le coulé, c'est l'option la moins chère."), 0.95)]
             return []
 
-    def dialog(self, nlu, decision, planner=None):
+    def dialog(self, nlu, decision, planner=None, live=None):
         from services.voice.app.llm import Decision
         llm = self.LLM(decision if decision is None or isinstance(decision, Decision) else Decision(**decision))
-        d = VoiceDialog(nlu, PlaceResolver(FIXTURES / "gazetteer_test.json"), PLACE_THRESHOLD, PLACE_MARGIN, 0.5,
-                        planner or Planner(), self.Knowledge(), llm=llm)
+        resolver = PlaceResolver(FIXTURES / "gazetteer_test.json")
+        planner = planner or Planner()
+        # Avec live : les signalements des voyageurs (réponse « ça bouche à … ? ») sont branchés.
+        trips = TripAnswers(resolver, planner, live.impact, live.reports, now=lambda: NOW) if live else None
+        d = VoiceDialog(nlu, resolver, PLACE_THRESHOLD, PLACE_MARGIN, 0.5, planner, self.Knowledge(), trips, llm=llm)
         return d, llm
 
     def test_pas_de_llm_quand_les_regles_suffisent(self):
@@ -419,6 +422,37 @@ class LLMLocalTest(unittest.TestCase):
         self.assertEqual(d.ask("le coulé là c'est quoi", POSITION)["reply_text"], "Le coulé, c'est l'option la moins chère.")
         d, _ = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "chercher_info", "args": {"question": "horaires de la piscine"}})
         self.assertEqual(d.ask("la piscine ouvre quand", POSITION)["reply_text"], dialog_module.NO_INFO)
+
+    def test_trafic_douteux_sans_lieu_passe_par_le_llm(self):
+        # Vu le 2026-11-08 : « les wôrô roulent jusqu'à quelle heure ? » → trafic à 0,63 → « Dis-moi l'endroit ».
+        d, llm = self.dialog(self.NLU("traffic_status", 0.63), {"tool": "chercher_info", "args": {"question": "horaires des wôrô le soir"}})
+        reply = d.ask("les wôrô roulent jusqu'à quelle heure le soir", POSITION)
+        self.assertEqual(len(llm.calls), 1)
+        self.assertEqual(reply["reply_text"], dialog_module.NO_INFO)
+        self.assertIn("llm", reply["sources"])
+
+    def test_vraie_question_de_trafic_sans_llm(self):
+        # Sûr de lui, sans lieu : la réponse rapide des règles, sans attendre le LLM.
+        d, llm = self.dialog(self.NLU("traffic_status", 0.9), {"tool": "chercher_info", "args": {}})
+        reply = d.ask("ça bouche ?", POSITION)
+        self.assertEqual(llm.calls, [])
+        self.assertEqual(reply["reply_text"], dialog_module.OTHER_REPLIES["traffic_status"])
+
+    def test_lieu_devine_pas_de_trafic_mais_le_llm(self):
+        # Vu le 2026-11-08 : « ça marche comment votre affaire de coulé là » → trafic à 0,48, « Adjamé » deviné
+        # → « Aucun incident signalé vers Adjamé ». Avec une intention douteuse, le trafic d'un lieu ne répond plus.
+        d, llm = self.dialog(EntityNLU("traffic_status", [("PLACE", "Adjamé")], 0.48),
+                             {"tool": "chercher_info", "args": {"question": "c'est quoi le coulé"}}, live=FakeLive())
+        reply = d.ask("ça marche comment votre affaire là vers Adjamé", POSITION)
+        self.assertEqual(len(llm.calls), 1)
+        self.assertEqual(reply["reply_text"], "Le coulé, c'est l'option la moins chère.")
+
+    def test_bouchon_a_un_lieu_sur_reste_aux_regles(self):
+        d, llm = self.dialog(EntityNLU("traffic_status", [("PLACE", "Adjamé")], 0.9), {"tool": "chercher_info", "args": {}}, live=FakeLive())
+        reply = d.ask("ça bouche à Adjamé ?", POSITION)
+        self.assertEqual(llm.calls, [])
+        self.assertIn("Adjamé", reply["reply_text"])
+        self.assertNotIn("llm", reply["sources"])
 
     def test_trajet_en_cours_et_signalement(self):
         d, llm = self.dialog(self.NLU("out_of_scope", 0.9), {"tool": "trajet_en_cours", "args": {"sujet": "arret"}})

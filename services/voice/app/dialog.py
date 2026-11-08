@@ -357,6 +357,11 @@ class VoiceDialog:
             return bool(LLM_ROUTE_REASONS & set(u.reasons))
         if u.intent == "out_of_scope" or "low_intent_confidence" in u.reasons:
             return True
+        # « Trafic » peu sûr et sans lieu sûr : les règles ne sauraient que dire « Dis-moi l'endroit » à une phrase
+        # qui n'en parle peut-être pas (« les wôrô roulent jusqu'à quelle heure ? » → trafic à 0,63, vu le 2026-11-08).
+        if u.intent == "traffic_status" and u.intent_confidence < TRIP_INTENT_MIN_CONFIDENCE:
+            sure_place = self._point(u.places.get("place") or u.places.get("destination")) and not UNSURE_HEARING & set(u.reasons)
+            return not sure_place
         # Intention sans réponse prévue : les règles diraient « Je n'ai pas bien compris ».
         return u.intent not in OTHER_REPLIES and u.intent not in ("report_incident", "report_road_condition", "confirm", "deny")
 
@@ -466,9 +471,11 @@ class VoiceDialog:
             return self._reply(u, reply, sources=sources + live, kind="info")
         if hit:
             return self._reply(u, hit.passage.answer, sources=sources, kind="info")
-        # « Ça bouche à Adjamé ? » : les signalements des voyageurs autour de ce lieu.
+        # « Ça bouche à Adjamé ? » : les signalements des voyageurs autour de ce lieu, seulement si l'intention et le
+        # lieu sont sûrs. Sinon (« ça marche comment votre affaire de coulé là » → trafic à 0,48 et « Adjamé » deviné,
+        # vu le 2026-11-08), on ne répond pas sur le trafic d'un lieu que le voyageur n'a pas demandé : le LLM essaie.
         place = self._point(u.places.get("place") or u.places.get("destination"))
-        if u.intent == "traffic_status" and place and self.trips:
+        if u.intent == "traffic_status" and place and self.trips and not UNSURE_HEARING & set(u.reasons):
             reply, live = self.trips.place_status(place)
             return self._reply(u, reply, sources=live, kind="info")
         return None
