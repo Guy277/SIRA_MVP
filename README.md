@@ -138,6 +138,7 @@ npx --prefix mobile tsc --noEmit -p mobile # typage de l'appli mobile
 
 ## Pour aller plus loin
 
+- [SIRA en bref](docs/resume-sira.md) : résumé du produit, des technologies et du déploiement
 - [Architecture technique](docs/architecture.md) : ports, API, moteur, données, sécurité, limites
 - [Lieux du quotidien](docs/lieux.md) : catégories de la carte, import des sources, pharmacies de garde ; [scénario de démo](docs/demo-lieux.md)
 - [Assistant vocal](services/voice/README.md) : installation, modèles, API, limites

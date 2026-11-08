@@ -2,6 +2,7 @@
 
 | Document | Pour qui / pourquoi |
 | --- | --- |
+| [resume-sira.md](resume-sira.md) | SIRA en bref : produit, fonctionnalités, technologies, données, déploiement, limites |
 | [architecture.md](architecture.md) | Services, ports, API, moteur de trajets, données, sécurité, limites |
 | [cahier-des-charges/](cahier-des-charges/) | Cahier des charges fusionné et maquettes validées (PDF) |
 | [voix/](voix/) | Travail sur l'assistant vocal (corpus « Voice CI ») |
