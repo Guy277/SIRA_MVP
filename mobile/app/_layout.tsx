@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { restoreSession } from '@/lib/session';
 import { loadIntroMemory } from '@/lib/motion';
 import { loadSavedPlaces } from '@/lib/saved-places';
+import { loadFavorites } from '@/lib/favorites';
 import { loadTripHistory } from '@/lib/trip-history';
 import { loadVoiceMode } from '@/lib/voice';
 import { SpeakingPill } from '@/components/speaking-pill';
@@ -16,7 +17,7 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); void loadTripHistory(); }, []);
+  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); void loadTripHistory(); void loadFavorites(); }, []);
   // Montserrat before the first screen, so no text flashes in the system font.
   // Without it (failed download on web), the screens fall back to the system font.
   const [fontsLoaded, fontError] = useFonts(MONTSERRAT_FONTS);

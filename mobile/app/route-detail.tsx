@@ -7,7 +7,6 @@ import {
   ScrollView,
   Share,
   Dimensions,
-  Alert,
 } from 'react-native';
 import { Text } from '@/components/sira-text';
 import { Image } from 'expo-image';
@@ -16,7 +15,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useFavorites } from '@/hooks/use-favorites';
+import { isFavorite as isFavoriteIn, toggleFavoriteTrip, useFavorites } from '@/lib/favorites';
+import { journeyCategory, tripTitle as titleOf } from '@/lib/trip-history';
 import { OsmMapView } from '@/components/osm-map-view';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
 import { journeyBrief, stepInFull, type SpokenPart } from '@/lib/spoken';
@@ -80,14 +80,14 @@ const { height } = Dimensions.get('window');
 export default function RouteDetailScreen() {
   const router = useRouter();
   const alertCount = useAlertCount();
-  const { isFavorite: checkIsFavorite, toggleFavorite } = useFavorites();
+  const favorites = useFavorites();
 
   const store = useJourneyStore();
   const journey = selectedJourney(store);
   const search = store.search;
   const departure = search?.departure.name ?? '';
   const arrival = search?.arrival.name ?? '';
-  const tripTitle = `D’${departure} à ${arrival}`;
+  const tripTitle = search ? titleOf({ from: search.departure, to: search.arrival }) : '';
   const steps = journey && search ? timeline(journey, search.departureAt) : [];
   const arrivalAt = journey && search ? arrivalTime(journey, search.departureAt) : null;
   const insets = useSafeAreaInsets();
@@ -166,7 +166,7 @@ export default function RouteDetailScreen() {
   }, [fareLegKey]);
 
   const [isLiked, setIsLiked] = useState(false);
-  const isFavorite = checkIsFavorite(tripTitle);
+  const isFavorite = search ? isFavoriteIn(favorites, search.departure, search.arrival) : false;
 
   const handleStartNavigation = () => {
     if (!journey) return;
@@ -186,20 +186,21 @@ export default function RouteDetailScreen() {
   };
 
   const handleToggleFavorite = () => {
-    const nowFavorite = toggleFavorite({
-      departure,
-      arrival,
-      title: tripTitle,
-      mode: (journey?.categories?.[0] ?? 'coule') === 'suspendu' ? 'Suspendu' : (journey?.categories?.[0] === 'debout' ? 'Debout' : 'Coulé'),
-      transport: journey ? journeyTitle(journey) : '',
-      duration: journey ? formatDuration(journey.duration) : '',
-      costRange: formatPrice(journey?.price),
+    if (!search || !journey) return;
+    const point = (place: typeof search.departure) => ({ name: place.name, latitude: place.latitude, longitude: place.longitude });
+    const nowFavorite = toggleFavoriteTrip({
+      from: point(search.departure),
+      to: point(search.arrival),
+      category: journeyCategory(search, journey),
+      transport: journeyTitle(journey),
+      durationMin: Math.round(journey.duration),
+      priceF: journey.price ?? null,
     });
-    Alert.alert(
+    notify(
       nowFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris',
       nowFavorite
-        ? `Le trajet "${tripTitle}" est enregistré dans tes favoris.`
-        : `Le trajet "${tripTitle}" a été retiré de tes favoris.`
+        ? `Le trajet « ${tripTitle} » est enregistré dans tes favoris.`
+        : `Le trajet « ${tripTitle} » a été retiré de tes favoris.`
     );
   };
 
@@ -315,7 +316,7 @@ export default function RouteDetailScreen() {
               <View style={styles.summaryActions}>
                 <TouchableOpacity style={styles.summaryAction} onPress={handleToggleFavorite} activeOpacity={0.7} accessibilityRole="button">
                   <Ionicons name={isFavorite ? 'bookmark' : 'bookmark-outline'} size={18} color={isFavorite ? '#F26522' : '#111111'} />
-                  <Text style={styles.summaryActionText}>Favori</Text>
+                  <Text style={styles.summaryActionText}>{isFavorite ? 'En favori' : 'Favori'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.summaryAction} onPress={handleShare} activeOpacity={0.7} accessibilityRole="button">
                   <Ionicons name="share-social-outline" size={18} color="#111111" />

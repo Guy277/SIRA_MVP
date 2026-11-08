@@ -79,14 +79,15 @@ L'appli ne parle qu'à l'API ; les autres services restent privés derrière ell
 
 ## Qualité
 
-Environ **314 tests automatiques**, tous au vert le 2026-11-08 : données (13), API (109), appli (12),
+Environ **325 tests automatiques**, tous au vert le 2026-11-08 : données (13), API (109), appli (23),
 SIRA-MORE (43), comptes (21), voix (116). Typage de l'appli et de l'API sans erreur.
 
 ## Limites actuelles
 
 - **Recommandations du moteur** : SIRA-MORE propose souvent le taxi ; « Debout » est souvent vide ; jamais la marche
   pour un lieu tout proche.
-- **Données fictives** encore affichées dans l'historique, les favoris et le détail d'une alerte d'accident.
+- **Données fictives** encore affichées dans le détail d'une alerte d'accident (l'historique et les favoris montrent
+  désormais les vrais trajets, gardés sur le téléphone seulement).
 - **Mode démo SMS** : le code de connexion s'affiche à l'écran, en attendant les accès Orange Developer.
 - **Serveur unique, sans sauvegarde automatique**, et adresse provisoire (`sslip.io`).
 - **Appli testée dans le navigateur au format téléphone** ; la version Expo Go reste à éprouver sur de vrais téléphones.

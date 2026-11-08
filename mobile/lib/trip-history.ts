@@ -42,10 +42,13 @@ export async function loadTripHistory() {
 }
 
 // The guidance starts: one line in the history, with SIRA-MORE's figures for this journey.
+// The option (Coulé, Debout, Suspendu) under which SIRA-MORE proposed this journey, if any.
+export const journeyCategory = (search: JourneySearch, journey: ApiJourney) =>
+  (Object.keys(search.categories) as TripCategory[]).find((name) => search.categories[name]?.includes(journey.id)) ?? null;
+
 export function recordTripStart(search: JourneySearch | null, journey: ApiJourney) {
   if (!search) return;
-  const category = (Object.keys(search.categories) as TripCategory[])
-    .find((name) => search.categories[name]?.includes(journey.id)) ?? null;
+  const category = journeyCategory(search, journey);
   const id = `trajet-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   current = id;
   const point = (place: JourneySearch['departure']) => ({ name: place.name, latitude: place.latitude, longitude: place.longitude });

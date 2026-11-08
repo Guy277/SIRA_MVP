@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
-import { useFavorites } from '@/hooks/use-favorites';
+import { addFavoriteTrip } from '@/lib/favorites';
 import { formatDuration, formatPrice } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
 import { notify } from '@/lib/notify';
@@ -32,7 +32,6 @@ export default function HistoryScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
-  const { addFavorite } = useFavorites();
   const trips = useTripHistory();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -77,15 +76,8 @@ export default function HistoryScreen() {
     setIsMenuOpen(false);
     if (selectedItem) {
       const title = tripTitle(selectedItem);
-      addFavorite({
-        departure: selectedItem.from.name,
-        arrival: selectedItem.to.name,
-        title,
-        mode: option(selectedItem),
-        transport: selectedItem.transport,
-        duration: formatDuration(selectedItem.durationMin),
-        costRange: formatPrice(selectedItem.priceF),
-      });
+      const { from, to, category, transport, durationMin, priceF } = selectedItem;
+      addFavoriteTrip({ from, to, category, transport, durationMin, priceF });
       notify('Favoris', `Le trajet « ${title} » a été ajouté à tes favoris.`);
     }
     setSelectedItem(null);
