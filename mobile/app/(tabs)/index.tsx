@@ -366,6 +366,17 @@ export default function HomeScreen() {
             >
               <Ionicons name="mic" size={22} color="#FFFFFF" />
             </TouchableOpacity>
+
+            {/* SIRA's assistant in writing (the microphone beside it is the spoken way). */}
+            <TouchableOpacity
+              style={styles.askSiraButton}
+              onPress={() => router.push('/chat')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Pose ta question à SIRA"
+            >
+              <Ionicons name="sparkles" size={18} color="#F26522" />
+            </TouchableOpacity>
           </TouchableOpacity>
         </Animated.View>}
       </SafeAreaView>
@@ -681,6 +692,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  askSiraButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
   },
 
 });

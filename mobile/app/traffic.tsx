@@ -122,7 +122,7 @@ export default function TrafficScreen() {
         {/* Last Updated Badge (Top Right) */}
         <View style={styles.updatedBadge}>
           <View style={styles.greenPulseDot} />
-          <Text style={styles.updatedText}>{updatedAt ? `${filteredIncidents.length} signalement(s) · ${formatClock(updatedAt)}` : 'Connexion…'}</Text>
+          <Text style={styles.updatedText}>{updatedAt ? `${filteredIncidents.length} signalement${filteredIncidents.length > 1 ? 's' : ''} · ${formatClock(updatedAt)}` : 'Connexion…'}</Text>
         </View>
 
         {/* Nothing to show: say so, and how to report (instead of an empty map that looks broken). */}
@@ -177,7 +177,7 @@ export default function TrafficScreen() {
           </TouchableOpacity>
 
           {/* Title */}
-          <Text style={styles.headerTitle}>Trafics</Text>
+          <Text style={styles.headerTitle}>Trafic</Text>
 
           {/* Right Action Icons Row */}
           <View style={styles.headerRightActions}>
@@ -228,7 +228,7 @@ export default function TrafficScreen() {
             <Ionicons name="search" size={18} color="#64748B" style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher un axe, commune (Abobo, Plateau...)"
+              placeholder="Rechercher un axe, une commune (Abobo, Plateau…)"
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}

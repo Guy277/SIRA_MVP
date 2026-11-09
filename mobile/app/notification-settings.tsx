@@ -89,7 +89,7 @@ export default function NotificationSettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Top Header Bar */}
@@ -100,7 +100,7 @@ export default function NotificationSettingsScreen() {
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={20} color="#000000" />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Notifications</Text>
@@ -130,9 +130,9 @@ export default function NotificationSettingsScreen() {
                 </View>
 
                 <Switch
-                  trackColor={{ false: '#E2E8F0', true: '#F26522' }}
+                  trackColor={{ false: '#3F3F46', true: '#F26522' }}
                   thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : isEnabled ? '#FFFFFF' : '#F4F3F4'}
-                  ios_backgroundColor="#E2E8F0"
+                  ios_backgroundColor="#3F3F46"
                   onValueChange={() => toggleSetting(item.id)}
                   value={isEnabled}
                   disabled
@@ -149,31 +149,31 @@ export default function NotificationSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   darkBackBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#000000',
+    color: '#FFFFFF',
     marginLeft: 14,
     letterSpacing: -0.2,
   },
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#FFF4EC',
+    backgroundColor: 'rgba(242,101,34,0.15)',
     borderRadius: 14,
     padding: 14,
     marginBottom: 14,
@@ -201,17 +201,17 @@ const styles = StyleSheet.create({
   comingSoonText: {
     flex: 1,
     fontSize: 13,
-    color: '#7C2D12',
+    color: '#FDBA74',
     lineHeight: 18,
   },
   settingCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 12,
@@ -234,14 +234,14 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     marginBottom: 2,
     letterSpacing: -0.1,
   },
   cardSubtitle: {
     fontSize: 13,
     fontWeight: '400',
-    color: '#64748B',
+    color: '#BBBBBB',
     lineHeight: 17,
   },
 });

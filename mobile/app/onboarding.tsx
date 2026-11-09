@@ -43,32 +43,32 @@ const SLIDES: OnboardingSlide[] = [
   {
     id: '1',
     title: 'LA PREMIÈRE PLATEFORME\nDE MOBILITÉ INTELLIGENTE',
-    description: 'pensée pour simplifier tes déplacements\nà abidjan.',
+    description: 'pensée pour simplifier tes déplacements\nà Abidjan.',
     heroBgImage: require('@/assets/images/bridge-bg.jpg'),
     phoneMockupImage: require('@/assets/images/sira-phone-official-mockup.png'),
   },
   {
     id: '2',
     title: "TROUVE L'ITINÉRAIRE\nQUI TE CONVIENT",
-    description: 'Sira analyse les conditions de circulation\npour te proposer des itinéraires\nadaptés à ta situation.',
+    description: 'SIRA analyse les conditions de circulation\npour te proposer des itinéraires\nadaptés à ta situation.',
     heroBgImage: require('@/assets/images/slide2-bg.jpg'),
   },
   {
     id: '3',
     title: 'CHOISIS TA FAÇON\nDE TE DÉPLACER',
-    description: 'compare les différentes options de transport\ndisponibles pour choisir celle qui correspond\nle mieux à ton trajet.',
+    description: 'Compare les différentes options de transport\ndisponibles pour choisir celle qui correspond\nle mieux à ton trajet.',
     heroBgImage: require('@/assets/images/slide3-bg.jpg'),
   },
   {
     id: '4',
     title: 'ANTICIPE TON TRAJET',
-    description: 'estime le temps et le coût de\nton déplacement avant de prendre la route.',
+    description: 'Estime le temps et le coût de\nton déplacement avant de prendre la route.',
     heroBgImage: require('@/assets/images/slide4-bg.jpg'),
   },
   {
     id: '5',
     title: 'RESTE INFORMÉ\nEN TEMPS RÉEL',
-    description: 'reçois des informations sur les perturbations,\nles incidents et les conditions de circulation\nsur ton trajet.',
+    description: 'Reçois des informations sur les perturbations,\nles incidents et les conditions de circulation\nsur ton trajet.',
     heroBgImage: require('@/assets/images/slide5-bg.jpg'),
   },
 ];

@@ -110,9 +110,9 @@ export default function EditProfileScreen() {
                 />
               </View>
 
-              {/* Field 2: Prenom */}
+              {/* Field 2: Prénom */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Prenom</Text>
+                <Text style={styles.label}>Prénom</Text>
                 <TextInput
                   style={styles.input}
                   value={prenom}
@@ -121,9 +121,9 @@ export default function EditProfileScreen() {
                 />
               </View>
 
-              {/* Field 3: Numero */}
+              {/* Field 3: Numéro */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Numero</Text>
+                <Text style={styles.label}>Numéro</Text>
                 <TextInput
                   style={styles.input}
                   value={numero}
@@ -146,7 +146,7 @@ export default function EditProfileScreen() {
 
               {/* Field 5: Email */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>E-mail</Text>
                 <TextInput
                   style={styles.input}
                   value={email}

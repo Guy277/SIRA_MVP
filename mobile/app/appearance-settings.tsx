@@ -19,14 +19,14 @@ type ModalType = 'theme' | 'textSize' | 'mapStyle' | null;
 export default function AppearanceSettingsScreen() {
   const router = useRouter();
 
-  const [themeSetting, setThemeSetting] = useState('Thème par défaut du systhème');
+  const [themeSetting, setThemeSetting] = useState('Thème par défaut du système');
   const [textSizeSetting, setTextSizeSetting] = useState('Standard');
   const [mapStyleSetting, setMapStyleSetting] = useState('Standard');
 
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
   const themeOptions = [
-    'Thème par défaut du systhème',
+    'Thème par défaut du système',
     'Clair',
     'Sombre',
   ];
@@ -77,7 +77,7 @@ export default function AppearanceSettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Top Header Bar */}
@@ -88,7 +88,7 @@ export default function AppearanceSettingsScreen() {
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={20} color="#000000" />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Apparence</Text>
@@ -108,7 +108,7 @@ export default function AppearanceSettingsScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.cardTextCol}>
-              <Text style={styles.cardTitle}>Thème de l'application</Text>
+              <Text style={styles.cardTitle}>Thème de l’application</Text>
               <Text style={styles.cardSubtitle}>{themeSetting}</Text>
             </View>
 
@@ -216,31 +216,31 @@ export default function AppearanceSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   darkBackBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#000000',
+    color: '#FFFFFF',
     marginLeft: 14,
     letterSpacing: -0.2,
   },
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -260,10 +260,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 12,
@@ -286,14 +286,14 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     marginBottom: 2,
     letterSpacing: -0.1,
   },
   cardSubtitle: {
     fontSize: 13,
     fontWeight: '400',
-    color: '#64748B',
+    color: '#BBBBBB',
     lineHeight: 17,
   },
   orangeChevronCircle: {
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   },
   blackModalCard: {
     width: 320,
-    backgroundColor: '#000000',
+    backgroundColor: '#1E1E1E',
     borderRadius: 18,
     paddingHorizontal: 20,
     paddingTop: 22,

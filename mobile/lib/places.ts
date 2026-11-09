@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import { reversePlace, searchPlaces, type Coordinates } from '@/lib/sira-api';
 import { needsSecureContext, POSITION_NEEDS_HTTPS } from '@/lib/secure-context';
+import { usageAllowed, USAGE_OFF_MESSAGES } from '@/lib/usage';
 
 export const CURRENT_LOCATION = 'Ma position actuelle';
 
@@ -28,7 +29,9 @@ function demoPosition(): Coordinates | null {
 }
 
 // Asks for location permission only when the user picks "Ma position actuelle".
+// Not at all when the traveller turned the position off in SIRA (Profil > Autorisations).
 export async function locateUser(): Promise<Coordinates> {
+  if (!(await usageAllowed('location'))) throw new Error(USAGE_OFF_MESSAGES.location);
   const demo = demoPosition();
   if (demo) {
     rememberPlace(CURRENT_LOCATION, demo);

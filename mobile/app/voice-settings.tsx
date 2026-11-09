@@ -17,7 +17,7 @@ export default function VoiceSettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.headerBar}>
@@ -28,7 +28,7 @@ export default function VoiceSettingsScreen() {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel="Retour"
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={20} color="#000000" />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Voix de SIRA</Text>
@@ -43,7 +43,7 @@ export default function VoiceSettingsScreen() {
           {/* The setting in use, at a glance: its icon changes with the mode. */}
           <View style={styles.currentCard} accessibilityLiveRegion="polite">
             <View style={[styles.currentIcon, mode === 'off' && styles.currentIconOff]}>
-              <Ionicons name={VOICE_MODE_ICONS[mode]} size={26} color={mode === 'off' ? '#64748B' : '#FFFFFF'} />
+              <Ionicons name={VOICE_MODE_ICONS[mode]} size={26} color={mode === 'off' ? '#9CA3AF' : '#FFFFFF'} />
             </View>
             <View style={styles.cardTextCol}>
               <Text style={styles.currentLabel}>Réglage actuel</Text>
@@ -76,7 +76,7 @@ export default function VoiceSettingsScreen() {
                   />
                   <View style={styles.cardTextCol}>
                     <View style={styles.titleRow}>
-                      <Ionicons name={VOICE_MODE_ICONS[option]} size={17} color={selected ? '#F26522' : '#475569'} />
+                      <Ionicons name={VOICE_MODE_ICONS[option]} size={17} color={selected ? '#F26522' : '#9CA3AF'} />
                       <Text style={styles.cardTitle}>{VOICE_MODE_LABELS[option]}</Text>
                     </View>
                     <Text style={styles.cardSubtitle}>{VOICE_MODE_DETAILS[option]}</Text>
@@ -98,31 +98,31 @@ export default function VoiceSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   darkBackBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#000000',
+    color: '#FFFFFF',
     marginLeft: 14,
     letterSpacing: -0.2,
   },
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -147,6 +147,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   currentIcon: {
     width: 48,
@@ -157,7 +159,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   currentIconOff: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#333333',
   },
   currentLabel: {
     fontSize: 12,
@@ -171,17 +173,17 @@ const styles = StyleSheet.create({
   },
   intro: {
     fontSize: 14,
-    color: '#475569',
+    color: '#BBBBBB',
     lineHeight: 19,
     marginBottom: 16,
   },
   settingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 12,
@@ -199,7 +201,7 @@ const styles = StyleSheet.create({
   },
   selectedCard: {
     borderColor: '#F26522',
-    backgroundColor: '#FFF7F2',
+    backgroundColor: 'rgba(242,101,34,0.12)',
   },
   radioIcon: {
     marginRight: 12,
@@ -216,18 +218,18 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     letterSpacing: -0.1,
   },
   cardSubtitle: {
     fontSize: 13,
     fontWeight: '400',
-    color: '#64748B',
+    color: '#BBBBBB',
     lineHeight: 17,
   },
   hint: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#9CA3AF',
     lineHeight: 18,
     marginTop: 4,
   },

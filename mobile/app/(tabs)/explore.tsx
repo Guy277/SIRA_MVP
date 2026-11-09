@@ -16,6 +16,7 @@ import { JourneyBadges } from '@/components/journey-badges';
 import { DepartureTimeSheet, departureLabel } from '@/components/departure-time-sheet';
 import { fetchJourneys, type ApiJourney, type CategoryName, type LegMode } from '@/lib/sira-api';
 import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, placeLabel, resolvePlace, useCurrentPlace } from '@/lib/places';
+import { useUsage } from '@/lib/usage';
 import { needsSecureContext } from '@/lib/secure-context';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { arrivalTime, formatClock, formatDuration, formatPrice, journeySummary } from '@/lib/journey-format';
@@ -42,6 +43,7 @@ export default function RouteExploreScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ query?: string; destination?: string; from?: string }>();
   const here = useCurrentPlace();
+  const usage = useUsage();
 
   // Departure is the traveller's own position unless they pick another one.
   // A departure given elsewhere (« je quitte Yop… » to the voice assistant)
@@ -245,7 +247,9 @@ export default function RouteExploreScreen() {
                   ? 'Tu es hors du Grand Abidjan : touche ici pour choisir ton départ ou ton arrivée.'
                   : needsSecureContext()
                     ? 'Ta position n’est pas disponible sans HTTPS : touche ici pour choisir ton départ.'
-                    : 'Position introuvable : active la localisation ou touche ici pour choisir ton départ ou ton arrivée.'}
+                    : !usage.location
+                      ? 'Tu as coupé la position dans SIRA : touche ici pour choisir ton départ.'
+                      : 'Position introuvable : active la localisation ou touche ici pour choisir ton départ ou ton arrivée.'}
               </Text>
             </TouchableOpacity>
           )}

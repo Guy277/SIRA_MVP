@@ -63,14 +63,14 @@ export default function InfoSettingsScreen() {
       onPress: () =>
         Alert.alert(
           'Nous contacter',
-          'Notre équipe support est à ta disposition 7j/7.\nEmail: support@sira.ci\nTél: +225 07 00 00 00 00'
+          'Notre équipe support est à ta disposition 7 j/7.\nE-mail : support@sira.ci\nTél. : +225 07 00 00 00 00'
         ),
     },
   ];
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Top Header Bar */}
@@ -81,7 +81,7 @@ export default function InfoSettingsScreen() {
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={20} color="#000000" />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Informations</Text>
@@ -96,7 +96,7 @@ export default function InfoSettingsScreen() {
           {/* Top Logo & Hero Text */}
           <View style={styles.heroSection}>
             <Image
-              source={require('@/assets/images/sira-logo-official.png')}
+              source={require('@/assets/images/sira-logo-darkmode.png')}
               style={styles.siraLogoImage}
               contentFit="contain"
             />
@@ -130,7 +130,7 @@ export default function InfoSettingsScreen() {
 
           {/* App Version Info Footer */}
           <View style={styles.versionContainer}>
-            <Text style={styles.versionLabel}>Version de l'application</Text>
+            <Text style={styles.versionLabel}>Version de l’application</Text>
             <Text style={styles.versionNumber}>1.0.0</Text>
           </View>
         </ScrollView>
@@ -142,31 +142,31 @@ export default function InfoSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   darkBackBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#000000',
+    color: '#FFFFFF',
     marginLeft: 14,
     letterSpacing: -0.2,
   },
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -194,14 +194,14 @@ const styles = StyleSheet.create({
   },
   heroDesc: {
     fontSize: 14.5,
-    color: '#333333',
+    color: '#BBBBBB',
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 10,
   },
   boldText: {
     fontWeight: '900',
-    color: '#000000',
+    color: '#FFFFFF',
   },
   cardsListContainer: {
     marginBottom: 16,
@@ -210,10 +210,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 12,
@@ -236,14 +236,14 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     marginBottom: 2,
     letterSpacing: -0.1,
   },
   cardSubtitle: {
     fontSize: 13,
     fontWeight: '400',
-    color: '#64748B',
+    color: '#BBBBBB',
     lineHeight: 17,
   },
   orangeChevronCircle: {
@@ -260,12 +260,12 @@ const styles = StyleSheet.create({
   },
   versionLabel: {
     fontSize: 12.5,
-    color: '#64748B',
+    color: '#9CA3AF',
     marginBottom: 2,
   },
   versionNumber: {
     fontSize: 16,
     fontWeight: '900',
-    color: '#000000',
+    color: '#FFFFFF',
   },
 });

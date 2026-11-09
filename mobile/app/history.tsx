@@ -103,7 +103,7 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       {/* Map Pattern Overlay Background */}
       <Image
@@ -122,10 +122,10 @@ export default function HistoryScreen() {
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="arrow-back" size={24} color="#000000" />
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Historiques</Text>
+          <Text style={styles.headerTitle}>Mes trajets</Text>
 
           <TouchableOpacity
             style={styles.headerIconButton}
@@ -139,7 +139,7 @@ export default function HistoryScreen() {
             <Ionicons
               name={isSearching ? 'close' : 'search'}
               size={24}
-              color="#000000"
+              color="#FFFFFF"
             />
           </TouchableOpacity>
         </View>
@@ -147,10 +147,10 @@ export default function HistoryScreen() {
         {/* Expandable Search Input Bar */}
         {isSearching && (
           <View style={styles.searchBarContainer}>
-            <Ionicons name="search" size={18} color="#64748B" style={styles.searchIcon} />
+            <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher un trajet, lieu..."
+              placeholder="Rechercher un trajet, un lieu…"
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -172,7 +172,7 @@ export default function HistoryScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyStateContainer}>
-              <Ionicons name="time-outline" size={48} color="#CBD5E1" />
+              <Ionicons name="time-outline" size={48} color="#4B5563" />
               <Text style={styles.emptyStateTitle}>{searchQuery ? 'Aucun trajet trouvé' : 'Pas encore de trajet'}</Text>
               <Text style={styles.emptyStateSubtitle}>
                 {searchQuery
@@ -183,7 +183,7 @@ export default function HistoryScreen() {
           }
           ListFooterComponent={trips.length > 0 && !searchQuery ? (
             <TouchableOpacity style={styles.clearAllButton} onPress={handleClearAll} activeOpacity={0.7} accessibilityRole="button">
-              <Ionicons name="trash-outline" size={15} color="#B91C1C" />
+              <Ionicons name="trash-outline" size={15} color="#F87171" />
               <Text style={styles.clearAllText}>Effacer l’historique</Text>
             </TouchableOpacity>
           ) : undefined}
@@ -213,7 +213,7 @@ export default function HistoryScreen() {
                   activeOpacity={0.7}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Ionicons name="ellipsis-vertical" size={20} color="#000000" />
+                  <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
@@ -356,7 +356,7 @@ export default function HistoryScreen() {
             {/* Header */}
             <View style={styles.historyDetailHeader}>
               <View style={styles.completedBadge}>
-                <Ionicons name={selectedItem?.finished ? 'checkmark-circle' : 'navigate-circle'} size={16} color="#16A34A" />
+                <Ionicons name={selectedItem?.finished ? 'checkmark-circle' : 'navigate-circle'} size={16} color="#4ADE80" />
                 <Text style={styles.completedBadgeText}>{selectedItem?.finished ? 'Arrivé à destination' : 'Trajet commencé'}</Text>
               </View>
               <TouchableOpacity
@@ -434,7 +434,7 @@ export default function HistoryScreen() {
       </Modal>
 
       {/* Bottom Navigation Bar */}
-      <CustomBottomTabBar />
+      <CustomBottomTabBar activeTab="profile" />
     </View>
   );
 }
@@ -442,10 +442,10 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F6F8',
+    backgroundColor: '#000000',
   },
   lightOverlay: {
-    backgroundColor: 'rgba(245, 246, 248, 0.93)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
   safeArea: {
     flex: 1,
@@ -468,20 +468,20 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E1E1E',
     marginHorizontal: 16,
     marginBottom: 12,
     paddingHorizontal: 12,
     height: 44,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
   listContent: {
     paddingHorizontal: 16,
@@ -508,10 +508,10 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   card: {
-    backgroundColor: '#F8F9FB',
+    backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: 'rgba(255,255,255,0.06)',
     padding: 14,
     marginBottom: 12,
     ...Platform.select({
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
   },
   cardDate: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#9CA3AF',
     marginTop: 2,
   },
   cardActions: {
@@ -578,12 +578,12 @@ const styles = StyleSheet.create({
   clearAllText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#B91C1C',
+    color: '#F87171',
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     lineHeight: 20,
   },
   optionsButton: {
@@ -595,17 +595,17 @@ const styles = StyleSheet.create({
   },
   detailsLine: {
     fontSize: 13,
-    color: '#475569',
+    color: '#BBBBBB',
     marginBottom: 4,
     lineHeight: 18,
   },
   labelSpan: {
     fontWeight: '400',
-    color: '#475569',
+    color: '#9CA3AF',
   },
   valueSpan: {
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
   },
   spacerSpan: {
     fontSize: 12,
@@ -642,23 +642,23 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#334155',
+    color: '#FFFFFF',
     marginTop: 12,
     marginBottom: 6,
   },
   emptyStateSubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#BBBBBB',
     textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   blackMenuCard: {
     width: '100%',
-    backgroundColor: '#000000',
+    backgroundColor: '#1E1E1E',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
   /* History Completed Trip Detail Modal Styles */
   historyDetailCard: {
     width: '90%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E1E1E',
     borderRadius: 24,
     padding: 20,
     shadowColor: '#000000',
@@ -728,31 +728,31 @@ const styles = StyleSheet.create({
   completedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#DCFCE7',
+    backgroundColor: 'rgba(74,222,128,0.15)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     gap: 6,
   },
   completedBadgeText: {
-    color: '#16A34A',
+    color: '#4ADE80',
     fontSize: 12,
     fontWeight: '800',
   },
   historyDetailDate: {
     fontSize: 12,
-    color: '#888888',
+    color: '#9CA3AF',
     fontWeight: '600',
     marginBottom: 2,
   },
   historyDetailTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#000000',
+    color: '#FFFFFF',
     marginBottom: 16,
   },
   historyTimelineBox: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#2A2A2A',
     borderRadius: 14,
     padding: 12,
     gap: 10,
@@ -765,12 +765,12 @@ const styles = StyleSheet.create({
   },
   historyTimelineLabel: {
     fontSize: 13,
-    color: '#666666',
+    color: '#9CA3AF',
     fontWeight: '500',
   },
   historyTimelineValue: {
     fontSize: 14,
-    color: '#000000',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   historyMetaGrid: {
@@ -781,19 +781,19 @@ const styles = StyleSheet.create({
   },
   metaBadgeItem: {
     width: '47%',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#2A2A2A',
     borderRadius: 12,
     padding: 10,
   },
   metaBadgeLabel: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#9CA3AF',
     fontWeight: '500',
     marginBottom: 2,
   },
   metaBadgeValue: {
     fontSize: 14,
-    color: '#0F172A',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   historyActionsCol: {
@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   historyFavBtn: {
-    backgroundColor: '#FFF5F0',
+    backgroundColor: 'rgba(242,101,34,0.12)',
     borderWidth: 1.5,
     borderColor: '#F26522',
     borderRadius: 20,

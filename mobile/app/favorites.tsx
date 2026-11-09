@@ -90,7 +90,7 @@ export default function FavoritesScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
       {/* Map Pattern Overlay Background */}
       <Image
@@ -110,7 +110,7 @@ export default function FavoritesScreen() {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityLabel="Retour"
           >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={20} color="#000000" />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Mes favoris</Text>
@@ -128,7 +128,7 @@ export default function FavoritesScreen() {
             <Ionicons
               name={isSearching ? 'close' : 'search'}
               size={22}
-              color="#000000"
+              color="#FFFFFF"
             />
           </TouchableOpacity>
         </View>
@@ -136,7 +136,7 @@ export default function FavoritesScreen() {
         {/* Expandable Search Input Bar */}
         {isSearching && (
           <View style={styles.searchBarContainer}>
-            <Ionicons name="search" size={18} color="#64748B" style={styles.searchIcon} />
+            <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Lieu, option ou transport…"
@@ -161,7 +161,7 @@ export default function FavoritesScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyStateContainer}>
-              <Ionicons name={searchQuery ? 'search-outline' : 'bookmark-outline'} size={56} color="#CBD5E1" />
+              <Ionicons name={searchQuery ? 'search-outline' : 'bookmark-outline'} size={56} color="#4B5563" />
               <Text style={styles.emptyStateTitle}>{searchQuery ? 'Aucun favori trouvé' : 'Pas encore de favori'}</Text>
               <Text style={styles.emptyStateSubtitle}>
                 {searchQuery
@@ -206,7 +206,7 @@ export default function FavoritesScreen() {
                     hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                     accessibilityLabel="Plus d’options"
                   >
-                    <Ionicons name="ellipsis-vertical" size={20} color="#000000" />
+                    <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -322,10 +322,10 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F6F8',
+    backgroundColor: '#000000',
   },
   lightOverlay: {
-    backgroundColor: 'rgba(245, 246, 248, 0.93)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
   safeArea: {
     flex: 1,
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -356,20 +356,20 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E1E1E',
     marginHorizontal: 16,
     marginBottom: 12,
     paddingHorizontal: 12,
     height: 44,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.06)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
   listContent: {
     paddingHorizontal: 16,
@@ -396,10 +396,10 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.06)',
     padding: 14,
     marginBottom: 12,
     ...Platform.select({
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     marginLeft: 8,
     marginRight: 4,
     lineHeight: 17,
@@ -458,18 +458,18 @@ const styles = StyleSheet.create({
   },
   detailsLine: {
     fontSize: 11.5,
-    color: '#475569',
+    color: '#BBBBBB',
     marginBottom: 2,
     lineHeight: 16,
   },
   labelSpan: {
     fontWeight: '400',
-    color: '#475569',
+    color: '#9CA3AF',
     fontSize: 11.5,
   },
   valueSpan: {
     fontWeight: '800',
-    color: '#000000',
+    color: '#FFFFFF',
     fontSize: 11.5,
   },
   spacerSpan: {
@@ -507,24 +507,24 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#334155',
+    color: '#FFFFFF',
     marginTop: 12,
     marginBottom: 6,
   },
   emptyStateSubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#BBBBBB',
     textAlign: 'center',
     lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   blackMenuCard: {
     width: '100%',
-    backgroundColor: '#000000',
+    backgroundColor: '#1E1E1E',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,

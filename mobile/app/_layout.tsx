@@ -8,6 +8,7 @@ import { loadIntroMemory } from '@/lib/motion';
 import { loadSavedPlaces } from '@/lib/saved-places';
 import { loadFavorites } from '@/lib/favorites';
 import { loadTripHistory } from '@/lib/trip-history';
+import { loadUsage } from '@/lib/usage';
 import { loadVoiceMode } from '@/lib/voice';
 import { SpeakingPill } from '@/components/speaking-pill';
 import { loadWebFonts, MONTSERRAT_FONTS } from '@/components/sira-text';
@@ -17,7 +18,7 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); void loadTripHistory(); void loadFavorites(); }, []);
+  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); void loadTripHistory(); void loadFavorites(); void loadUsage(); }, []);
   // Montserrat before the first screen, so no text flashes in the system font.
   // Without it (failed download on web), the screens fall back to the system font.
   const [fontsLoaded, fontError] = useFonts(MONTSERRAT_FONTS);
@@ -173,6 +174,14 @@ export default function RootLayout() {
 
         <Stack.Screen
           name="notification-settings"
+          options={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        />
+
+        <Stack.Screen
+          name="permissions"
           options={{
             headerShown: false,
             animation: 'slide_from_right',

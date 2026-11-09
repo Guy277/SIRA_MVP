@@ -70,7 +70,7 @@ export function ProfilePhotoModal({
                   <Text style={styles.optionLabel}>Caméra</Text>
                 </TouchableOpacity>
 
-                {/* 2. Galérie */}
+                {/* 2. Galerie */}
                 <TouchableOpacity
                   style={styles.optionRow}
                   onPress={() => handleOptionPress(onSelectGallery)}
@@ -79,7 +79,7 @@ export function ProfilePhotoModal({
                   <View style={styles.iconBadge}>
                     <Ionicons name="image" size={20} color="#F26522" />
                   </View>
-                  <Text style={styles.optionLabel}>Galérie</Text>
+                  <Text style={styles.optionLabel}>Galerie</Text>
                 </TouchableOpacity>
 
                 {/* 3. Utiliser un avatar */}

@@ -1,4 +1,4 @@
-// What is being reported right now, for the « Signaler un évènement » screen (a number on each card): the
+// What is being reported right now, for the « Signaler un événement » screen (a number on each card): the
 // travellers' active reports counted by kind, around the traveller (or in the whole Grand Abidjan when their position is unknown).
 // Pure rules, tested with Node (npm test).
 

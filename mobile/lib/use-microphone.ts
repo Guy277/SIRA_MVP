@@ -10,6 +10,7 @@ import { File } from 'expo-file-system';
 import type { VoiceAudio } from '@/lib/sira-api';
 import { stopSpeaking } from '@/lib/voice';
 import { needsSecureContext } from '@/lib/secure-context';
+import { usageAllowed } from '@/lib/usage';
 
 const RECORDING: RecordingOptions = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
 const CHECK_MS = 150;
@@ -26,6 +27,8 @@ export function useMicrophone(onAudio: (audio: VoiceAudio | null) => Promise<voi
 
   const start = async () => {
     stopSpeaking();
+    // Microphone turned off in SIRA (Profil > Autorisations): not opened, nothing asked to the phone.
+    if (!(await usageAllowed('microphone'))) return false;
     // Web page in plain http (phone on the Wi-Fi): no microphone at all, nothing to ask.
     if (needsSecureContext()) return false;
     const permission = await requestRecordingPermissionsAsync();

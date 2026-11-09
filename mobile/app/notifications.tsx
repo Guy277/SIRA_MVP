@@ -116,7 +116,7 @@ export default function NotificationsScreen() {
             <Ionicons name="search-outline" size={18} color="#888888" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher une notification..."
+              placeholder="Rechercher une notification…"
               placeholderTextColor="#999999"
               value={searchQuery}
               onChangeText={setSearchQuery}

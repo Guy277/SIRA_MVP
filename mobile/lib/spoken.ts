@@ -24,7 +24,7 @@ export function resultsSpeech(search: JourneySearch) {
     const taxi = journeys[0];
     const figures = `environ ${francs(taxi.price)} et ${minutes(taxi.duration)}`;
     return isNight(search.departureAt)
-      ? `À cette heure, les bus, gbakas et wôrô-wôrô sont fermés : je te propose seulement le taxi, ${figures}.`
+      ? `À cette heure, les bus, gbakas et wôrô-wôrô ne roulent plus : je te propose seulement le taxi, ${figures}.`
       : `Pour ce trajet, je n'ai trouvé que le taxi : ${figures}.`;
   }
   const cheapest = [...collective].sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9))[0];

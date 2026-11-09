@@ -22,6 +22,7 @@ import { fetchJourneys, journeyImpact, reportFare, voteReport, type ApiJourney, 
 import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
 import { upsertReport, useLiveReports } from '@/lib/reports';
 import { locateUser, refreshCurrentPlace } from '@/lib/places';
+import { usageAllowed } from '@/lib/usage';
 import { goBack, goHome } from '@/lib/navigation';
 import { currentToken } from '@/lib/session';
 import { arrivalPhrase, placeForTitle } from '@/lib/saved-places';
@@ -219,7 +220,7 @@ export default function NavigationActiveScreen() {
     if (!alternative || alerted.current.has(alternative.id)) return;
     alerted.current.add(alternative.id);
     void question.ask(
-      `J'ai trouvé un détour : ${spokenJourney(alternative)}, environ ${minutes(alternative.duration)}. Dites oui pour le prendre.`,
+      `J'ai trouvé un détour : ${spokenJourney(alternative)}, environ ${minutes(alternative.duration)}. Dis oui pour le prendre.`,
       `adopt:${alternative.id}`,
     ).then((answer) => {
       if (answer?.answer === 'yes') adoptAlternative();
@@ -250,6 +251,8 @@ export default function NavigationActiveScreen() {
     let stopped = false;
     (async () => {
       try {
+        // Position turned off in SIRA: guidance by touch only, the phone's GPS is left alone.
+        if (!(await usageAllowed('location')) || stopped) return;
         const permission = await Location.requestForegroundPermissionsAsync();
         if (permission.status !== 'granted' || stopped) return;
         subscription = await Location.watchPositionAsync(

@@ -8,6 +8,7 @@ import { askByText, askByVoice, type Coordinates, type VoiceAudio, type VoiceCon
 import { useMicrophone } from '@/lib/use-microphone';
 import { getVoiceMode, sayParts, stopSpeaking } from '@/lib/voice';
 import { MIC_NEEDS_HTTPS, needsSecureContext } from '@/lib/secure-context';
+import { getUsage, USAGE_OFF_MESSAGES } from '@/lib/usage';
 
 export type VoicePhase = 'idle' | 'recording' | 'thinking' | 'answered' | 'error';
 
@@ -64,6 +65,9 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
     if (listenAgain && open.current) await listenAgainRef.current();
   };
 
+
+  // One call (transcription and answer together): measured on 2026-11-08, two calls (« what SIRA heard », then the
+  // answer) showed the words barely earlier (0.4 to 1.7 s) but the answer 1 to 2.5 s later.
   const microphone = useMicrophone((audio: VoiceAudio | null) => handle(audio
     // Voice muted: no need for the server to make SIRA's voice (lighter, faster answer).
     ? askByVoice(audio, position, context.current, getVoiceMode() !== 'off', trip, voicePlaces(savedPlaces()))
@@ -76,7 +80,9 @@ export function useVoiceAssistant(position: Coordinates | null, trip: VoiceTrip 
   const listen = async () => {
     setError(null);
     if (!(await microphone.start())) {
-      setError(needsSecureContext() ? MIC_NEEDS_HTTPS : 'Autorise le micro pour parler à SIRA.');
+      setError(needsSecureContext() ? MIC_NEEDS_HTTPS
+        : !getUsage().microphone ? USAGE_OFF_MESSAGES.microphone
+        : 'Autorise le micro pour parler à SIRA.');
       setBusy('error');
     }
   };

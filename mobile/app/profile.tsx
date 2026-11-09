@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
-  Dimensions,
   Platform,
   Alert,
 } from 'react-native';
@@ -18,10 +17,6 @@ import { DeleteAccountModal } from '@/components/delete-account-modal';
 import { ProfilePhotoModal } from '@/components/profile-photo-modal';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { useSession } from '@/lib/session';
-import { goBack } from '@/lib/navigation';
-import { useVoiceMode, VOICE_MODE_ICONS } from '@/lib/voice';
-
-const { width } = Dimensions.get('window');
 
 interface MenuItem {
   id: string;
@@ -36,52 +31,49 @@ export default function ProfileScreen() {
   const tabBarSpace = useTabBarSpace();
   const account = useSession()?.user;
   const router = useRouter();
-  const voiceMode = useVoiceMode();
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false);
 
-  const handleDeleteAccount = () => {
-    setShowDeleteModal(true);
-  };
-
   const handleSelectCamera = () => {
-    Alert.alert('Caméra', 'Ouvrir l’appareil photo...');
+    Alert.alert('Caméra', 'Ouvrir l’appareil photo…');
   };
 
   const handleSelectGallery = () => {
-    Alert.alert('Galérie', 'Ouvrir la galerie photos...');
+    Alert.alert('Galerie', 'Ouvrir la galerie photos…');
   };
 
   const handleSelectAvatar = () => {
-    Alert.alert('Avatar', 'Sélectionner un avatar...');
+    Alert.alert('Avatar', 'Sélectionner un avatar…');
   };
 
+  // Profil = what is the traveller's own (saved, done); every setting of SIRA is in Paramètres.
+  // The chat with SIRA is here and behind the star of the home screen.
   const menuItems: MenuItem[] = [
     {
       id: 'favorites',
-      title: 'Mes favories',
+      title: 'Mes favoris',
       iconName: 'heart',
       onPress: () => router.push('/favorites'),
     },
     {
-      id: 'location',
-      title: 'Ma position',
-      iconName: 'location',
-      onPress: () => router.push('/location-settings'),
+      id: 'history',
+      title: 'Mes trajets',
+      iconName: 'time',
+      onPress: () => router.push('/history'),
     },
     {
+      id: 'places',
+      title: 'Mes lieux',
+      iconName: 'bookmark',
+      onPress: () => router.push('/my-places'),
+    },
+    {
+      // Also the star beside « On va où ? » on the home screen.
       id: 'chat',
       title: 'Discuter avec SIRA',
-      iconName: 'hardware-chip-outline',
+      iconName: 'sparkles',
       onPress: () => router.push('/chat'),
-    },
-    {
-      // SIRA starts silent: the traveller turns its voice on here.
-      id: 'voice',
-      title: 'Voix de SIRA',
-      iconName: VOICE_MODE_ICONS[voiceMode],
-      onPress: () => router.push('/voice-settings'),
     },
     {
       id: 'settings',
@@ -90,17 +82,11 @@ export default function ProfileScreen() {
       onPress: () => router.push('/settings'),
     },
     {
-      id: 'privacy',
-      title: 'Confidentialité',
-      iconName: 'lock-closed',
-      onPress: () => router.push('/privacy'),
-    },
-    {
       id: 'delete',
       title: 'Supprimer mon compte',
       iconName: 'trash',
       isDestructive: true,
-      onPress: handleDeleteAccount,
+      onPress: () => setShowDeleteModal(true),
     },
   ];
 
@@ -109,18 +95,6 @@ export default function ProfileScreen() {
       <StatusBar style="light" />
 
       <View style={styles.container}>
-        {/* Top Header Bar */}
-        <View style={styles.headerContainer}>
-          <TouchableOpacity
-            style={styles.closeButtonCircle}
-            onPress={() => goBack(router)}
-            activeOpacity={0.8}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={20} color="#000000" />
-          </TouchableOpacity>
-        </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace }]}
@@ -226,7 +200,7 @@ export default function ProfileScreen() {
       {/* Bottom Navigation Bar with Active Profile Tab */}
       <CustomBottomTabBar activeTab="profile" />
 
-      {/* Logout Confirmation Modal */}
+      {/* Account deletion, confirmed first (also in Confidentialité) */}
       <DeleteAccountModal
         visible={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
@@ -253,21 +227,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  closeButtonCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F26522',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   scrollView: {
     flex: 1,
   },
@@ -278,7 +237,7 @@ const styles = StyleSheet.create({
   },
   avatarSection: {
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 28,
   },
   avatarRing: {
     width: 120,

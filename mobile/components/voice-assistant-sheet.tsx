@@ -13,6 +13,7 @@ import { useVoiceAssistant } from '@/lib/use-voice-assistant';
 import { MIC_PROMPT } from '@/lib/spoken';
 import { say } from '@/lib/voice';
 import { needsSecureContext } from '@/lib/secure-context';
+import { useUsage } from '@/lib/usage';
 
 const EXAMPLES = ['Je quitte Yopougon, je vais au Plateau', 'Le gbaka pour Anyama, ça fait combien ?', 'Il y a un accident à Adjamé'];
 // Seconds before the trip starts by itself, after the answer (time to cancel).
@@ -31,7 +32,7 @@ export function reportCategory(reply: VoiceReply) {
   const said = [reply.understanding?.entities?.find((e) => e.label === 'INCIDENT_TYPE')?.text, reply.transcript?.text]
     .filter(Boolean).join(' ');
   const found = REPORT_CATEGORIES.find(([pattern]) => pattern.test(said));
-  return found ? { categoryId: found[1], title: found[2] } : { categoryId: 'autre', title: 'Autre évènement' };
+  return found ? { categoryId: found[1], title: found[2] } : { categoryId: 'autre', title: 'Autre événement' };
 }
 
 type Props = {
@@ -55,10 +56,18 @@ export function VoiceAssistantSheet(props: Props) {
 
 function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstead, onReport }: Props) {
   const voice = useVoiceAssistant(position);
+  const usage = useUsage();
   const listening = voice.phase === 'recording';
   // SIRA says how to use it as soon as it opens (touching the microphone cuts it short).
   useEffect(() => { void say(MIC_PROMPT, 'answer'); }, []);
   const thinking = voice.phase === 'thinking';
+  // A long wait is said, not hidden (the CPU server can take several seconds).
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!thinking) return;
+    const timer = setTimeout(() => setSlow(true), 8000);
+    return () => { clearTimeout(timer); setSlow(false); };
+  }, [thinking, voice.phase]);
   const reply = voice.reply;
 
   // The microphone pulses while SIRA listens.
@@ -104,9 +113,11 @@ function Sheet({ onClose, position, onShowJourneys, onStartJourney, onTypeInstea
   // Web page in plain http (phone on the Wi-Fi): the browser gives no microphone.
   // Said at once, with a way to write the destination instead.
   const noMic = needsSecureContext();
+  const micOff = !usage.microphone;
   const hint = noMic && !reply && !thinking ? 'Micro indisponible sans HTTPS : écris ta destination ou touche un exemple'
+    : micOff && !reply && !thinking ? 'Micro coupé dans SIRA : écris ta destination ou touche un exemple'
     : listening ? "Je t'écoute… j'envoie dès que tu te tais"
-    : thinking ? 'SIRA réfléchit…'
+    : thinking ? `SIRA réfléchit…${slow ? ' Encore un instant.' : ''}`
     : counting !== null ? `On y va ! Départ dans ${counting} s`
     : voice.awaitingAnswer ? 'Réponds, je t’écoute'
     : 'Touche le micro et dis où tu vas';

@@ -187,7 +187,7 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 <View style={styles.iconCircleBadge}>
                   <Ionicons name="warning" size={18} color="#F26522" />
                 </View>
-                <Text style={styles.menuItemText}>Signaler un évènement</Text>
+                <Text style={styles.menuItemText}>Signaler un événement</Text>
               </TouchableOpacity>
 
               <View style={styles.divider} />

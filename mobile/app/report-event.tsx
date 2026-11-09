@@ -49,7 +49,7 @@ const CATEGORIES: EventCategory[] = [
   { id: 'inondation', title: 'Inondation', iconName: 'water', iconFamily: 'Ionicons' },
   { id: 'route_degradee', title: 'Route\ndégradée', iconName: 'warning', iconFamily: 'Ionicons' },
   { id: 'vehicule_panne', title: 'Véhicule\nen panne', iconName: 'tools', iconFamily: 'FontAwesome5' },
-  { id: 'autre', title: 'Autre évènement', iconName: 'ellipsis-horizontal', iconFamily: 'Ionicons' },
+  { id: 'autre', title: 'Autre événement', iconName: 'ellipsis-horizontal', iconFamily: 'Ionicons' },
 ];
 
 // SIRA's orange for every kind: the icon and the name tell them apart (white, black and orange only).
@@ -144,7 +144,7 @@ export default function ReportEventScreen() {
             <Ionicons name="arrow-back" size={24} color="#000000" />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Signaler un évènement</Text>
+          <Text style={styles.headerTitle}>Signaler un événement</Text>
 
           <TouchableOpacity
             style={styles.headerIconButton}
@@ -195,11 +195,11 @@ export default function ReportEventScreen() {
           <View style={styles.headingSection}>
             <Text style={styles.mainHeading}>Que se passe-t-il ?</Text>
             <Text style={styles.subHeading}>
-              Choisis le type d’évènement que tu veux signaler.
+              Choisis le type d’événement que tu veux signaler.
             </Text>
           </View>
 
-          {/* Six kinds in three columns, then « Autre évènement » across the width. */}
+          {/* Six kinds in three columns, then « Autre événement » across the width. */}
           <View style={styles.gridContainer}>
             {CATEGORIES.map((category, index) => card(category, index + 1))}
           </View>
