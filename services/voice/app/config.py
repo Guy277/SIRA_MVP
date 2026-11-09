@@ -110,6 +110,11 @@ LLM_URL = os.environ.get("VOICE_LLM_URL", "").strip()
 # ~7 s par réponse sur le PC de dev sans GPU (mesuré le 2026-10-24) ; au-delà, les règles reprennent la main.
 LLM_TIMEOUT_S = max(1.0, _float("VOICE_LLM_TIMEOUT_S", 20.0))
 
+# Compagnon (« Discuter avec SIRA », companion.py). La rédaction libre par le LLM est coupée par défaut : mesurée le
+# 2026-11-09 à 35-110 s et avec des inventions (docs/assistant-compagnon.md). À activer sur une machine avec GPU.
+COMPANION_COMPOSE = os.environ.get("VOICE_COMPANION_COMPOSE", "false").strip().lower() in ("1", "true", "oui")
+COMPANION_TIMEOUT_S = max(1.0, _float("VOICE_COMPANION_TIMEOUT_S", 30.0))
+
 # Compléments du répertoire de lieux (dans Git) : lieux ajoutés, coordonnées manquantes, variantes d'orthographe et
 # commune exacte de chaque lieu (scripts/corriger_lieux.py). Appliqués au chargement par PlaceResolver.
 LIEUX_COMPLEMENTS = _path("VOICE_LIEUX_COMPLEMENTS", KNOWLEDGE_DIR / "lieux_complements.json")

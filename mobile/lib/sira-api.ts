@@ -106,7 +106,9 @@ export function apiBaseUrl() {
   return `http://${devHost ?? 'localhost'}:4000/api/v1`;
 }
 
-export class SiraApiError extends Error {}
+export class SiraApiError extends Error {
+  constructor(message: string, readonly status?: number) { super(message); }
+}
 
 // In development (phone on the PC's Wi-Fi, browser or Expo Go), the address called and the
 // phone's own reason help to find what blocks: PC off, other Wi-Fi, firewall, upload refused.
@@ -252,6 +254,12 @@ export type VoiceReply = {
   chosen_id?: string | null;
   // Where the answer comes from: a FAQ entry (« modes.gbaka »), « sira-more », « signalements »…
   sources?: string[];
+  // « Discuter avec SIRA » (/voice/chat) : sources shown under the answer, buttons and follow-ups decided by
+  // SIRA's rules from the data, never by the LLM (services/voice/app/companion.py).
+  facts_sources?: string[];
+  actions?: { id: 'voir_trajets' | 'signaler'; label: string }[];
+  suggestions?: string[];
+  companion?: { composed: boolean; seconds: number | null; rejected: string | null; emotion: string | null };
 };
 // The recording: a Blob on the web, an expo-file-system File on the phone. Expo's fetch
 // (SDK 57) sends a File part by reading its bytes; it refuses React Native's old
@@ -303,7 +311,7 @@ async function voiceRequest<T = VoiceReply>(path: string, init: RequestInit): Pr
       if (typeof payload.detail === 'string') message = payload.detail;
       else if (typeof payload.message === 'string') message = payload.message;
     } catch { /* réponse non JSON */ }
-    throw new SiraApiError(message);
+    throw new SiraApiError(message, response.status);
   }
   return response.json() as Promise<T>;
 }
@@ -331,6 +339,86 @@ export function askByVoice(audio: VoiceAudio, position: Coordinates | null, cont
   if (places.length) form.append('places', JSON.stringify(places));
   form.append('speak', String(speak));
   return voiceRequest('/voice/query', { method: 'POST', body: form });
+}
+
+// What SIRA heard, alone and at once: « Discuter avec SIRA » shows it while the answer is prepared (/voice/chat).
+export type VoiceTranscript = NonNullable<VoiceReply['transcript']>;
+export function hearVoice(audio: VoiceAudio, position: Coordinates | null, places: VoicePlace[] = []) {
+  const form = new FormData();
+  appendAudio(form, audio);
+  if (position) {
+    form.append('lat', String(position.latitude));
+    form.append('lon', String(position.longitude));
+  }
+  if (places.length) form.append('places', JSON.stringify(places));
+  return voiceRequest<{ transcript: VoiceTranscript }>('/voice/hear', { method: 'POST', body: form });
+}
+
+// « Discuter avec SIRA » : the message with the last exchanges (kept by the app, never by the server).
+// Each step SIRA really runs (« trajets », « signalements »…) reaches onStep as it happens when the platform can
+// read the answer as it comes (web); otherwise the whole answer arrives at the end, steps included.
+export type ChatTurn = { from: 'me' | 'sira'; text: string };
+export type CompanionStep = 'comprendre' | 'trajets' | 'signalements' | 'faq' | 'llm' | 'rediger';
+export async function chatWithSira(input: {
+  text: string; history: ChatTurn[]; position: Coordinates | null; context: VoiceContext; trip: VoiceTrip | null;
+  places: VoicePlace[]; speak: boolean; spoken: boolean;
+}, onStep?: (step: CompanionStep) => void): Promise<VoiceReply> {
+  const body = JSON.stringify({
+    text: input.text, history: input.history.slice(-12),
+    position: input.position ? { lat: input.position.latitude, lon: input.position.longitude } : null,
+    context: input.context, trip: input.trip, places: input.places, speak: input.speak, spoken: input.spoken,
+  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120_000);
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl()}/voice/chat?stream=true`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: controller.signal,
+    });
+  } catch (error) {
+    clearTimeout(timer);
+    if (error instanceof Error && error.name === 'AbortError') throw new SiraApiError('SIRA met trop de temps à répondre. Réessaie.');
+    throw new SiraApiError(unreachable('Assistant vocal', error));
+  }
+  try {
+    if (!response.ok) {
+      let message = 'Assistant vocal indisponible pour le moment.';
+      try {
+        const payload = await response.json() as { detail?: unknown; message?: unknown };
+        if (typeof payload.detail === 'string') message = payload.detail;
+        else if (typeof payload.message === 'string') message = payload.message;
+      } catch { /* réponse non JSON */ }
+      throw new SiraApiError(message, response.status);
+    }
+    let final: VoiceReply | null = null;
+    const handle = (line: string) => {
+      if (!line.trim()) return;
+      const event = JSON.parse(line) as { type: string; step?: CompanionStep; payload?: VoiceReply; message?: string };
+      if (event.type === 'step' && event.step) onStep?.(event.step);
+      else if (event.type === 'final' && event.payload) final = event.payload;
+      else if (event.type === 'error') throw new SiraApiError(event.message ?? 'SIRA n’arrive pas à répondre pour le moment.');
+    };
+    const reader = (response.body as ReadableStream<Uint8Array> | null | undefined)?.getReader?.();
+    if (reader) {
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        lines.forEach(handle);
+      }
+      handle(buffer);
+    } else {
+      (await response.text()).split('\n').forEach(handle);
+    }
+    if (!final) throw new SiraApiError('SIRA n’arrive pas à répondre pour le moment.');
+    return final;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Same assistant from typed text (examples, no microphone).

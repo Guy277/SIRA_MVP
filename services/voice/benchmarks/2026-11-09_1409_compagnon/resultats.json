@@ -1,0 +1,1177 @@
+[
+  {
+    "famille": "trajet",
+    "conversation": "Plateau",
+    "tour": 1,
+    "message": "je vais au Plateau",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 19.1,
+    "reponse": "Je te conseille pour aller à Plateau : le taxi. Environ 3900 francs, 44 minutes, sans marche. Il y a 1 autre option sur l'écran. Aucun incident signalé vers Plateau pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Plateau ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "trajet",
+    "conversation": "Cocody",
+    "tour": 1,
+    "message": "je veux aller à Cocody",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 7.5,
+    "reponse": "Je te conseille pour aller à Cocody : le taxi. Environ 3800 francs, 48 minutes, sans marche. Il y a 3 autres options sur l'écran. Aucun incident signalé vers Cocody pour le moment. Je te montre les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Cocody ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "trajet",
+    "conversation": "Abobo → Treichville",
+    "tour": 1,
+    "message": "je quitte Abobo, je vais à Treichville",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 10.0,
+    "reponse": "Je te conseille pour aller à Treichville : le taxi. Environ 3700 francs, 37 minutes, sans marche. Il y a 2 autres options sur l'écran. Aucun incident signalé vers Treichville pour le moment. Je te montre les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Treichville ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "trajet",
+    "conversation": "Prix Yopougon",
+    "tour": 1,
+    "message": "c'est combien pour aller à Yopougon ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 4.8,
+    "reponse": "Pour aller à Yopougon : environ 4100 francs, avec le taxi. Aucun incident signalé vers Yopougon pour le moment. Je te montre les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Yopougon ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "trajet",
+    "conversation": "Rapide Marcory",
+    "tour": 1,
+    "message": "le plus rapide pour aller à Marcory",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 10.9,
+    "reponse": "Le plus rapide pour aller à Marcory : le taxi. Environ 5400 francs, 50 minutes, sans marche. Il y a 3 autres options sur l'écran. Aucun incident signalé vers Marcory pour le moment. Tu veux voir les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Ça bouche vers Marcory ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "jour",
+    "conversation": "Adjamé demain 8 h",
+    "tour": 1,
+    "message": "je veux aller à Adjamé demain à 8 h",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 4.5,
+    "reponse": "Je te conseille pour aller à Adjamé : le taxi. Environ 2800 francs, 38 minutes, sans marche. Il y a 2 autres options sur l'écran. Aucun incident signalé vers Adjamé pour le moment. Je te montre les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Adjamé ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "jour",
+    "conversation": "Plateau demain 7 h 30 le moins cher",
+    "tour": 1,
+    "message": "le moins cher pour aller au Plateau demain à 7 h 30",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 4.7,
+    "reponse": "Le moins cher pour aller à Plateau : le bus SOTRA 203. Environ 200 francs, 76 minutes, dont 16 minutes à pied. Prends le bus SOTRA 203, ligne Gare Sud – Gare Abobo. Il y a 1 autre option sur l'écran. Aucun incident signalé vers Plateau pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le plus rapide ?",
+      "Ça bouche vers Plateau ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "jour",
+    "conversation": "Yopougon demain 10 h",
+    "tour": 1,
+    "message": "je vais à Yopougon demain à 10 h",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 4.5,
+    "reponse": "Je te conseille pour aller à Yopougon : le taxi. Environ 4100 francs, 47 minutes, sans marche. Il y a 2 autres options sur l'écran. Aucun incident signalé vers Yopougon pour le moment. Tu veux voir les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Yopougon ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "suite",
+    "conversation": "Plateau puis le moins cher",
+    "tour": 1,
+    "message": "je vais au Plateau",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 4.2,
+    "reponse": "Je te conseille pour aller à Plateau : le taxi. Environ 3900 francs, 44 minutes, sans marche. Il y a 1 autre option sur l'écran. Aucun incident signalé vers Plateau pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Plateau ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "suite",
+    "conversation": "Plateau puis le moins cher",
+    "tour": 2,
+    "message": "et le moins cher ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 3.9,
+    "reponse": "Le moins cher pour aller à Plateau : le bus SOTRA 203. Environ 200 francs, 76 minutes, dont 16 minutes à pied. Prends le bus SOTRA 203, ligne Gare Sud – Gare Abobo. Il y a 1 autre option sur l'écran. Aucun incident signalé vers Plateau pour le moment. Je te montre les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le plus rapide ?",
+      "Ça bouche vers Plateau ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "suite",
+    "conversation": "Cocody puis le plus rapide",
+    "tour": 1,
+    "message": "je veux aller à Cocody",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 5.3,
+    "reponse": "Je te conseille pour aller à Cocody : le taxi. Environ 3800 francs, 48 minutes, sans marche. Il y a 3 autres options sur l'écran. Aucun incident signalé vers Cocody pour le moment. Je te montre les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Cocody ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "suite",
+    "conversation": "Cocody puis le plus rapide",
+    "tour": 2,
+    "message": "et le plus rapide ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 5.0,
+    "reponse": "Le plus rapide pour aller à Cocody : le taxi. Environ 3800 francs, 48 minutes, sans marche. Il y a 3 autres options sur l'écran. Aucun incident signalé vers Cocody pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Ça bouche vers Cocody ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "suite",
+    "conversation": "Yopougon puis bouchons",
+    "tour": 1,
+    "message": "je vais à Yopougon",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 5.5,
+    "reponse": "Je te conseille pour aller à Yopougon : le taxi. Environ 4100 francs, 47 minutes, sans marche. Il y a 2 autres options sur l'écran. Aucun incident signalé vers Yopougon pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Yopougon ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "suite",
+    "conversation": "Yopougon puis bouchons",
+    "tour": 2,
+    "message": "ça bouche vers Yopougon ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.7,
+    "reponse": "Aucun incident signalé vers Yopougon pour le moment.",
+    "type": "info",
+    "sources": [
+      "Signalements des voyageurs"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "emotion",
+    "conversation": "Fatigué → Cocody",
+    "tour": 1,
+    "message": "je suis fatigué, je vais à Cocody",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 6.6,
+    "reponse": "Je vois, tu es fatigué : on va faire simple. Le plus rapide pour aller à Cocody : le taxi. Environ 3800 francs, 48 minutes, sans marche. Il y a 3 autres options sur l'écran. Aucun incident signalé vers Cocody pour le moment. Je te montre les trajets ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Ça bouche vers Cocody ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": "fatigue"
+    }
+  },
+  {
+    "famille": "emotion",
+    "conversation": "Retard entretien Plateau",
+    "tour": 1,
+    "message": "je suis en retard pour mon entretien au Plateau",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 5.4,
+    "reponse": "Je comprends, chaque minute compte. Le plus rapide pour aller à Plateau : le taxi. Environ 3900 francs, 44 minutes, sans marche. Il y a 1 autre option sur l'écran. Aucun incident signalé vers Plateau pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Ça bouche vers Plateau ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": "retard"
+    }
+  },
+  {
+    "famille": "emotion",
+    "conversation": "Peur de se perdre → Marcory",
+    "tour": 1,
+    "message": "j'ai peur de me perdre, je vais à Marcory",
+    "ok": false,
+    "problems": [
+      "type info au lieu de journeys",
+      "aucune source citée"
+    ],
+    "invented": [],
+    "seconds": 14.7,
+    "reponse": "Ne t'en fais pas, je t'accompagne. Je vais vérifier les options de transport pour t'aider à te déplacer vers Marcory en toute sécurité. Où es-tu en ce moment ?",
+    "type": "info",
+    "sources": [],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": "peur"
+    }
+  },
+  {
+    "famille": "confidence",
+    "conversation": "Perdu",
+    "tour": 1,
+    "message": "je suis perdu",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.3,
+    "reponse": "Ce n'est pas grave, je pars de ta position. Dis-moi où tu veux aller et je te guide jusqu'au bout.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": "perdu"
+    }
+  },
+  {
+    "famille": "confidence",
+    "conversation": "Stressé",
+    "tour": 1,
+    "message": "je suis stressé",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.1,
+    "reponse": "Respire, je suis là. Dis-moi où tu vas : je te guide étape par étape et je te préviens avant de descendre.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": "peur"
+    }
+  },
+  {
+    "famille": "confidence",
+    "conversation": "En retard",
+    "tour": 1,
+    "message": "je suis en retard",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.2,
+    "reponse": "Pas de panique. Dis-moi où tu vas : je te donne le trajet le plus rapide et je regarde les bouchons signalés sur la route.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": "retard"
+    }
+  },
+  {
+    "famille": "confidence",
+    "conversation": "Tard ce soir",
+    "tour": 1,
+    "message": "je rentre tard ce soir",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.3,
+    "reponse": "Le soir, quand les bus, gbakas et wôrô-wôrô ne roulent plus, je te propose le taxi. Tu peux partager ton trajet avec un proche depuis le détail du trajet, avec le bouton Partager.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "confidence",
+    "conversation": "Fatigué",
+    "tour": 1,
+    "message": "je suis fatigué",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.5,
+    "reponse": "Je comprends, repose-toi un peu. Dis-moi où tu vas : je te montre combien de minutes à pied compte chaque trajet, et le taxi si tu préfères ne pas marcher.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": "fatigue"
+    }
+  },
+  {
+    "famille": "faq",
+    "conversation": "Coulé Debout Suspendu",
+    "tour": 1,
+    "message": "c'est quoi Coulé, Debout, Suspendu ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.3,
+    "reponse": "SIRA range les trajets en trois catégories : Coulé, le moins cher ; Debout, le juste milieu entre prix et confort ; Suspendu, le plus confortable. Choisis celle qui te va avant de voir les trajets. Je peux t'aider pour un trajet ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "Différence entre gbaka et wôrô ?",
+      "Comment signaler un accident ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "faq",
+    "conversation": "Gbaka et wôrô",
+    "tour": 1,
+    "message": "différence entre gbaka et wôrô ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.2,
+    "reponse": "Le gbaka est un minibus qui relie souvent les communes entre elles, sur des lignes fixes. Le wôrô-wôrô est un taxi partagé à plusieurs, qui roule plutôt à l'intérieur d'une commune. Tu veux que je te trouve un trajet ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Comment signaler un accident ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "faq",
+    "conversation": "Signaler un accident",
+    "tour": 1,
+    "message": "comment signaler un accident ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.2,
+    "reponse": "Touche l'onglet Alertes en bas de l'écran, choisis le type d'incident puis confirme l'endroit. Tu peux aussi me dire « il y a un accident à Adjamé » et je prépare le signalement pour toi. Tu veux que je te trouve un trajet ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "faq",
+    "conversation": "Voix gardée",
+    "tour": 1,
+    "message": "tu gardes ma voix ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.4,
+    "reponse": "Non : ta voix sert seulement à comprendre ta demande, puis elle est effacée tout de suite. Aucun enregistrement n'est gardé, ni sur ton téléphone ni sur nos serveurs. Je peux t'aider pour un trajet ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "faq",
+    "conversation": "Bateau-bus Treichville",
+    "tour": 1,
+    "message": "le bateau-bus part d'où à Treichville ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.2,
+    "reponse": "D'après OpenStreetMap, la gare lagunaire de Treichville a des bateaux-bus vers Yopougon (Abobo Doumé et Azito), Koumassi et Blockauss. Demande-moi un trajet et je te dis lequel prendre. Tu veux que je te trouve un trajet ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "faq",
+    "conversation": "Coulé en nouchi",
+    "tour": 1,
+    "message": "le coulé là c'est quoi",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.2,
+    "reponse": "Coulé, c'est la catégorie des trajets les moins chers. Tu dépenses peu, mais le trajet peut être plus long ou demander plus de marche. Tu veux que je te trouve un trajet ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "urgence",
+    "conversation": "Accident grave avec blessé",
+    "tour": 1,
+    "message": "il y a un accident grave à Adjamé, quelqu'un est blessé",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.3,
+    "reponse": "Si quelqu'un est en danger, appelle tout de suite les secours : police 110, 111 ou 170, pompiers 180, ambulance 185. Ensuite, si tu peux, signale l'incident dans SIRA pour prévenir les autres voyageurs.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [
+      "Signaler"
+    ],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "urgence",
+    "conversation": "Agression",
+    "tour": 1,
+    "message": "au secours on m'a agressé",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.5,
+    "reponse": "Si quelqu'un est en danger, appelle tout de suite les secours : police 110, 111 ou 170, pompiers 180, ambulance 185. Ensuite, si tu peux, signale l'incident dans SIRA pour prévenir les autres voyageurs.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [
+      "Signaler"
+    ],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "urgence",
+    "conversation": "Numéro des pompiers",
+    "tour": 1,
+    "message": "quel est le numéro des pompiers ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.5,
+    "reponse": "Si quelqu'un est en danger, appelle tout de suite les secours : police 110, 111 ou 170, pompiers 180, ambulance 185. Ensuite, si tu peux, signale l'incident dans SIRA pour prévenir les autres voyageurs.",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "signalement",
+    "conversation": "Accident à Adjamé",
+    "tour": 1,
+    "message": "il y a un accident à Adjamé",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.4,
+    "reponse": "Merci. Je prépare le signalement « un accident » vers Adjamé. Confirme-le sur l'écran pour prévenir les autres voyageurs.",
+    "type": "info",
+    "sources": [],
+    "boutons": [
+      "Signaler"
+    ],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "signalement",
+    "conversation": "Ça bouche à Adjamé ?",
+    "tour": 1,
+    "message": "ça bouche à Adjamé ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.2,
+    "reponse": "Aucun incident signalé vers Adjamé pour le moment.",
+    "type": "info",
+    "sources": [
+      "Signalements des voyageurs"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "hors-sujet",
+    "conversation": "CAN",
+    "tour": 1,
+    "message": "qui va gagner la CAN cette année ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 13.7,
+    "reponse": "Je ne m'occupe que des trajets à Abidjan, alors je ne peux pas te répondre sur la CAN. Dis-moi plutôt où tu veux te rendre ou comment te déplacer !",
+    "type": "info",
+    "sources": [],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "hors-sujet",
+    "conversation": "Recette attiéké",
+    "tour": 1,
+    "message": "donne-moi la recette de l'attiéké",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 12.0,
+    "reponse": "Je ne peux pas te donner une recette, je suis là pour t'aider avec la mobilité à Abidjan. Si tu veux des conseils pour te déplacer, dis-moi où tu veux aller !",
+    "type": "info",
+    "sources": [],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "hors-sujet",
+    "conversation": "Blague",
+    "tour": 1,
+    "message": "raconte-moi une blague",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 12.5,
+    "reponse": "Je suis là pour t’aider avec les trajets à Abidjan, pas pour les blagues ! Mais si tu veux un conseil ou une info sur les gbaka, wôrô-wôrô ou autre, je suis prêt.",
+    "type": "info",
+    "sources": [],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "hors-sujet",
+    "conversation": "Météo",
+    "tour": 1,
+    "message": "quel temps il fait demain ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 11.0,
+    "reponse": "Je ne peux pas te donner la météo. Je suis là pour t'aider avec les trajets à Abidjan. Si tu veux savoir si tu peux partir demain, dis-le-moi !",
+    "type": "info",
+    "sources": [],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "echange",
+    "conversation": "Bonjour",
+    "tour": 1,
+    "message": "bonjour",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.2,
+    "reponse": "Bonjour ! Dis-moi où tu veux aller, ou pose-moi une question sur les transports d'Abidjan. Tu vas où aujourd'hui ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "echange",
+    "conversation": "Merci",
+    "tour": 1,
+    "message": "merci",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.1,
+    "reponse": "Avec plaisir ! Bonne route. Tu veux que je te trouve un trajet ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "echange",
+    "conversation": "Ça va",
+    "tour": 1,
+    "message": "ça va ?",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 2.1,
+    "reponse": "Ça va bien, merci ! On va où aujourd'hui ?",
+    "type": "info",
+    "sources": [
+      "FAQ de SIRA"
+    ],
+    "boutons": [],
+    "relances": [
+      "Je veux aller au Plateau",
+      "C'est quoi Coulé, Debout, Suspendu ?",
+      "Différence entre gbaka et wôrô ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "ambigu",
+    "conversation": "C'est où ? Koumassi",
+    "tour": 1,
+    "message": "C'est où ? C'est à Koumassi.",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 19.9,
+    "reponse": "Le plus rapide pour aller à Koumassi : le taxi. Environ 5900 francs, 57 minutes, sans marche. Il y a 2 autres options sur l'écran. Aucun incident signalé vers Koumassi pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Ça bouche vers Koumassi ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  },
+  {
+    "famille": "ambigu",
+    "conversation": "Juste un quartier",
+    "tour": 1,
+    "message": "Koumassi",
+    "ok": true,
+    "problems": [],
+    "invented": [],
+    "seconds": 11.3,
+    "reponse": "Je te conseille pour aller à Koumassi : le taxi. Environ 5900 francs, 57 minutes, sans marche. Il y a 2 autres options sur l'écran. Aucun incident signalé vers Koumassi pour le moment. On regarde les options ensemble ?",
+    "type": "journeys",
+    "sources": [
+      "Calcul SIRA-MORE",
+      "Signalements des voyageurs"
+    ],
+    "boutons": [
+      "Voir les trajets"
+    ],
+    "relances": [
+      "Et le moins cher ?",
+      "Et le plus rapide ?",
+      "Ça bouche vers Koumassi ?"
+    ],
+    "compagnon": {
+      "composed": false,
+      "seconds": null,
+      "rejected": null,
+      "emotion": null
+    }
+  }
+]

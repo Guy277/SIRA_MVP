@@ -5,6 +5,7 @@ Voix → Silero VAD + Whisper → CamemBERTv2 (intent + entités) → correcteur
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -17,10 +18,11 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import config
+from .companion import Companion
 from .dialog import FIXED_REPLIES, NOTHING_HEARD, VoiceDialog
 from .knowledge import KnowledgeBase
 from .llm import LocalLLM
@@ -49,6 +51,12 @@ class TextRequest(BaseModel):
     speak: bool = False
 
 
+class ChatRequest(TextRequest):
+    """« Discuter avec SIRA » : le message, les derniers échanges (l'application les garde, pas le serveur)."""
+    history: list[dict[str, Any]] = Field(default_factory=list, max_length=12)
+    spoken: bool = False  # message dit puis transcrit (/voice/hear) : « répète plus fort » plutôt que « reformule »
+
+
 class TtsRequest(BaseModel):
     text: str = Field(min_length=1, max_length=600)
 
@@ -75,6 +83,7 @@ def build_state(app: FastAPI, nlu=None, planner=None, live=None):
     state.dialog = VoiceDialog(nlu, state.resolver, config.PLACE_THRESHOLD, config.PLACE_MARGIN,
                                config.INTENT_MIN_CONFIDENCE, plan, state.knowledge, trips, config.FAQ_THRESHOLD,
                                llm=state.llm) if nlu else None
+    state.companion = Companion(state.dialog, state.llm, config.COMPANION_COMPOSE, config.COMPANION_TIMEOUT_S) if state.dialog else None
     state.asr = Transcriber(config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE,
                             state.resolver.place_names(kinds=("commune",)), config.MAX_AUDIO_SECONDS, config.WHISPER_BEAM,
                             config.WHISPER_TEMPERATURE, config.WHISPER_TOKENS_PER_S)
@@ -210,6 +219,70 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
         payload = await run_in_threadpool(dialog().ask, request.text, position, request.context, request.trip, request.places,
                                           True)
         return await run_in_threadpool(with_audio, payload, request.speak)
+
+    # Ce que SIRA a entendu, seul et tout de suite : « Discuter avec SIRA » l'affiche pendant qu'il prépare sa
+    # réponse (/voice/chat, plusieurs secondes). Même écoute que /voice/query. Le micro de l'accueil garde
+    # /voice/query, en un seul appel (mesuré le 2026-11-08 : deux appels y retardaient la réponse).
+    @app.post("/voice/hear")
+    async def hear_only(audio: UploadFile = File(...), lat: float | None = Form(None), lon: float | None = Form(None),
+                        places: str | None = Form(None)):
+        data = await audio.read(config.MAX_AUDIO_BYTES + 1)
+        if len(data) > config.MAX_AUDIO_BYTES:
+            raise HTTPException(413, detail="Audio trop volumineux.")
+        if not data:
+            raise HTTPException(400, detail="Audio vide.")
+        position = {"lat": lat, "lon": lon} if lat is not None and lon is not None else None
+        heard_places = ctx_raw_passthrough(places)
+        unsure = (lambda text: dialog().needs_better_hearing(text, position, heard_places)) if app.state.dialog else (lambda text: False)
+        try:
+            transcript = await run_in_threadpool(hear, app.state, data, unsure)
+        except SpeechUnavailable as error:
+            raise HTTPException(503, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(400, detail=str(error)) from error
+        except Exception as error:
+            log.exception("Transcription impossible")
+            raise HTTPException(400, detail="Audio illisible (formats acceptés : webm, ogg, m4a, mp3, wav).") from error
+        del data  # jamais conservé
+        return {"transcript": transcript}
+
+    # « Discuter avec SIRA » (companion.py, docs/assistant-compagnon.md). stream=true : une ligne JSON par étape
+    # réellement lancée (« trajets », « signalements »…), puis la réponse ; sinon la réponse seule.
+    @app.post("/voice/chat")
+    async def chat(request: ChatRequest, stream: bool = False):
+        if app.state.companion is None:
+            dialog()  # 503 avec la raison
+        position = request.position.model_dump() if request.position else None
+
+        def run(on_step=None) -> dict:
+            payload = app.state.companion.chat(request.text, request.history, position, request.context, request.trip,
+                                               request.places, request.spoken, on_step)
+            return with_audio(payload, request.speak)
+
+        if not stream:
+            return await run_in_threadpool(run)
+        loop = asyncio.get_running_loop()
+        steps: asyncio.Queue = asyncio.Queue()
+
+        async def events():
+            on_step = lambda name: loop.call_soon_threadsafe(steps.put_nowait, name)  # noqa: E731
+            task = asyncio.ensure_future(run_in_threadpool(run, on_step))
+            while not task.done() or not steps.empty():
+                try:
+                    name = await asyncio.wait_for(steps.get(), timeout=0.2)
+                except asyncio.TimeoutError:
+                    continue
+                yield json.dumps({"type": "step", "step": name}) + "\n"
+            try:
+                yield json.dumps({"type": "final", "payload": task.result()}) + "\n"
+            except HTTPException as error:
+                yield json.dumps({"type": "error", "message": str(error.detail)}) + "\n"
+            except Exception:
+                log.exception("Réponse du compagnon impossible")
+                yield json.dumps({"type": "error", "message": "SIRA n'arrive pas à répondre pour le moment."}) + "\n"
+
+        # X-Accel-Buffering : Nginx (serveur AWS) transmet chaque ligne aussitôt au lieu d'attendre la fin.
+        return StreamingResponse(events(), media_type="application/x-ndjson", headers={"X-Accel-Buffering": "no"})
 
     @app.post("/voice/query")
     async def query(audio: UploadFile = File(...), lat: float | None = Form(None), lon: float | None = Form(None),

@@ -431,6 +431,60 @@ class LLMLocalTest(unittest.TestCase):
         self.assertEqual(reply["reply_text"], dialog_module.NO_INFO)
         self.assertIn("llm", reply["sources"])
 
+    class PartNLU:
+        """CamemBERT qui ne retient qu'un bout de mot comme lieu (« plato » dans « platoké »)."""
+        def predict(self, text):
+            start = text.lower().index("plato")
+            return "navigate_to", 0.55, [{"label": "DESTINATION", "start": start, "end": start + 5, "text": text[start:start + 5], "score": 0.9}]
+
+    def test_bout_de_mot_pas_un_lieu_sur(self):
+        # Vu le 2026-11-09 : « Donne-moi la recette de l'attiéké » → trajet vers Attié (« atti » pris pour le lieu).
+        planner = Planner()
+        d, llm = self.dialog(self.PartNLU(), {"tool": None, "text": "Je m'occupe seulement de tes trajets à Abidjan."}, planner)
+        reply = d.ask("donne-moi la recette du platoké", POSITION)
+        self.assertEqual((len(llm.calls), planner.calls), (1, []))
+        self.assertEqual(reply["reply_text"], "Je m'occupe seulement de tes trajets à Abidjan.")
+        d, _ = self.dialog(self.PartNLU(), None, planner)  # LLM absent : SIRA demande au lieu de partir
+        reply = d.ask("donne-moi la recette du platoké", POSITION)
+        self.assertEqual((planner.calls, reply["kind"]), ([], "question"))
+        self.assertIn("Plateau", reply["reply_text"])
+        # Le lieu dit en entier reste sûr : trajet direct, sans LLM.
+        d, llm = self.dialog(self.PartNLU(), {"tool": None, "text": "?"}, planner)
+        self.assertEqual((d.ask("je vais au plato", POSITION)["kind"], llm.calls), ("journeys", []))
+
+    def test_lieu_peu_sur_passe_par_le_llm(self):
+        # Vu le 2026-11-09 : « Qui va gagner la CAN cette année ? » → « Tu veux dire Auchan ? ».
+        from services.voice.app.dialog import Understanding
+        d, _ = self.dialog(FakeNLU(), None)
+        u = Understanding(text="qui va gagner la CAN", intent="ask_mode", intent_confidence=0.6, entities=[])
+        u.reasons.append("low_place_confidence")
+        self.assertTrue(d._wants_llm(u))
+
+    class LooseKnowledge:
+        """Une fiche qui ressemble de loin (0,70) ou exactement (1,0) à la phrase."""
+        def search(self, text, k=4):
+            from services.voice.app.knowledge import Hit, Passage
+            passage = Passage("reseau.bateau-koumassi", ["le bateau-bus part d'où à koumassi"], "Un bateau-bus relie Koumassi à Treichville.")
+            return [Hit(passage, 1.0 if "bateau" in text.lower() else 0.70)]
+
+    def test_faq_de_loin_et_camembert_hesitant_le_llm_juge(self):
+        # Vu le 2026-11-09 : « C'est où ? C'est à Koumassi. » → la fiche du bateau-bus (FAQ à 0,70, intention à 0,62).
+        d, llm = self.dialog(self.NLU("ask_nearby_landmark", 0.62), {"tool": None, "text": "Tu cherches un trajet vers Koumassi ?"})
+        d.knowledge = self.LooseKnowledge()
+        reply = d.ask("c'est où ? c'est à koumassi", POSITION)
+        self.assertEqual((len(llm.calls), reply["reply_text"]), (1, "Tu cherches un trajet vers Koumassi ?"))
+        d, llm = self.dialog(self.NLU("ask_nearby_landmark", 0.62), None)  # LLM absent ou trop lent : la fiche, comme avant
+        d.knowledge = self.LooseKnowledge()
+        self.assertEqual(d.ask("c'est où ? c'est à koumassi", POSITION)["reply_text"], "Un bateau-bus relie Koumassi à Treichville.")
+        self.assertEqual(len(llm.calls), 1)  # appelé une seule fois, pas deux
+
+    def test_vraie_question_de_la_faq_sans_attendre_le_llm(self):
+        # Fiche exacte (1,0), même si CamemBERT hésite : réponse tout de suite.
+        d, llm = self.dialog(self.NLU("find_stop", 0.4), {"tool": None, "text": "?"})
+        d.knowledge = self.LooseKnowledge()
+        self.assertEqual(d.ask("le bateau-bus part d'où à koumassi", POSITION)["reply_text"], "Un bateau-bus relie Koumassi à Treichville.")
+        self.assertEqual(llm.calls, [])
+
     def test_vraie_question_de_trafic_sans_llm(self):
         # Sûr de lui, sans lieu : la réponse rapide des règles, sans attendre le LLM.
         d, llm = self.dialog(self.NLU("traffic_status", 0.9), {"tool": "chercher_info", "args": {}})

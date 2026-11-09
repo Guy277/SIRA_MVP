@@ -10,6 +10,9 @@ type Request = AsyncIterable<Uint8Array> & {
 type Response = {
   status(code: number): Response;
   type(value: string): Response;
+  setHeader(name: string, value: string): void;
+  write(chunk: Uint8Array): boolean;
+  end(): void;
   send(body: string | Buffer): void;
   json(body: unknown): void;
 };
@@ -45,6 +48,16 @@ export class VoiceController {
     try {
       const upstream = await fetch(`${VOICE_URL}${path}`, init);
       const type = upstream.headers.get("content-type") ?? "application/json";
+      // « Discuter avec SIRA » en direct (/voice/chat?stream=true) : chaque ligne (une étape, puis la réponse)
+      // part vers l'application dès qu'elle arrive, au lieu d'attendre la fin.
+      if (type.startsWith("application/x-ndjson") && upstream.body) {
+        response.status(upstream.status).type(type);
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        for await (const chunk of upstream.body as unknown as AsyncIterable<Uint8Array>) response.write(chunk);
+        response.end();
+        return;
+      }
       const payload = type.startsWith("audio/") ? Buffer.from(await upstream.arrayBuffer()) : await upstream.text();
       response.status(upstream.status).type(type).send(payload);
     } catch {

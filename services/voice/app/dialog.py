@@ -66,6 +66,18 @@ UNSURE_HEARING = {"unresolvable_place", "ambiguous_place", "low_place_confidence
 # Lieux du voyageur (Maison, Travail…) de la question en cours. Le dialogue sert toutes les requêtes à la fois :
 # ils sont propres à chaque appel de ask(), jamais gardés sur l'objet.
 _PERSONAL: ContextVar[list[dict]] = ContextVar("personal_places", default=[])
+# Étapes réellement lancées (SIRA-MORE, signalements, FAQ, LLM) : le compagnon (companion.py) les montre au voyageur
+# pendant qu'il attend. Personne n'écoute : rien ne se passe.
+STEP_LISTENER: ContextVar[Callable[[str], None] | None] = ContextVar("step_listener", default=None)
+
+
+def step(name: str) -> None:
+    listener = STEP_LISTENER.get()
+    if listener is not None:
+        try:
+            listener(name)
+        except Exception:  # un affichage d'étape ne doit jamais casser la réponse
+            pass
 YES_NO = {"oui", "ok", "d accord", "ya foye", "yafoye", "non", "voila", "c est ca", "merci"}
 # FAQ (services/voice/knowledge) : une vraie demande de trajet (« je vais à Treichville en bateau-bus ») ne cède
 # la place qu'à une fiche presque identique à la phrase (« le bateau-bus part d'où à Treichville ? »).
@@ -78,7 +90,8 @@ TRIP_INTENT_MIN_CONFIDENCE = 0.8
 
 # LLM local (llm.py) : appelé seulement quand les règles ne savent pas répondre. Ses outils sont traduits ici vers
 # ce que SIRA sait déjà faire ; il ne fournit jamais lui-même un prix, une durée ou un arrêt.
-LLM_ROUTE_REASONS = {"low_intent_confidence", "unresolvable_place", "missing_destination"}
+# low_place_confidence : un lieu « à peu près » (« la CAN » → Auchan, vu le 2026-11-09) peut être une phrase hors sujet.
+LLM_ROUTE_REASONS = {"low_intent_confidence", "unresolvable_place", "missing_destination", "low_place_confidence"}
 LLM_PREFERENCES = {"rapide": "fast", "moins_cher": "cheap", "equilibre": "balanced", "peu_de_marche": "min_walking"}
 LLM_INTENT_BY_PREFERENCE = {"fast": "ask_fastest", "cheap": "ask_cheapest"}
 LLM_MODES = {"gbaka": "gbaka", "woro": "woro", "sotra": "sotra", "bateau": "boat", "taxi": "taxi"}
@@ -180,7 +193,12 @@ class VoiceDialog:
                 e["value"] = nz.departure_at(e["text"])
         for label, key in (("DESTINATION", "destination"), ("ORIGIN", "origin"), ("PLACE", "place")):
             if by_label.get(label):
-                info, reason = self._place(by_label[label][0], text)
+                entity = by_label[label][0]
+                info, reason = self._place(entity, text)
+                # « atti » dans « attiéké » : un bout de mot n'est pas un lieu sûr (vu le 2026-11-09 : « la recette de
+                # l'attiéké » partait en trajet vers Attié). On demande, ou le LLM juge si la phrase parle d'un trajet.
+                if reason is None and info.get("match") and _inside_word(text, entity):
+                    reason = info["reason"] = "low_place_confidence"
                 u.places[key] = info
                 if reason and (intent in ROUTE_INTENTS or key == "destination"):
                     u.reasons.append(reason)
@@ -319,6 +337,15 @@ class VoiceDialog:
                 return self._plan(u, fixed, prefix="D'accord. ")
             return self._reply(u, WHERE_TO, context={"pending_request": pending} if pending else None)
 
+        # CamemBERT hésite et la FAQ ne ressemble que de loin à la phrase : le LLM juge d'abord (vu le 2026-11-09 :
+        # « C'est où ? C'est à Koumassi. » → fiche du bateau-bus à 0,70). Il peut lui-même chercher la bonne fiche.
+        llm_tried = False
+        if self.llm is not None and self._loose_faq(u, text):
+            llm_tried = True
+            helped = self._llm_reply(u, text, position, trip)
+            if helped:
+                return helped
+
         # FAQ et questions sur le trajet en cours (« c'est quoi un gbaka ? », « je descends où ? »)
         answered = self._knowledge_reply(u, text, position, trip)
         if answered:
@@ -328,7 +355,7 @@ class VoiceDialog:
             u = replace(u, intent="voice_help", reasons=[], question=None)
 
         # Les règles ne sauraient que faire répéter ou refuser : le LLM local tente sa chance (s'il est branché).
-        if self.llm is not None and self._wants_llm(u):
+        if self.llm is not None and not llm_tried and self._wants_llm(u):
             helped = self._llm_reply(u, text, position, trip)
             if helped:
                 return helped
@@ -352,6 +379,14 @@ class VoiceDialog:
         return self._reply(u, self._other_intent_reply(u))
 
     # ------------------------------------------------------------------ LLM local (chef d'orchestre)
+    def _loose_faq(self, u: Understanding, text: str) -> bool:
+        """Une fiche de la FAQ répondrait, mais seulement « à peu près », à une phrase dont CamemBERT n'est pas sûr.
+        Les vraies questions de la FAQ ressemblent à une fiche à 1,0 (mesuré le 2026-11-09) : elles ne sont pas retardées."""
+        if u.intent_confidence >= TRIP_INTENT_MIN_CONFIDENCE or not self.knowledge:
+            return False
+        hits = self.knowledge.search(text, 1)
+        return bool(hits) and self.faq_threshold <= hits[0].score < FAQ_STRONG
+
     def _wants_llm(self, u: Understanding) -> bool:
         if u.intent in ROUTE_INTENTS:
             return bool(LLM_ROUTE_REASONS & set(u.reasons))
@@ -378,6 +413,7 @@ class VoiceDialog:
         return (None if reason else self._point(info)), info
 
     def _llm_reply(self, u: Understanding, text: str, position: dict | None, trip: dict | None) -> dict | None:
+        step("llm")
         decision = self.llm.decide(text, _PERSONAL.get(), in_trip=trip is not None)
         if decision is None:
             return None
@@ -461,12 +497,15 @@ class VoiceDialog:
         if not hit and trip and not u.places and u.intent_confidence >= TRIP_INTENT_MIN_CONFIDENCE:
             action = TRIP_ACTION_BY_INTENT.get(u.intent)
         sources = [hit.passage.id] if hit else []
+        if hit:
+            step("faq")
         if action:
             if trip is None:
                 # « Ça fait combien ? » sans trajet : la question habituelle « Tu veux aller où ? » s'en charge.
                 return None if u.intent in ROUTE_INTENTS else self._reply(u, NO_TRIP, sources=sources, kind="info")
             if self.trips is None:
                 return None
+            step("signalements")
             reply, live = self.trips.answer(action, trip, position)
             return self._reply(u, reply, sources=sources + live, kind="info")
         if hit:
@@ -476,6 +515,7 @@ class VoiceDialog:
         # vu le 2026-11-08), on ne répond pas sur le trafic d'un lieu que le voyageur n'a pas demandé : le LLM essaie.
         place = self._point(u.places.get("place") or u.places.get("destination"))
         if u.intent == "traffic_status" and place and self.trips and not UNSURE_HEARING & set(u.reasons):
+            step("signalements")
             reply, live = self.trips.place_status(place)
             return self._reply(u, reply, sources=live, kind="info")
         return None
@@ -495,6 +535,7 @@ class VoiceDialog:
         if self.plan_journeys is None:
             return self._reply(u, prefix + "J'ai compris ta demande, mais le calcul des trajets n'est pas branché.", request=request)
         api_request = {k: v for k, v in request.items() if k != "preferredModes"}
+        step("trajets")
         try:
             result = self.plan_journeys(api_request)
         except JourneyServiceError as error:
@@ -548,6 +589,16 @@ class VoiceDialog:
             "report_road_condition": f"Merci. Je prépare le signalement de l'état de la route vers {name}. Confirme-le sur l'écran.",
             **OTHER_REPLIES,
         }.get(u.intent, DEFAULT_REPLY)
+
+
+def _inside_word(text: str, entity: dict) -> bool:
+    """Le lieu repéré n'est qu'un morceau d'un mot plus long de la phrase (lettre juste avant ou juste après)."""
+    start, end = entity.get("start"), entity.get("end")
+    if not isinstance(start, int) or not isinstance(end, int) or not 0 <= start < end <= len(text):
+        return False
+    if norm(text[start:end]) != norm(entity.get("text", "")):  # positions qui ne correspondent pas au texte : on ne juge pas
+        return False
+    return (start > 0 and text[start - 1].isalpha()) or (end < len(text) and text[end].isalpha())
 
 
 class JourneyServiceError(RuntimeError):

@@ -28,3 +28,4 @@ Le gbaka est un minibus…            ← la réponse lue par SIRA : 2 phrases m
 | `reseau.md` | bateau-bus, réseau, métro (OpenStreetMap, octobre 2026, à valider) |
 | `trajet.md` | questions sur le trajet en cours (réponses calculées) |
 | `echanges.md` | bonjour, merci, au revoir |
+| `compagnon.md` | confidences (fatigue, stress, retard, perdu, la nuit) et numéros d'urgence sourcés |

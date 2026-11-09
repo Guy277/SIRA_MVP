@@ -125,6 +125,17 @@ class LocalLLM:
         log.warning("LLM local pas prêt après %d essais : la première question pourra être lente", attempts)
         return False
 
+    def write(self, system: str, user: str, max_tokens: int = 120, timeout_s: float | None = None) -> str | None:
+        """Une rédaction simple, sans outil (compagnon, companion.py) ; None si le LLM ne répond pas à temps."""
+        payload = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                   "temperature": 0.3, "max_tokens": max_tokens, "cache_prompt": True}
+        try:
+            reply = self._post(f"{self.url}/v1/chat/completions", payload, timeout_s or self.timeout_s)
+            return str(reply["choices"][0]["message"].get("content") or "").strip() or None
+        except (urllib.error.URLError, TimeoutError, OSError, KeyError, IndexError, TypeError, ValueError) as error:
+            log.warning("LLM indisponible ou trop lent pour rédiger : %s", error)
+            return None
+
     def decide(self, text: str, saved_places: list[dict] | None = None, in_trip: bool = False) -> Decision | None:
         """None si le LLM ne répond pas à temps ou répond quelque chose d'illisible : les règles reprennent la main."""
         payload = self._payload(text, saved_places or [], in_trip, self.max_tokens)
