@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LogoutModal } from './logout-modal';
 import { useSession } from '@/lib/session';
+import { ACCOUNT_LINKS } from '@/lib/account-links';
 
 const { width, height } = Dimensions.get('window');
 
@@ -128,102 +129,35 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 </View>
               </TouchableOpacity>
 
-              <View style={styles.divider} />
-
-              {/* Section 1: Historique */}
-              <TouchableOpacity
-                style={styles.menuItemRow}
-                onPress={() => {
-                  onClose();
-                  router.push('/history');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconCircleBadge}>
-                  <Ionicons name="time-outline" size={18} color="#F26522" />
-                </View>
-                <Text style={styles.menuItemText}>Historique</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.menuItemRow}
-                onPress={() => {
-                  onClose();
-                  router.push('/my-places');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconCircleBadge}>
-                  <Ionicons name="bookmark" size={18} color="#F26522" />
-                </View>
-                <Text style={styles.menuItemText}>Mes lieux</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-
-              {/* Section 2: Trafic & Signaler */}
-              <TouchableOpacity
-                style={styles.menuItemRow}
-                onPress={() => {
-                  onClose();
-                  router.push('/traffic');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconCircleBadge}>
-                  <Ionicons name="car-sport" size={18} color="#F26522" />
-                </View>
-                <Text style={styles.menuItemText}>Trafic</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.menuItemRow}
-                onPress={() => {
-                  onClose();
-                  router.push('/report-event');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconCircleBadge}>
-                  <Ionicons name="warning" size={18} color="#F26522" />
-                </View>
-                <Text style={styles.menuItemText}>Signaler un événement</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-
-              {/* Section 3: Paramètres, À propos, Se déconnecter */}
-              <TouchableOpacity
-                style={styles.menuItemRow}
-                onPress={() => {
-                  onClose();
-                  router.push('/settings');
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconCircleBadge}>
-                  <Ionicons name="settings-outline" size={18} color="#F26522" />
-                </View>
-                <Text style={styles.menuItemText}>Paramètres</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.menuItemRow}
-                onPress={() => {
-                  onClose();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconCircleBadge}>
-                  <Ionicons name="information-circle-outline" size={18} color="#F26522" />
-                </View>
-                <Text style={styles.menuItemText}>À propos de SIRA</Text>
-              </TouchableOpacity>
+              {/* The same pages as the Profil screen (lib/account-links.ts). */}
+              {ACCOUNT_LINKS.map((group, index) => (
+                <React.Fragment key={index}>
+                  <View style={styles.divider} />
+                  {group.map((link) => (
+                    <TouchableOpacity
+                      key={link.id}
+                      style={styles.menuItemRow}
+                      onPress={() => {
+                        onClose();
+                        router.push(link.href);
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.iconCircleBadge}>
+                        <Ionicons name={link.icon} size={18} color="#F26522" />
+                      </View>
+                      <Text style={styles.menuItemText}>{link.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </React.Fragment>
+              ))}
 
               <TouchableOpacity
                 style={styles.menuItemRow}
                 onPress={handleLogout}
                 activeOpacity={0.7}
+                accessibilityRole="button"
               >
                 <View style={styles.iconCircleBadge}>
                   <Ionicons name="log-out-outline" size={18} color="#F26522" />

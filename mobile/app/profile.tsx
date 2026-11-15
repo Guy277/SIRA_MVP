@@ -14,6 +14,8 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { DeleteAccountModal } from '@/components/delete-account-modal';
+import { LogoutModal } from '@/components/logout-modal';
+import { ACCOUNT_LINKS } from '@/lib/account-links';
 import { ProfilePhotoModal } from '@/components/profile-photo-modal';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { useSession } from '@/lib/session';
@@ -33,6 +35,7 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false);
 
   const handleSelectCamera = () => {
@@ -47,39 +50,20 @@ export default function ProfileScreen() {
     Alert.alert('Avatar', 'Sélectionner un avatar…');
   };
 
-  // Profil = what is the traveller's own (saved, done); every setting of SIRA is in Paramètres.
-  // The chat with SIRA is here and behind the star of the home screen.
+  // The same pages as the side menu (lib/account-links.ts), then the account itself:
+  // signing out, and deleting it (here only, confirmed first).
   const menuItems: MenuItem[] = [
+    ...ACCOUNT_LINKS.flat().map((link) => ({
+      id: link.id,
+      title: link.title,
+      iconName: link.icon,
+      onPress: () => router.push(link.href),
+    })),
     {
-      id: 'favorites',
-      title: 'Mes favoris',
-      iconName: 'heart',
-      onPress: () => router.push('/favorites'),
-    },
-    {
-      id: 'history',
-      title: 'Mes trajets',
-      iconName: 'time',
-      onPress: () => router.push('/history'),
-    },
-    {
-      id: 'places',
-      title: 'Mes lieux',
-      iconName: 'bookmark',
-      onPress: () => router.push('/my-places'),
-    },
-    {
-      // Also the star beside « On va où ? » on the home screen.
-      id: 'chat',
-      title: 'Discuter avec SIRA',
-      iconName: 'sparkles',
-      onPress: () => router.push('/chat'),
-    },
-    {
-      id: 'settings',
-      title: 'Paramètres',
-      iconName: 'settings-outline',
-      onPress: () => router.push('/settings'),
+      id: 'logout',
+      title: 'Se déconnecter',
+      iconName: 'log-out-outline',
+      onPress: () => setShowLogoutModal(true),
     },
     {
       id: 'delete',
@@ -204,6 +188,16 @@ export default function ProfileScreen() {
       <DeleteAccountModal
         visible={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
+      />
+
+      {/* Signing out, confirmed first (as in the side menu) */}
+      <LogoutModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          router.replace('/login');
+        }}
       />
 
       {/* Profile Photo Edit Modal */}
