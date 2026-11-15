@@ -197,10 +197,16 @@ export default function RouteExploreScreen() {
 
   // The map: the chosen journey in orange, the other blocks' journeys in grey. The React
   // Compiler keeps these arrays while search and choice stay the same, so the map does not reframe.
+  // Each line carries the name of the block it leads and its duration (« Suspendu · 21 min »).
+  const routeLabelOf = (journey: ApiJourney | undefined) => {
+    const block = blocks.find((item) => !item.sameAs && item.journey?.id === journey?.id);
+    return block && journey ? `${block.label} · ${formatDuration(journey.duration)}` : undefined;
+  };
   const chosenPath = journeyPath(search?.journeys.find((journey) => journey.id === chosenId));
+  const chosenLabel = routeLabelOf(chosenJourney);
   const alternativeRoutes: MapRoute[] = (search?.journeys ?? [])
     .filter((journey) => journey.id !== chosenId && leaderKey.split(',').includes(journey.id))
-    .map((journey) => ({ id: journey.id, coordinates: journeyPath(journey) }));
+    .map((journey) => ({ id: journey.id, coordinates: journeyPath(journey), label: routeLabelOf(journey) }));
   const chooseRoute = (id: string) => {
     const block = blocks.find((item) => item.usable && !item.sameAs && item.journey?.id === id);
     if (block) setPicked({ key: searchKey, name: block.name });
@@ -395,6 +401,7 @@ export default function RouteExploreScreen() {
                   routeCoordinates={chosenPath}
                   alternativeRoutes={alternativeRoutes}
                   onRoutePress={chooseRoute}
+                  routeLabel={chosenLabel}
                   reports={nearbyReports}
                   padding={MAP_PADDING}
                 />

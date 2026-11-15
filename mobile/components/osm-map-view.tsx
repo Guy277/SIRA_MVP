@@ -9,7 +9,7 @@ import MapView, {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import type { MapPadding, MapPlace, MapRoute, ZoomRequest } from '@/components/osm-map-types';
+import { routeLabels, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -21,6 +21,8 @@ interface OsmMapViewProps {
   // Other journeys, in grey under the chosen one; the map frames them all.
   alternativeRoutes?: MapRoute[];
   onRoutePress?: (id: string) => void;
+  // Label of the chosen journey (« Coulé · 35 min »), shown with the others' labels.
+  routeLabel?: string;
   // One step of the journey, touched in its detail: drawn darker, and the map zooms on it.
   focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
@@ -66,6 +68,7 @@ export function OsmMapView({
   routeCoordinates: activeRoute = [],
   alternativeRoutes = NO_ROUTES,
   onRoutePress,
+  routeLabel,
   focusCoordinates,
   reports = [],
   onReportPress,
@@ -224,8 +227,8 @@ export function OsmMapView({
           <Polyline
             key={`alternative-${route.id}`}
             coordinates={route.coordinates}
-            strokeColor="#9CA3AF"
-            strokeWidth={4}
+            strokeColor="#7C828C"
+            strokeWidth={5}
             tappable={Boolean(onRoutePress)}
             onPress={() => onRoutePress?.(route.id)}
           />
@@ -242,6 +245,21 @@ export function OsmMapView({
         {focusCoordinates && focusCoordinates.length > 1 && (
           <Polyline coordinates={focusCoordinates} strokeColor="#1E1E1E" strokeWidth={7} />
         )}
+
+        {/* One label per journey drawn, where it parts from the others; touching another one chooses it */}
+        {routeLabels(activeRoute, routeLabel, alternativeRoutes).map((label) => (
+          <Marker
+            key={`label-${label.id ?? 'chosen'}`}
+            coordinate={label.point}
+            anchor={{ x: 0.5, y: 1 }}
+            zIndex={label.chosen ? 4 : 3}
+            onPress={() => { if (label.id) onRoutePress?.(label.id); }}
+          >
+            <View style={[styles.routeLabel, label.chosen && styles.routeLabelChosen]}>
+              <Text style={[styles.routeLabelText, label.chosen && styles.routeLabelTextChosen]}>{label.text}</Text>
+            </View>
+          </Marker>
+        ))}
       </MapView>
 
       {/* Map Badge */}
@@ -321,6 +339,26 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 3,
     borderColor: '#FACC15',
+  },
+  routeLabel: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D4D4D4',
+  },
+  routeLabelChosen: {
+    backgroundColor: '#F26522',
+    borderColor: '#F26522',
+  },
+  routeLabelText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111111',
+  },
+  routeLabelTextChosen: {
+    color: '#FFFFFF',
   },
   endMarkerBadge: {
     alignItems: 'center',

@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import type { MapPlace, MapPadding, MapRoute, ZoomRequest } from '@/components/osm-map-types';
+import { routeLabels, type MapPlace, type MapPadding, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -18,6 +18,8 @@ interface OsmMapViewProps {
   // Other journeys, in grey under the chosen one; the map frames them all.
   alternativeRoutes?: MapRoute[];
   onRoutePress?: (id: string) => void;
+  // Label of the chosen journey (« Coulé · 35 min »), shown with the others' labels.
+  routeLabel?: string;
   // One step of the journey, touched in its detail: drawn darker, and the map zooms on it.
   focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
@@ -52,7 +54,7 @@ const glyph = (name: string) => {
 
 const NO_ROUTES: MapRoute[] = [];
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, style }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, style }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -74,7 +76,7 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       map.on('load', () => {
         // Other journeys first, so the chosen one is drawn over them; a wide invisible line makes them easy to touch.
         map.addSource('alternatives', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({ id: 'alternatives-line', type: 'line', source: 'alternatives', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#9CA3AF', 'line-width': 4 } });
+        map.addLayer({ id: 'alternatives-line', type: 'line', source: 'alternatives', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7C828C', 'line-width': 5 } });
         map.addLayer({ id: 'alternatives-hit', type: 'line', source: 'alternatives', paint: { 'line-color': '#000000', 'line-opacity': 0, 'line-width': 18 } });
         map.on('click', 'alternatives-hit', (event) => {
           const id = event.features?.[0]?.properties?.id;
@@ -112,6 +114,18 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         node.title = `${report.title} — ${report.location}`;
         if (onReportPress) { node.style.cursor = 'pointer'; node.addEventListener('click', () => onReportPress(report)); }
         add({ latitude: report.lat, longitude: report.lon }, node);
+      });
+      // One label per journey drawn, where it parts from the others; the chosen one on top.
+      routeLabels(routeCoordinates, routeLabel, alternativeRoutes).forEach((label) => {
+        const node = markerElement(`sira-map-route-label${label.chosen ? ' sira-map-route-label--chosen' : ''}`, label.text);
+        node.style.zIndex = label.chosen ? '2' : '1';
+        const id = label.id;
+        if (id) {
+          node.setAttribute('role', 'button');
+          node.setAttribute('aria-label', `Choisir le trajet ${label.text}`);
+          node.addEventListener('click', () => routePress.current?.(id));
+        }
+        markers.current.push(new maplibregl.Marker({ element: node, anchor: 'bottom' }).setLngLat([label.point.longitude, label.point.latitude]).addTo(map));
       });
       places.forEach((place) => {
         const node = markerElement(`sira-map-place${place.highlighted ? ' sira-map-place--garde' : ''}`, glyph(place.icon));
@@ -151,7 +165,7 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       }
     });
     return () => { active = false; };
-  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, alternativeRoutes, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, padding]);
+  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, alternativeRoutes, routeLabel, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, padding]);
 
   // Boutons + / − : une demande de zoom par nouvelle key (zoomRequest change de key à chaque toucher).
   const zoomKey = zoomRequest?.key;
@@ -188,6 +202,8 @@ const MARKER_CSS = `
 .sira-map-report--reported { background: #F59E0B; }
 .sira-map-report--confirmed { background: #EF4444; }
 .sira-map-report--reliable { background: #991B1B; }
+.sira-map-route-label { padding: 3px 8px; border-radius: 12px; background: #fff; color: #111; border: 1px solid #D4D4D4; box-shadow: 0 1px 4px rgba(0,0,0,.25); font: 700 11px system-ui; white-space: nowrap; cursor: pointer; }
+.sira-map-route-label--chosen { background: #F26522; color: #fff; border-color: #F26522; cursor: default; }
 .sira-map-user { width: 16px; height: 16px; border-radius: 50%; background: #2563EB; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(37,99,235,.2); }
 .sira-map-place { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); font: 17px 'material-community'; }
 .sira-map-place--garde { width: 36px; height: 36px; font-size: 20px; border: 3px solid #FACC15; }
