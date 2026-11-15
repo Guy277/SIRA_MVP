@@ -7,7 +7,7 @@ import MapView, {
   PROVIDER_DEFAULT,
 } from 'react-native-maps';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
+import { knownPlace } from '@/lib/places';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
 import { routeLabels, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
 
@@ -109,8 +109,9 @@ export function OsmMapView({
     mapRef.current.animateToRegion({ latitude: userLat, longitude: userLon, latitudeDelta: 0.06, longitudeDelta: 0.06 }, 600);
   }, [centerOnUser, userLat, userLon]);
 
-  const startCoords = origin ?? (departureName ? ABIDJAN_COORDINATES_MAP[departureName] : undefined);
-  const endCoords = destination ?? (arrivalName ? ABIDJAN_COORDINATES_MAP[arrivalName] : undefined);
+  // Without coordinates, the name is looked up (own position: the live GPS one, never a fixed point).
+  const startCoords = origin ?? (departureName ? knownPlace(departureName) ?? undefined : undefined);
+  const endCoords = destination ?? (arrivalName ? knownPlace(arrivalName) ?? undefined : undefined);
 
   // Fit bounds dynamically when route or markers update
   useEffect(() => {

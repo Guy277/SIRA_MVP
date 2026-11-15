@@ -20,6 +20,8 @@ type Named = { title: string; subtitle: string; forKey: string };
 
 const keyOf = (point: Coordinates) => `${point.latitude.toFixed(5)},${point.longitude.toFixed(5)}`;
 const insideAbidjan = (point: Coordinates) => distanceM(point, ABIDJAN_CENTRE) <= GRAND_ABIDJAN_RADIUS_M;
+// The map counts as moved by the traveller beyond this: a map that settles on load moves less.
+const MOVED_M = 15;
 
 export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
   const insets = useSafeAreaInsets();
@@ -34,10 +36,14 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
 
   const centerKey = keyOf(center);
   const outside = !insideAbidjan(center);
+  // Without GPS the map opens on the city centre, a fixed point (Rue Ismael Coulibaly, Adjamé):
+  // it is not offered as a place until the traveller has moved the map or touched a spot.
+  const [startedOnGps] = useState(() => Boolean(gps));
+  const chosenByTraveller = startedOnGps || distanceM(center, initialCenter) > MOVED_M;
 
   // The place under the pin is named once the map has stopped for a moment.
   useEffect(() => {
-    if (moving || outside) return;
+    if (moving || outside || !chosenByTraveller) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       reversePlace(center)
@@ -50,9 +56,9 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
         });
     }, 450);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [center, centerKey, moving, outside]);
+  }, [center, centerKey, moving, outside, chosenByTraveller]);
 
-  const current = named?.forKey === centerKey ? named : null;
+  const current = chosenByTraveller && named?.forKey === centerKey ? named : null;
   const confirm = () => {
     if (!current || outside) return;
     rememberPlace(current.title, center);
@@ -99,6 +105,10 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
         <Text style={styles.sheetLabel}>{purpose === 'departure' ? 'Départ' : 'Destination'}</Text>
         {outside ? (
           <Text style={styles.warning}>Ce point est hors du Grand Abidjan : SIRA ne couvre que le Grand Abidjan.</Text>
+        ) : !chosenByTraveller && !moving ? (
+          <Text style={[styles.placeSubtitle, styles.waiting]}>
+            {purpose === 'departure' ? 'Ta position n’est pas connue : déplace' : 'Déplace'} la carte jusqu’à ton point, ou touche un endroit.
+          </Text>
         ) : current && !moving ? (
           <>
             <Text style={styles.placeTitle} numberOfLines={1}>{current.title}</Text>
@@ -141,6 +151,7 @@ const styles = StyleSheet.create({
   placeTitle: { fontSize: 18, fontWeight: '800', color: '#111111' },
   placeSubtitle: { fontSize: 13, color: '#6B6B6B' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  waiting: { minHeight: 44, textAlignVertical: 'center' },
   warning: { fontSize: 14, color: '#B91C1C', fontWeight: '600', minHeight: 44 },
   confirm: { marginTop: 12, backgroundColor: '#F26522', borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   confirmDisabled: { opacity: 0.45 },

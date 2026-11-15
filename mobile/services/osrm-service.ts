@@ -23,7 +23,6 @@ export const ABIDJAN_COORDINATES_MAP: Record<string, { latitude: number; longitu
   'Marcory Zone 4': { latitude: 5.3050, longitude: -3.9850 },
   'Treichville Gare Bassam': { latitude: 5.3080, longitude: -4.0090 },
   'Riviera 2 Anono': { latitude: 5.3580, longitude: -3.9720 },
-  'Ma position actuelle': { latitude: 5.4160, longitude: -4.0150 },
 };
 
 /**
@@ -64,17 +63,4 @@ export async function fetchOSRMRoute(
     console.error('Error fetching OSRM route:', error);
     return null;
   }
-}
-
-/**
- * Helper to fetch OSRM route using location titles
- */
-export async function getRouteBetweenLocations(
-  departureName: string,
-  arrivalName: string
-): Promise<OSRMRouteResult | null> {
-  const start = ABIDJAN_COORDINATES_MAP[departureName] || ABIDJAN_COORDINATES_MAP['Abobo Samaké'];
-  const dest = ABIDJAN_COORDINATES_MAP[arrivalName] || ABIDJAN_COORDINATES_MAP['Orange Digital Center'];
-
-  return fetchOSRMRoute(start.latitude, start.longitude, dest.latitude, dest.longitude);
 }

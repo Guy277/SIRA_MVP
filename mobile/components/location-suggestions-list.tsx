@@ -9,7 +9,8 @@ import {
 import { Text, TextInput } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 import { searchPlaces, type PlaceResult } from '@/lib/sira-api';
-import { knownPlace, placeLabel, rememberPlace } from '@/lib/places';
+import { isApproximate, isOwnPosition, knownPlace, placeLabel, rememberPlace, useCurrentPlace, type CurrentPlace } from '@/lib/places';
+import { formatDistance } from '@/lib/journey-format';
 import { FIXED_PLACES, setPlaceAddress, useSavedPlaces, type PlaceAddress, type SavedPlace } from '@/lib/saved-places';
 
 // « l'adresse de ta maison », « l'adresse de « Chez Maman » ».
@@ -23,6 +24,19 @@ export type AddressPick = {
   onCancel: () => void;
   onRemove?: () => void;
 };
+
+// What the header says of the traveller's own position: whether SIRA has it, and near what,
+// so it can be checked at a glance (« Ma position » alone said nothing, even with no position).
+function ownPositionHeader(here: CurrentPlace): { title: string; detail: string | null } {
+  if (here.status === 'locating') return { title: 'Localisation…', detail: null };
+  if (here.status === 'unavailable') return { title: 'Position introuvable', detail: 'Choisis ton départ dans la liste' };
+  const landmark = here.title === 'Ma position' ? null : here.title.startsWith('Près de ') ? here.title : `Près de ${here.title}`;
+  const parts = [
+    here.outside ? 'Hors du Grand Abidjan' : landmark,
+    isApproximate(here) ? `à ${formatDistance((here.accuracyM ?? 0) / 1000)} près` : null,
+  ].filter(Boolean);
+  return { title: 'Ma position', detail: parts.length ? parts.join(' · ') : null };
+}
 
 export interface LocationItem {
   id: string;
@@ -137,6 +151,11 @@ export function LocationSuggestionsList({
   pickAddress,
   onManagePlaces,
 }: LocationSuggestionsListProps) {
+  const here = useCurrentPlace();
+  // Another departure picked (« Je pars de Yopougon ») is shown as it is.
+  const header = isOwnPosition(currentLocationName)
+    ? ownPositionHeader(here)
+    : { title: placeLabel(currentLocationName), detail: null };
   const filteredLocations = SIRA_ABIDJAN_LOCATIONS.filter((item) => {
     if (!query.trim()) return true;
     const q = query.toLowerCase().trim();
@@ -218,10 +237,13 @@ export function LocationSuggestionsList({
             <Text style={styles.headerSublabel}>{headerLabel}</Text>
             <View style={styles.headerTitleRow}>
               <Text style={styles.headerTitleText} numberOfLines={1}>
-                {placeLabel(currentLocationName)}
+                {header.title}
               </Text>
               <Ionicons name="chevron-forward-circle" size={16} color="#000000" style={{ marginLeft: 4 }} />
             </View>
+            {header.detail && (
+              <Text style={styles.headerDetail} numberOfLines={1}>{header.detail}</Text>
+            )}
           </TouchableOpacity>
 
           <View style={{ width: 24 }} />
@@ -453,6 +475,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#000000',
+  },
+  headerDetail: {
+    fontSize: 11,
+    color: '#888888',
+    marginTop: 1,
+    maxWidth: 260,
   },
   searchBarWrapper: {
     paddingHorizontal: 16,

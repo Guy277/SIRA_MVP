@@ -5,7 +5,7 @@ import { StyleSheet, View, ViewStyle } from 'react-native';
 import type { Map as MapLibreMap, Marker as MapLibreMarker, GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
+import { knownPlace } from '@/lib/places';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
 import { routeLabels, type MapPlace, type MapPadding, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
 
@@ -63,8 +63,9 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
   const routePress = useRef(onRoutePress);
   useEffect(() => { routePress.current = onRoutePress; }, [onRoutePress]);
 
-  const start = origin ?? (departureName ? ABIDJAN_COORDINATES_MAP[departureName] : undefined);
-  const end = destination ?? (arrivalName ? ABIDJAN_COORDINATES_MAP[arrivalName] : undefined);
+  // Without coordinates, the name is looked up (own position: the live GPS one, never a fixed point).
+  const start = origin ?? (departureName ? knownPlace(departureName) ?? undefined : undefined);
+  const end = destination ?? (arrivalName ? knownPlace(arrivalName) ?? undefined : undefined);
 
   useEffect(() => {
     let cancelled = false;

@@ -20,11 +20,11 @@ import { OsmMapView } from '@/components/osm-map-view';
 import type { MapPadding, MapRoute } from '@/components/osm-map-types';
 import { fetchJourneys, type ApiJourney, type CategoryName, type Coordinates, type LegMode } from '@/lib/sira-api';
 import { useLiveReports } from '@/lib/reports';
-import { CURRENT_LOCATION, ensureCurrentPlace, isOwnPosition, placeLabel, resolvePlace, useCurrentPlace } from '@/lib/places';
+import { CURRENT_LOCATION, ensureCurrentPlace, isApproximate, isOwnPosition, placeLabel, resolvePlace, useCurrentPlace } from '@/lib/places';
 import { useUsage } from '@/lib/usage';
 import { needsSecureContext } from '@/lib/secure-context';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
-import { arrivalTime, formatClock, formatDuration, formatPrice, journeyPath, journeySummary } from '@/lib/journey-format';
+import { arrivalTime, formatClock, formatDistance, formatDuration, formatPrice, journeyPath, journeySummary } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
 import { resultsSpeech, SEARCH_ERRORS } from '@/lib/spoken';
 import { useSpeech } from '@/lib/voice';
@@ -336,6 +336,15 @@ export default function RouteExploreScreen() {
                     : !usage.location
                       ? 'Tu as coupé la position dans SIRA : touche ici pour choisir ton départ.'
                       : 'Position introuvable : active la localisation ou touche ici pour choisir ton départ ou ton arrivée.'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {/* The device says its position may be far off (a computer without GPS): the traveller can pick the departure. */}
+          {fromOwnPosition && here.status === 'ready' && isApproximate(here) && arrival !== '' && (
+            <TouchableOpacity style={styles.stateCard} onPress={() => setPicker('departure')} activeOpacity={0.8}>
+              <Ionicons name="locate" size={18} color="#F26522" />
+              <Text style={styles.stateText}>
+                Ta position est approximative (à {formatDistance((here.accuracyM ?? 0) / 1000)} près) : touche ici pour choisir ton départ.
               </Text>
             </TouchableOpacity>
           )}
