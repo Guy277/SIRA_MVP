@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import type { MapPlace, MapPadding, ZoomRequest } from '@/components/osm-map-types';
+import type { MapPlace, MapPadding, MapRoute, ZoomRequest } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -15,6 +15,9 @@ interface OsmMapViewProps {
   origin?: Coordinates | null;
   destination?: Coordinates | null;
   routeCoordinates?: { latitude: number; longitude: number }[];
+  // Other journeys, in grey under the chosen one; the map frames them all.
+  alternativeRoutes?: MapRoute[];
+  onRoutePress?: (id: string) => void;
   // One step of the journey, touched in its detail: drawn darker, and the map zooms on it.
   focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
@@ -47,11 +50,16 @@ const glyph = (name: string) => {
   return code ? String.fromCodePoint(code) : '';
 };
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, style }: OsmMapViewProps) {
+const NO_ROUTES: MapRoute[] = [];
+
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, style }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
   const [ready, setReady] = useState(false);
+  // The map's click handler is set once: it reads the latest callback here.
+  const routePress = useRef(onRoutePress);
+  useEffect(() => { routePress.current = onRoutePress; }, [onRoutePress]);
 
   const start = origin ?? (departureName ? ABIDJAN_COORDINATES_MAP[departureName] : undefined);
   const end = destination ?? (arrivalName ? ABIDJAN_COORDINATES_MAP[arrivalName] : undefined);
@@ -64,6 +72,16 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       // The map credits start folded (the « i » opens them): unfolded, they cover the bottom of a phone screen.
       map.once('load', () => map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
       map.on('load', () => {
+        // Other journeys first, so the chosen one is drawn over them; a wide invisible line makes them easy to touch.
+        map.addSource('alternatives', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({ id: 'alternatives-line', type: 'line', source: 'alternatives', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#9CA3AF', 'line-width': 4 } });
+        map.addLayer({ id: 'alternatives-hit', type: 'line', source: 'alternatives', paint: { 'line-color': '#000000', 'line-opacity': 0, 'line-width': 18 } });
+        map.on('click', 'alternatives-hit', (event) => {
+          const id = event.features?.[0]?.properties?.id;
+          if (typeof id === 'string') routePress.current?.(id);
+        });
+        map.on('mouseenter', 'alternatives-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'alternatives-hit', () => { map.getCanvas().style.cursor = ''; });
         map.addSource('journey', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'journey-line', type: 'line', source: 'journey', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#F26522', 'line-width': 5 } });
         map.addSource('focus', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -109,13 +127,19 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         type: 'FeatureCollection',
         features: routeCoordinates.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: routeCoordinates.map((point) => [point.longitude, point.latitude]) } }] : [],
       });
+      const drawnAlternatives = alternativeRoutes.filter((route) => route.coordinates.length > 1);
+      (map.getSource('alternatives') as GeoJSONSource | undefined)?.setData({
+        type: 'FeatureCollection',
+        features: drawnAlternatives.map((route) => ({ type: 'Feature', properties: { id: route.id }, geometry: { type: 'LineString', coordinates: route.coordinates.map((point) => [point.longitude, point.latitude]) } })),
+      });
       const focus = focusCoordinates && focusCoordinates.length > 1 ? focusCoordinates : null;
       (map.getSource('focus') as GeoJSONSource | undefined)?.setData({
         type: 'FeatureCollection',
         features: focus ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: focus.map((point) => [point.longitude, point.latitude]) } }] : [],
       });
       const placePoints = places.length ? [...places.map((place) => ({ latitude: place.lat, longitude: place.lon })), ...(userPosition ? [userPosition] : [])] : [];
-      const points = focus ?? (routeCoordinates.length ? routeCoordinates : placePoints.length ? placePoints : [start, end].filter((point): point is Coordinates => Boolean(point)));
+      const routePoints = [...routeCoordinates, ...drawnAlternatives.flatMap((route) => route.coordinates)];
+      const points = focus ?? (routePoints.length ? routePoints : placePoints.length ? placePoints : [start, end].filter((point): point is Coordinates => Boolean(point)));
       if (points.length >= 2) {
         const lons = points.map((point) => point.longitude); const lats = points.map((point) => point.latitude);
         map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: padding ?? 50, duration: 600, maxZoom: 16 });
@@ -127,7 +151,7 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       }
     });
     return () => { active = false; };
-  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, padding]);
+  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, alternativeRoutes, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, padding]);
 
   // Boutons + / − : une demande de zoom par nouvelle key (zoomRequest change de key à chaque toucher).
   const zoomKey = zoomRequest?.key;

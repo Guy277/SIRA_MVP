@@ -9,7 +9,7 @@ import MapView, {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ABIDJAN_COORDINATES_MAP } from '@/services/osrm-service';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import type { MapPadding, MapPlace, ZoomRequest } from '@/components/osm-map-types';
+import type { MapPadding, MapPlace, MapRoute, ZoomRequest } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -18,6 +18,9 @@ interface OsmMapViewProps {
   origin?: Coordinates | null;
   destination?: Coordinates | null;
   routeCoordinates?: { latitude: number; longitude: number }[];
+  // Other journeys, in grey under the chosen one; the map frames them all.
+  alternativeRoutes?: MapRoute[];
+  onRoutePress?: (id: string) => void;
   // One step of the journey, touched in its detail: drawn darker, and the map zooms on it.
   focusCoordinates?: Coordinates[] | null;
   reports?: TrafficReport[];
@@ -53,12 +56,16 @@ const INTERMEDIATE_STATIONS = [
   { name: "Cocody Riviera 3", latitude: 5.3480, longitude: -3.9650 },
 ];
 
+const NO_ROUTES: MapRoute[] = [];
+
 export function OsmMapView({
   departureName,
   arrivalName,
   origin,
   destination,
   routeCoordinates: activeRoute = [],
+  alternativeRoutes = NO_ROUTES,
+  onRoutePress,
   focusCoordinates,
   reports = [],
   onReportPress,
@@ -111,7 +118,7 @@ export function OsmMapView({
           animated: true,
         });
       } else if (activeRoute.length > 0) {
-        mapRef.current.fitToCoordinates(activeRoute, {
+        mapRef.current.fitToCoordinates([...activeRoute, ...alternativeRoutes.flatMap((route) => route.coordinates)], {
           edgePadding: { top: 70, right: 60, bottom: 70, left: 60 },
           animated: true,
         });
@@ -127,7 +134,7 @@ export function OsmMapView({
         });
       }
     }
-  }, [activeRoute, focusCoordinates, startCoords, endCoords, places, userPosition, padding]);
+  }, [activeRoute, alternativeRoutes, focusCoordinates, startCoords, endCoords, places, userPosition, padding]);
 
   return (
     <View style={[styles.container, style]}>
@@ -210,6 +217,18 @@ export function OsmMapView({
               <MaterialCommunityIcons name={place.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={place.highlighted ? 19 : 16} color="#FFFFFF" />
             </View>
           </Marker>
+        ))}
+
+        {/* Other journeys in grey, under the chosen one: touching one chooses it */}
+        {alternativeRoutes.filter((route) => route.coordinates.length > 1).map((route) => (
+          <Polyline
+            key={`alternative-${route.id}`}
+            coordinates={route.coordinates}
+            strokeColor="#9CA3AF"
+            strokeWidth={4}
+            tappable={Boolean(onRoutePress)}
+            onPress={() => onRoutePress?.(route.id)}
+          />
         ))}
 
         {/* Journey computed by the SIRA engine */}

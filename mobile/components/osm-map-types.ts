@@ -7,5 +7,8 @@ export type MapPlace = { id: string; lat: number; lon: number; color: string; ic
 // Marge de cadrage, pour que les lieux ne passent pas sous la liste ou la rangée de catégories.
 export type MapPadding = { top: number; bottom: number; left: number; right: number };
 
+// Un autre trajet possible, dessiné en gris sous le trajet choisi (écran des trajets) : le toucher le choisit.
+export type MapRoute = { id: string; coordinates: { latitude: number; longitude: number }[] };
+
 // Demande de zoom des boutons + / − : delta en niveaux de zoom (+1, −1) ; key change à chaque toucher.
 export type ZoomRequest = { delta: number; key: number };
