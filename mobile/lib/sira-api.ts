@@ -170,6 +170,8 @@ export type JourneyQuery = {
   destination: Coordinates & { name: string };
   departureAt?: Date;
   avoid?: Array<{ lat: number; lon: number; radiusM: number }>;
+  // Ways of travel SIRA must not use (« sans taxi »); empty, every one is allowed.
+  excludedModes?: LegMode[];
 };
 
 export function fetchJourneys(query: JourneyQuery) {
@@ -180,7 +182,7 @@ export function fetchJourneys(query: JourneyQuery) {
       origin: { lat: query.origin.latitude, lon: query.origin.longitude, name: query.origin.name },
       destination: { lat: query.destination.latitude, lon: query.destination.longitude, name: query.destination.name },
       preference: 'balanced',
-      constraints: { maxWalkingDistanceM: 1500, maxTransfers: 3, excludedModes: [] },
+      constraints: { maxWalkingDistanceM: 1500, maxTransfers: 3, excludedModes: query.excludedModes ?? [] },
       ...(query.departureAt ? { departureAt: query.departureAt.toISOString() } : {}),
       ...(query.avoid?.length ? { avoid: query.avoid } : {}),
     }),

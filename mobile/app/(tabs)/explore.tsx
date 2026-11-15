@@ -1,6 +1,7 @@
-// Journeys screen, in two steps as in Bonjour RATP: the traveller first sees
-// the three ways to travel (Coulé, Debout, Suspendu) with their best option,
-// then the itineraries of the chosen category, then the detail.
+// Journeys screen, on one page: the three ways to travel (Coulé, Debout,
+// Suspendu) with their best option, a touch opens its detail; the journeys
+// not on the cards wait folded underneath. The mode chips say which ways of
+// travel SIRA may combine (all by default): changing them searches again.
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/sira-text';
@@ -32,12 +33,11 @@ const CATEGORIES: { name: CategoryName; label: string; subtitle: string; icon: k
   { name: 'suspendu', label: 'Suspendu', subtitle: 'Le plus confortable', icon: 'trophy' },
 ];
 
-type Filter = 'Tout' | 'Bus' | 'Gbaka' | 'Wôrô' | 'Taxi' | 'Bateau';
-const FILTER_MODES: Record<Exclude<Filter, 'Tout'>, LegMode[]> = {
-  Bus: ['sotra'], Gbaka: ['gbaka'], 'Wôrô': ['woro'], Taxi: ['taxi'], Bateau: ['boat'],
-};
-
-type Step = CategoryName | 'all' | null;
+// Every way of travel SIRA can combine, always shown, so one taken away can be put back.
+const MODES: { mode: LegMode; label: string }[] = [
+  { mode: 'woro', label: 'Wôrô' }, { mode: 'gbaka', label: 'Gbaka' }, { mode: 'sotra', label: 'Bus' },
+  { mode: 'taxi', label: 'Taxi' }, { mode: 'boat', label: 'Bateau' },
+];
 
 export default function RouteExploreScreen() {
   const router = useRouter();
@@ -76,13 +76,22 @@ export default function RouteExploreScreen() {
   const [picker, setPicker] = useState<'departure' | 'arrival' | null>(null);
   const [timeSheet, setTimeSheet] = useState(false);
   const [showSideMenu, setShowSideMenu] = useState(false);
-  const [step, setStep] = useState<Step>(null);
-  const [filter, setFilter] = useState<Filter>('Tout');
+  const [excluded, setExcluded] = useState<LegMode[]>([]);
+  // At least one way of travel stays allowed: the last one cannot be taken away.
+  const toggleMode = (mode: LegMode) => setExcluded((current) => current.includes(mode)
+    ? current.filter((item) => item !== mode)
+    : current.length + 1 >= MODES.length ? current : [...current, mode]);
+  // « Autres trajets » folds again with every new search.
+  const [othersOpenFor, setOthersOpenFor] = useState<string | null>(null);
 
   useEffect(() => { ensureCurrentPlace(); }, []);
 
   const { search } = useJourneyStore();
-  const searchKey = `${departure}→${arrival}@${departAt?.getTime() ?? 'now'}`;
+  // SIRA speaks the result once per trip: changing the modes searches again, silently.
+  const tripKey = `${departure}→${arrival}@${departAt?.getTime() ?? 'now'}`;
+  const excludedKey = [...excluded].sort().join(',');
+  const searchKey = `${tripKey}-${excludedKey}`;
+  const withoutModes = MODES.filter((item) => excluded.includes(item.mode)).map((item) => item.label);
   const [finished, setFinished] = useState<{ key: string; error: string | null } | null>(null);
   const sameEndpoints = arrival !== '' && departure === arrival;
   const waitingForPosition = departure === CURRENT_LOCATION && here.status === 'locating';
@@ -99,20 +108,25 @@ export default function RouteExploreScreen() {
       try {
         const [from, to] = await Promise.all([resolvePlace(departure), resolvePlace(arrival)]);
         const departureAt = departAt ?? new Date();
-        const data = await fetchJourneys({ origin: { ...from, name: departure }, destination: { ...to, name: arrival }, departureAt });
+        const data = await fetchJourneys({ origin: { ...from, name: departure }, destination: { ...to, name: arrival }, departureAt, excludedModes: excludedKey ? excludedKey.split(',') as LegMode[] : [] });
         if (cancelled) return;
         journeyStore.setSearch({
           departure: { ...from, name: departure }, arrival: { ...to, name: arrival }, departureAt,
           journeys: data.journeys.filter((journey) => journey.legs?.length),
           categories: data.categories ?? { coule: [], debout: [], suspendu: [] },
         });
-        setFinished({ key: searchKey, error: data.journeys.length ? null : data.rejected?.length ? 'Aucun trajet ne respecte tes contraintes.' : 'Aucun trajet trouvé entre ces deux lieux à cette heure.' });
+        setFinished({ key: searchKey, error: data.journeys.length ? null
+          // Like Moovit: too many ways of travel taken away leaves nothing, so say which ones to put back.
+          : excludedKey ? `Aucun trajet sans ${listLabels(withoutModes)} à cette heure. Remets un mode de transport pour voir d’autres trajets.`
+          : data.rejected?.length ? 'Aucun trajet ne respecte tes contraintes.' : 'Aucun trajet trouvé entre ces deux lieux à cette heure.' });
       } catch (error) {
         if (!cancelled) setFinished({ key: searchKey, error: error instanceof Error ? error.message : 'Recherche impossible pour le moment.' });
       }
     })();
     return () => { cancelled = true; };
-  }, [departure, arrival, departAt, searchKey, waitingForPosition, ownPositionUnavailable]);
+    // withoutModes follows excludedKey, already in searchKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departure, arrival, departAt, searchKey, excludedKey, waitingForPosition, ownPositionUnavailable]);
 
   // SIRA tells the result out loud, once per search: the cheapest way, or why there is none.
   const searchFailed = finished?.key === searchKey && finished.error !== null;
@@ -120,7 +134,7 @@ export default function RouteExploreScreen() {
     : finished?.key !== searchKey || loading ? null
     : searchFailed ? (finished?.error?.startsWith('Aucun') ? SEARCH_ERRORS.nothing : SEARCH_ERRORS.offline)
     : search ? resultsSpeech(search) : null;
-  useSpeech(spokenResult ? `results:${searchKey}` : null, spokenResult, searchFailed || sameEndpoints ? 'alert' : 'guidance');
+  useSpeech(spokenResult ? `results:${tripKey}` : null, spokenResult, searchFailed || sameEndpoints ? 'alert' : 'guidance');
 
   const swap = () => {
     setPickedDeparture(arrival || null);
@@ -130,8 +144,6 @@ export default function RouteExploreScreen() {
   const ready = !loading && !searchError && !ownPositionUnavailable && search && search.journeys.length > 0;
   const journeys = search?.journeys ?? [];
   const byId = new Map(journeys.map((journey) => [journey.id, journey]));
-  const inCategory = (name: CategoryName) => (search?.categories[name] ?? [])
-    .map((id) => byId.get(id)).filter((journey): journey is ApiJourney => Boolean(journey));
   const departureAt = search?.departureAt ?? new Date();
   const shownLeaders = new Map<string, string>();
 
@@ -142,16 +154,13 @@ export default function RouteExploreScreen() {
 
   // Only the modes these journeys really use: no « Bateau » chip that leads to an empty list,
   // and no chips at all when every journey uses the same mode.
-  const usedFilters = (Object.keys(FILTER_MODES) as Exclude<Filter, 'Tout'>[])
-    .filter((item) => journeys.some((journey) => journey.legs.some((leg) => FILTER_MODES[item].includes(leg.mode))));
-  const activeFilter: Filter = filter === 'Tout' || usedFilters.includes(filter) ? filter : 'Tout';
-  const matchesFilter = (journey: ApiJourney) => activeFilter === 'Tout'
-    || journey.legs.some((leg) => FILTER_MODES[activeFilter].includes(leg.mode));
-  // Journeys already on the three cards: « Voir tous » only when it shows something more.
+  const inCategory = (name: CategoryName) => (search?.categories[name] ?? [])
+    .map((id) => byId.get(id)).filter((journey): journey is ApiJourney => Boolean(journey));
+  // Journeys already on the three cards; the others wait folded under them, quickest first.
   const onCards = new Set(CATEGORIES.map((category) => inCategory(category.name)[0]?.id).filter(Boolean));
-  const notOnCards = journeys.filter((journey) => !onCards.has(journey.id)).length;
-  const listed = step && step !== 'all' ? inCategory(step) : [...journeys].sort((a, b) => a.duration - b.duration);
-  const others = step && step !== 'all' ? journeys.filter((journey) => !listed.includes(journey)) : [];
+  const others = journeys.filter((journey) => !onCards.has(journey.id))
+    .sort((a, b) => a.duration - b.duration);
+  const othersOpen = othersOpenFor === searchKey;
 
   return (
     <View style={styles.container}>
@@ -159,7 +168,7 @@ export default function RouteExploreScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topHeader}>
           <View style={styles.logoRow}>
-            <TouchableOpacity onPress={() => (step ? setStep(null) : goBack(router))} activeOpacity={0.7} style={styles.iconBtn} accessibilityLabel="Retour">
+            <TouchableOpacity onPress={() => goBack(router)} activeOpacity={0.7} style={styles.iconBtn} accessibilityLabel="Retour">
               <Ionicons name="arrow-back" size={22} color="#000000" />
             </TouchableOpacity>
             <Image source={require('@/assets/images/sira-logo-official.png')} style={styles.logoImage} contentFit="contain" />
@@ -203,15 +212,26 @@ export default function RouteExploreScreen() {
             <Text style={styles.timeChipText}>{departureLabel(departAt)}</Text>
             <Ionicons name="chevron-down" size={14} color="#1F1F1F" />
           </TouchableOpacity>
-          {step && usedFilters.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-              {(['Tout', ...usedFilters] as Filter[]).map((item) => (
-                <TouchableOpacity key={item} style={[styles.filterChip, activeFilter === item && styles.filterChipActive]} onPress={() => setFilter(item)} activeOpacity={0.8}>
-                  <Text style={[styles.filterText, activeFilter === item && styles.filterTextActive]}>{item}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+            {MODES.map(({ mode, label }) => {
+              const allowed = !excluded.includes(mode);
+              const last = allowed && excluded.length + 1 >= MODES.length;
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={[styles.filterChip, allowed && styles.filterChipActive]}
+                  onPress={() => toggleMode(mode)}
+                  disabled={last}
+                  activeOpacity={0.8}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: allowed, disabled: last }}
+                  accessibilityLabel={allowed ? `${label} permis, touche pour l’enlever` : `${label} enlevé, touche pour le remettre`}
+                >
+                  <Text style={[styles.filterText, allowed ? styles.filterTextActive : styles.filterTextOff]}>{label}</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
+              );
+            })}
+          </ScrollView>
         </View>
 
         <YangoLocationModal
@@ -263,7 +283,7 @@ export default function RouteExploreScreen() {
             </View>
           )}
 
-          {ready && step === null && (
+          {ready && (
             <>
               <Text style={styles.sectionTitle}>Comment veux-tu voyager ?</Text>
               {journeys.length === 1 && (
@@ -282,10 +302,11 @@ export default function RouteExploreScreen() {
                   <TouchableOpacity
                     style={[styles.categoryCard, !leader && styles.categoryCardEmpty]}
                     disabled={!first || (category.name === 'debout' && Boolean(sameAs))}
-                    onPress={() => { setFilter('Tout'); setStep(category.name); }}
+                    onPress={() => first && openJourney(first)}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel={`${category.label}, ${category.subtitle}`}
+                    accessibilityHint="Ouvre le détail du trajet"
                   >
                     <View style={styles.categoryHead}>
                       <View style={styles.categoryIcon}><Ionicons name={category.icon} size={20} color="#FFFFFF" /></View>
@@ -319,45 +340,24 @@ export default function RouteExploreScreen() {
                   </Animated.View>
                 );
               })}
-              {notOnCards > 0 && (
-                <TouchableOpacity style={styles.allLink} onPress={() => { setFilter('Tout'); setStep('all'); }} activeOpacity={0.7}>
-                  <Text style={styles.allLinkText}>Voir {notOnCards === 1 ? 'l’autre trajet' : `les ${notOnCards} autres trajets`}</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#F26522" />
+              {others.length > 0 && (
+                <TouchableOpacity
+                  style={styles.allLink}
+                  onPress={() => setOthersOpenFor(othersOpen ? null : searchKey)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: othersOpen }}
+                >
+                  <Text style={styles.allLinkText}>
+                    {othersOpen ? 'Masquer les autres trajets' : `Voir ${others.length === 1 ? 'l’autre trajet' : `les ${others.length} autres trajets`}`}
+                  </Text>
+                  <Ionicons name={othersOpen ? 'chevron-up' : 'chevron-down'} size={16} color="#F26522" />
                 </TouchableOpacity>
               )}
-            </>
-          )}
-
-          {ready && step !== null && (
-            <>
-              <View style={styles.tabs}>
-                {CATEGORIES.map((category) => (
-                  <TouchableOpacity
-                    key={category.name}
-                    style={[styles.tab, step === category.name && styles.tabActive]}
-                    disabled={!inCategory(category.name).length}
-                    onPress={() => setStep(category.name)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.tabText, step === category.name && styles.tabTextActive, !inCategory(category.name).length && styles.tabTextDisabled]}>{category.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity style={[styles.tab, step === 'all' && styles.tabActive]} onPress={() => setStep('all')} activeOpacity={0.8}>
-                  <Text style={[styles.tabText, step === 'all' && styles.tabTextActive]}>Tous</Text>
-                </TouchableOpacity>
-              </View>
-
-              <JourneyList key={`${step}-${activeFilter}`} journeys={listed.filter(matchesFilter)} departureAt={departureAt} onOpen={openJourney} />
-              {listed.filter(matchesFilter).length === 0 && (
-                <View style={styles.stateCard}>
-                  <Ionicons name="information-circle" size={18} color="#F26522" />
-                  <Text style={styles.stateText}>Aucun trajet avec ce mode dans cette catégorie.</Text>
-                </View>
-              )}
-              {others.filter(matchesFilter).length > 0 && (
+              {othersOpen && others.length > 0 && (
                 <>
                   <Text style={styles.groupTitle}>Autres façons d’y aller</Text>
-                  <JourneyList journeys={others.filter(matchesFilter)} departureAt={departureAt} onOpen={openJourney} />
+                  <JourneyList journeys={others} departureAt={departureAt} onOpen={openJourney} />
                 </>
               )}
             </>
@@ -369,6 +369,11 @@ export default function RouteExploreScreen() {
       </SafeAreaView>
     </View>
   );
+}
+
+// « Taxi », « Taxi et Gbaka », « Taxi, Gbaka et Bus ».
+function listLabels(labels: string[]) {
+  return labels.length < 2 ? labels.join('') : `${labels.slice(0, -1).join(', ')} et ${labels[labels.length - 1]}`;
 }
 
 // RATP-style rows: line badges, price and walk on the left; duration and
@@ -427,6 +432,7 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: '#F26522', borderColor: '#F26522' },
   filterText: { fontSize: 13, fontWeight: '600', color: '#1F1F1F' },
   filterTextActive: { color: '#FFFFFF' },
+  filterTextOff: { color: '#9A9A9A', textDecorationLine: 'line-through' },
 
   body: { flex: 1 },
   bodyContent: { padding: 16, paddingBottom: 140, gap: 10 },
@@ -451,12 +457,6 @@ const styles = StyleSheet.create({
   allLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8 },
   allLinkText: { fontSize: 14, fontWeight: '700', color: '#F26522' },
 
-  tabs: { flexDirection: 'row', backgroundColor: '#EAEAEA', borderRadius: 12, padding: 3 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10 },
-  tabActive: { backgroundColor: '#000000' },
-  tabText: { fontSize: 13, fontWeight: '700', color: '#333333' },
-  tabTextActive: { color: '#FFFFFF' },
-  tabTextDisabled: { color: '#AAAAAA' },
   groupTitle: { fontSize: 15, fontWeight: '800', color: '#111111', marginTop: 8 },
 
   list: { backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden' },
