@@ -42,6 +42,9 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
   };
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  // The share card follows its design (512 px wide): k turns the design's pixels into the card's.
+  const [shareWidth, setShareWidth] = useState(280);
+  const k = shareWidth / 512;
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -165,29 +168,34 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 <Text style={styles.menuItemText}>Se déconnecter</Text>
               </TouchableOpacity>
 
-              {/* Bottom "Partager SIRA" Card Banner */}
-              <View style={styles.promoCardContainer}>
-                <View style={styles.promoCardContent}>
-                  <Text style={styles.promoTitle}>Partager SIRA</Text>
-                  <Text style={styles.promoSub}>à mes amis !</Text>
-
-                  <TouchableOpacity
-                    style={styles.shareButton}
-                    onPress={handleShareApp}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.shareIconCircle}>
-                      <Ionicons name="share-social" size={12} color="#F26522" />
-                    </View>
-                    <Text style={styles.shareButtonText}>Partager SIRA</Text>
-                  </TouchableOpacity>
+              {/* « Partager SIRA » card of the Figma design (node 772-4971, drawn 512 × 258):
+                  every size is that design's, scaled to the card's width (k). The orange band is
+                  the button; the two friends stand over it, cut out of the design itself. */}
+              <View style={styles.shareCard} onLayout={(event) => setShareWidth(event.nativeEvent.layout.width)}>
+                <View style={[styles.shareTitleBlock, { left: 36 * k, top: 46 * k }]}>
+                  {/* Sizes match the design's text widths in SIRA's font (Montserrat is wider than the design's). */}
+                  <Text style={[styles.shareTitle, { fontSize: 31 * k, lineHeight: 42 * k }]}>Partager SIRA</Text>
+                  <Text style={[styles.shareSubtitle, { fontSize: 31 * k, lineHeight: 42 * k }]}>à mes amis !</Text>
                 </View>
 
-                {/* Right Illustration */}
+                <TouchableOpacity
+                  style={[styles.shareBand, { left: 14 * k, top: 144 * k, height: 76 * k, borderTopLeftRadius: 38 * k, borderBottomLeftRadius: 38 * k }]}
+                  onPress={handleShareApp}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Partager SIRA à mes amis"
+                >
+                  <View style={[styles.shareIconCircle, { marginLeft: 10 * k, width: 50 * k, height: 50 * k, borderRadius: 25 * k }]}>
+                    <Ionicons name="share-social" size={26 * k} color="#F26522" />
+                  </View>
+                  <Text style={[styles.shareButtonText, { marginLeft: 16 * k, fontSize: 26 * k }]}>Partager SIRA</Text>
+                </TouchableOpacity>
+
                 <Image
-                  source={require('@/assets/images/share-sira-friends.png')}
-                  style={styles.promoIllustration}
-                  contentFit="contain"
+                  source={require('@/assets/images/share-sira-friends-card.png')}
+                  style={[styles.shareFriends, { left: 262 * k, top: 28 * k, width: 250 * k, height: 192 * k }]}
+                  contentFit="fill"
+                  pointerEvents="none"
                 />
               </View>
             </ScrollView>
@@ -372,60 +380,43 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  promoCardContainer: {
-    backgroundColor: '#262626',
-    borderRadius: 14,
-    padding: 12,
+  // Positions and sizes are set in the JSX, from the design's pixels.
+  shareCard: {
+    width: '100%',
+    aspectRatio: 512 / 258,
     marginTop: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
+    backgroundColor: '#333333',
+    borderRadius: 14,
     overflow: 'hidden',
   },
-  promoCardContent: {
-    flex: 1,
-    zIndex: 2,
+  shareTitleBlock: {
+    position: 'absolute',
   },
-  promoTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  promoSub: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#E0E0E0',
-    marginBottom: 8,
-  },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F26522',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-  },
-  shareIconCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 6,
-  },
-  shareButtonText: {
-    fontSize: 12,
+  shareTitle: {
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  promoIllustration: {
-    width: 110,
-    height: 72,
+  shareSubtitle: {
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  shareBand: {
     position: 'absolute',
     right: 0,
-    bottom: 0,
-    zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F26522',
+  },
+  shareIconCircle: {
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  shareFriends: {
+    position: 'absolute',
   },
 });
