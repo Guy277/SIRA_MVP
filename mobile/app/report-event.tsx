@@ -15,7 +15,7 @@ import { REPORT_CHOOSE } from '@/lib/spoken';
 import { useSpeech } from '@/lib/voice';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { playIntroToday } from '@/lib/motion';
 import { goBack } from '@/lib/navigation';
@@ -25,40 +25,41 @@ import { summarizeReports, type ReportCategory } from '@/lib/report-summary-core
 
 const { width } = Dimensions.get('window');
 
-// Banner sizes follow the screen: the character shrinks on narrow phones and
-// the bubble takes the room left beside it, so they never cover each other.
-const CHARACTER_WIDTH = Math.min(180, width * 0.42);
-const CHARACTER_HEIGHT = CHARACTER_WIDTH * (220 / 180);
-const BUBBLE_WIDTH = Math.max(150, width - CHARACTER_WIDTH - 18 - 14);
-// Three category cards per row: on narrow phones the labels get a smaller font
-// (« Embouteillage » must fit on one line, not be cut in the middle).
-const CARD_WIDTH = (width - 56) / 3;
-const NARROW_CARDS = CARD_WIDTH < 100;
+// The designer's screen is 804 px wide (2x): k turns its pixels into this phone's.
+const k = width / 804;
+// Banner of the design (city, crashed cars, bus, the SIRA character pointing), 804 × 540; the
+// bubble drawn into it was erased, it is written below (it says « tu », like the rest of SIRA).
+const BANNER_HEIGHT = 540 * k;
+// Three square cards per row: 198 px wide, 38 px apart, 66 px from the edges in the design.
+const CARD_SIZE = 198 * k;
+// « Embouteillage » must stay on one line inside its card: the label follows the card's width.
+const CARD_FONT = Math.min(12.5, CARD_SIZE / 8.8);
 
 interface EventCategory {
   id: ReportCategory;
   title: string;
   iconName: string;
-  iconFamily: 'FontAwesome5' | 'Ionicons';
+  iconFamily: 'FontAwesome5' | 'Ionicons' | 'MaterialCommunityIcons';
 }
 
+// Icons as in the design: crash, line of cars, barrier, drop, road, broken-down car, dots.
 const CATEGORIES: EventCategory[] = [
   { id: 'accident', title: 'Accident', iconName: 'car-crash', iconFamily: 'FontAwesome5' },
-  { id: 'embouteillage', title: 'Embouteillage', iconName: 'car', iconFamily: 'FontAwesome5' },
-  { id: 'route_bloquee', title: 'Route bloquée', iconName: 'road', iconFamily: 'FontAwesome5' },
+  { id: 'embouteillage', title: 'Embouteillage', iconName: 'car-multiple', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'route_bloquee', title: 'Route bloquée', iconName: 'boom-gate', iconFamily: 'MaterialCommunityIcons' },
   { id: 'inondation', title: 'Inondation', iconName: 'water', iconFamily: 'Ionicons' },
-  { id: 'route_degradee', title: 'Route\ndégradée', iconName: 'warning', iconFamily: 'Ionicons' },
-  { id: 'vehicule_panne', title: 'Véhicule\nen panne', iconName: 'tools', iconFamily: 'FontAwesome5' },
-  { id: 'autre', title: 'Autre événement', iconName: 'ellipsis-horizontal', iconFamily: 'Ionicons' },
+  { id: 'route_degradee', title: 'Route\ndégradée', iconName: 'road', iconFamily: 'FontAwesome5' },
+  { id: 'vehicule_panne', title: 'Véhicule\nen panne', iconName: 'car-wrench', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'autre', title: 'Autre\névénement', iconName: 'ellipsis-horizontal', iconFamily: 'Ionicons' },
 ];
 
 // SIRA's orange for every kind: the icon and the name tell them apart (white, black and orange only).
 const SIRA_ORANGE = '#F26522';
 
 function CategoryIcon({ category, size, color = '#FFFFFF' }: { category: EventCategory; size: number; color?: string }) {
-  return category.iconFamily === 'FontAwesome5'
-    ? <FontAwesome5 name={category.iconName as any} size={size - 2} color={color} />
-    : <Ionicons name={category.iconName as any} size={size} color={color} />;
+  if (category.iconFamily === 'FontAwesome5') return <FontAwesome5 name={category.iconName as any} size={size - 2} color={color} />;
+  if (category.iconFamily === 'MaterialCommunityIcons') return <MaterialCommunityIcons name={category.iconName as any} size={size + 2} color={color} />;
+  return <Ionicons name={category.iconName as any} size={size} color={color} />;
 }
 
 export default function ReportEventScreen() {
@@ -96,28 +97,20 @@ export default function ReportEventScreen() {
 
   const card = (category: EventCategory, index: number) => {
     const count = summary.byCategory[category.id] ?? 0;
-    const wide = category.id === 'autre';
     return (
-      <Animated.View key={category.id} entering={entering(index)} style={wide ? styles.wideWrap : undefined}>
+      <Animated.View key={category.id} entering={entering(index)}>
         <Pressable
           onPress={() => handleSelectCategory(category)}
           accessibilityRole="button"
           accessibilityLabel={`${category.title.replace('\n', ' ')}${count ? `, ${countLabel(count)}` : ''}`}
-          style={({ pressed }) => [styles.categoryCard, wide && styles.wideCard, pressed && styles.categoryCardPressed, pressed && { borderColor: SIRA_ORANGE }]}
+          style={({ pressed }) => [styles.categoryCard, pressed && styles.categoryCardPressed]}
         >
-          <View style={[styles.categoryCircleIcon, wide && styles.wideCircleIcon, { backgroundColor: SIRA_ORANGE, shadowColor: SIRA_ORANGE }]}>
-            <CategoryIcon category={category} size={wide ? 24 : 26} />
+          <View style={styles.categoryCircleIcon}>
+            <CategoryIcon category={category} size={Math.round(50 * k)} />
           </View>
-          {wide ? (
-            <View style={styles.wideTexts}>
-              <Text style={styles.wideTitle}>{category.title}</Text>
-              <Text style={styles.wideHint}>Tout ce qui gêne la circulation et n’est pas dans la liste.</Text>
-            </View>
-          ) : (
-            <Text style={styles.categoryTitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
-              {category.title}
-            </Text>
-          )}
+          <Text style={styles.categoryTitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
+            {category.title}
+          </Text>
           {count > 0 && (
             <View style={styles.countPill}>
               <Text style={styles.countPillText}>{count}</Text>
@@ -166,29 +159,21 @@ export default function ReportEventScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarSpace }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Banner Illustration with Assistant & Speech Bubble */}
+          {/* Banner of the design, with the character's speech bubble written over it. */}
           <View style={styles.bannerContainer}>
             <Image
-              source={require('@/assets/images/city-traffic-accident-bg.png')}
-              style={styles.bannerBgImage}
+              source={require('@/assets/images/report-banner.png')}
+              style={styles.bannerImage}
               contentFit="cover"
             />
-            <View style={styles.bannerOverlay} />
-
             <View style={styles.speechBubbleBox}>
               <Text style={styles.speechBubbleText}>
                 <Text style={styles.boldText}>En signalant un événement</Text>, tu nous aides
                 à <Text style={styles.boldText}>améliorer SIRA</Text> et à te proposer
-                des <Text style={styles.boldText}>itinéraires plus optimisés.</Text>
+                des <Text style={styles.boldText}>itinéraires plus optimisés</Text>.
               </Text>
               <View style={styles.speechBubblePointer} />
             </View>
-
-            <Image
-              source={require('@/assets/images/sira-character-assistant.png')}
-              style={styles.characterImg}
-              contentFit="contain"
-            />
           </View>
 
           {/* Heading Section */}
@@ -199,7 +184,7 @@ export default function ReportEventScreen() {
             </Text>
           </View>
 
-          {/* Six kinds in three columns, then « Autre événement » across the width. */}
+          {/* Seven kinds, three square cards per row. */}
           <View style={styles.gridContainer}>
             {CATEGORIES.map((category, index) => card(category, index + 1))}
           </View>
@@ -236,7 +221,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '500',
     color: '#000000',
   },
   headerIconButton: {
@@ -267,77 +252,62 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   bannerContainer: {
-    height: 230,
     width: '100%',
+    height: BANNER_HEIGHT,
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#FFF8F5',
+    backgroundColor: '#FFFFFF',
   },
-  bannerBgImage: {
-    ...StyleSheet.absoluteFill,
+  bannerImage: {
     width: '100%',
     height: '100%',
-    opacity: 1,
   },
-  bannerOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'transparent',
-  },
+  // Where the design's bubble was (from x 160, 28 px down), a little wider for SIRA's font.
   speechBubbleBox: {
     position: 'absolute',
-    top: 20,
-    left: 18,
-    width: BUBBLE_WIDTH,
+    top: 28 * k,
+    left: 152 * k,
+    width: 318 * k,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderRadius: 30 * k,
+    paddingHorizontal: 18 * k,
+    paddingVertical: 16 * k,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
   speechBubbleText: {
-    fontSize: 11,
-    color: '#333333',
-    lineHeight: 15,
+    fontSize: 23 * k,
+    lineHeight: 32 * k,
+    color: '#222222',
+    textAlign: 'center',
   },
   boldText: {
     fontWeight: '800',
     color: '#000000',
   },
+  // The tail, on the right, toward the character's face.
   speechBubblePointer: {
     position: 'absolute',
-    right: -8,
-    top: 30,
+    right: -14 * k,
+    bottom: 22 * k,
     width: 0,
     height: 0,
-    borderTopWidth: 6,
-    borderBottomWidth: 6,
-    borderLeftWidth: 8,
-    borderStyle: 'solid',
-    backgroundColor: 'transparent',
+    borderTopWidth: 10 * k,
+    borderBottomWidth: 10 * k,
+    borderLeftWidth: 16 * k,
     borderTopColor: 'transparent',
     borderBottomColor: 'transparent',
     borderLeftColor: '#FFFFFF',
   },
-  characterImg: {
-    position: 'absolute',
-    right: 5,
-    bottom: -5,
-    width: CHARACTER_WIDTH,
-    height: CHARACTER_HEIGHT,
-  },
   headingSection: {
     paddingHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 18,
     alignItems: 'center',
   },
-  // Same type scale as « Comment veux-tu voyager ? » (Explore): titles 800, names 700, help text regular grey.
   mainHeading: {
     fontSize: 22,
     fontWeight: '800',
@@ -346,85 +316,45 @@ const styles = StyleSheet.create({
   },
   subHeading: {
     fontSize: 13,
-    color: '#6B6B6B',
+    color: '#333333',
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 4,
     paddingHorizontal: 10,
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-    rowGap: 14,
+    paddingHorizontal: 66 * k,
+    columnGap: 38 * k,
+    rowGap: 34 * k,
   },
   categoryCard: {
-    width: CARD_WIDTH,
-    height: 112,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: NARROW_CARDS ? 2 : 4,
+    width: CARD_SIZE,
+    height: CARD_SIZE,
+    backgroundColor: '#F4F5F7',
+    borderWidth: 1,
+    borderColor: '#C9CDD3',
+    paddingHorizontal: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
   },
   categoryCardPressed: {
     transform: [{ scale: 0.95 }],
-    backgroundColor: '#FAFAFA',
-  },
-  wideWrap: {
-    width: '100%',
-  },
-  wideCard: {
-    width: '100%',
-    height: 76,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 16,
-    gap: 14,
-  },
-  wideTexts: {
-    flex: 1,
-  },
-  wideTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111111',
-  },
-  wideHint: {
-    fontSize: 13,
-    color: '#6B6B6B',
-    marginTop: 2,
+    borderColor: SIRA_ORANGE,
   },
   categoryCircleIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 102 * k,
+    height: 102 * k,
+    borderRadius: 51 * k,
+    backgroundColor: SIRA_ORANGE,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 4,
-  },
-  wideCircleIcon: {
-    marginBottom: 0,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    marginBottom: 10 * k,
   },
   countPill: {
     position: 'absolute',
-    top: 7,
-    right: 7,
+    top: 6,
+    right: 6,
     minWidth: 22,
     height: 22,
     borderRadius: 11,
@@ -441,11 +371,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   categoryTitle: {
-    fontSize: NARROW_CARDS ? 10.5 : 13,
-    fontWeight: '700',
+    fontSize: CARD_FONT,
+    fontWeight: '600',
     color: '#111111',
     textAlign: 'center',
-    lineHeight: NARROW_CARDS ? 13 : 16,
+    lineHeight: CARD_FONT * 1.25,
   },
   bottomBarContainer: {
     flexDirection: 'row',

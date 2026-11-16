@@ -11,8 +11,10 @@ import { reversePlace, type Coordinates } from '@/lib/sira-api';
 import { ABIDJAN_CENTRE, GRAND_ABIDJAN_RADIUS_M, distanceM, nearestPlaceLabel, rememberPlace, useCurrentPlace } from '@/lib/places';
 
 type Props = {
-  purpose: 'departure' | 'arrival';
-  onConfirm: (title: string) => void;
+  // report: where a traveller's report happened (Signaler un événement).
+  purpose: 'departure' | 'arrival' | 'report';
+  // The place's name, and where it is.
+  onConfirm: (title: string, coordinates: Coordinates) => void;
   onBack: () => void;
 };
 
@@ -62,8 +64,10 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
   const confirm = () => {
     if (!current || outside) return;
     rememberPlace(current.title, center);
-    onConfirm(current.title);
+    onConfirm(current.title, center);
   };
+  const label = purpose === 'departure' ? 'Départ' : purpose === 'report' ? 'Lieu de l’événement' : 'Destination';
+  const action = purpose === 'departure' ? 'Partir d’ici' : purpose === 'report' ? 'Placer l’événement ici' : 'Aller ici';
 
   return (
     <View style={styles.screen}>
@@ -102,12 +106,12 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
             <Ionicons name="locate" size={22} color="#F26522" />
           </TouchableOpacity>
         )}
-        <Text style={styles.sheetLabel}>{purpose === 'departure' ? 'Départ' : 'Destination'}</Text>
+        <Text style={styles.sheetLabel}>{label}</Text>
         {outside ? (
           <Text style={styles.warning}>Ce point est hors du Grand Abidjan : SIRA ne couvre que le Grand Abidjan.</Text>
         ) : !chosenByTraveller && !moving ? (
           <Text style={[styles.placeSubtitle, styles.waiting]}>
-            {purpose === 'departure' ? 'Ta position n’est pas connue : déplace' : 'Déplace'} la carte jusqu’à ton point, ou touche un endroit.
+            {purpose === 'arrival' ? 'Déplace' : 'Ta position n’est pas connue : déplace'} la carte jusqu’{purpose === 'report' ? 'au lieu de l’événement' : 'à ton point'}, ou touche un endroit.
           </Text>
         ) : current && !moving ? (
           <>
@@ -127,7 +131,7 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
           activeOpacity={0.85}
           accessibilityRole="button"
         >
-          <Text style={styles.confirmText}>{purpose === 'departure' ? 'Partir d’ici' : 'Aller ici'}</Text>
+          <Text style={styles.confirmText}>{action}</Text>
         </TouchableOpacity>
       </View>
     </View>
