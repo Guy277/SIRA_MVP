@@ -79,7 +79,7 @@ export default function AppearanceSettingsScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Top Header Bar */}
         <View style={styles.headerBar}>
           <TouchableOpacity

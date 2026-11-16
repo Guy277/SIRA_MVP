@@ -40,7 +40,7 @@ export default function LocationSettingsScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Top Header Bar */}
         <View style={styles.headerBar}>
           <TouchableOpacity

@@ -19,7 +19,7 @@ export default function VoiceSettingsScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.headerBar}>
           <TouchableOpacity
             style={styles.darkBackBtn}
