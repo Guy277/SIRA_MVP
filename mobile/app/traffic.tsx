@@ -13,7 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
 import { notify } from '@/lib/notify';
 import { voteReport, type TrafficReport } from '@/lib/sira-api';
@@ -38,6 +38,8 @@ const PANEL_LABELS: Record<string, string> = {
 
 export default function TrafficScreen() {
   const router = useRouter();
+  // The filters float just above the bottom bar and its raised circle.
+  const tabBarSpace = useTabBarSpace();
   const alertCount = useAlertCount();
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -244,7 +246,7 @@ export default function TrafficScreen() {
       </SafeAreaView>
 
       {/* Floating Bottom Incident Category Panel (Floating above Bottom Navigation Bar) */}
-      <View style={styles.bottomFloatingPanelWrapper}>
+      <View style={[styles.bottomFloatingPanelWrapper, { bottom: tabBarSpace - 2 }]}>
         {/* Filter in use: which incidents are shown, and how to see all of them again. */}
         {panelFilter && (
           <TouchableOpacity style={styles.filterChip} onPress={() => setPanelFilter(null)} activeOpacity={0.85} accessibilityRole="button"
@@ -629,9 +631,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
+  // Its bottom follows the bar (useTabBarSpace), set where it is drawn.
   bottomFloatingPanelWrapper: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 76 : 68,
     left: 0,
     right: 0,
     alignItems: 'center',
