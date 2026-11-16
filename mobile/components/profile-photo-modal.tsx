@@ -1,4 +1,6 @@
-import React from 'react';
+// « Photo de profil » (Profil and Modifier le profil): the phone's camera, its photos, or one of
+// SIRA's avatars. The picture is kept on this phone (lib/profile-picture.ts).
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,30 +11,40 @@ import {
 } from 'react-native';
 import { Text } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
+import { AvatarPickerModal } from '@/components/avatar-picker-modal';
+import { pickProfilePhoto } from '@/lib/profile-picture';
+import { notify } from '@/lib/notify';
 
 interface ProfilePhotoModalProps {
   visible: boolean;
   onClose: () => void;
-  onSelectCamera?: () => void;
-  onSelectGallery?: () => void;
-  onSelectAvatar?: () => void;
 }
 
-export function ProfilePhotoModal({
-  visible,
-  onClose,
-  onSelectCamera,
-  onSelectGallery,
-  onSelectAvatar,
-}: ProfilePhotoModalProps) {
-  const handleOptionPress = (callback?: () => void) => {
+export function ProfilePhotoModal({ visible, onClose }: ProfilePhotoModalProps) {
+  const [showAvatars, setShowAvatars] = useState(false);
+
+  // Started in the same touch as the button: browsers only open the camera or the photos then.
+  const pickPhoto = (source: 'camera' | 'gallery') => {
     onClose();
-    if (callback) {
-      callback();
-    }
+    void pickProfilePhoto(source).then((result) => {
+      if (result === 'refused') {
+        notify(
+          source === 'camera' ? 'Appareil photo refusé' : 'Photos refusées',
+          `Autorise ${source === 'camera' ? 'l’appareil photo' : 'l’accès aux photos'} pour SIRA dans les réglages du téléphone, puis réessaie.`,
+        );
+      } else if (result === 'failed') {
+        notify('Photo impossible', 'La photo n’a pas pu être prise ou lue. Réessaie, ou choisis un avatar.');
+      }
+    });
+  };
+  const openAvatars = () => {
+    onClose();
+    setShowAvatars(true);
   };
 
   return (
+    <>
+    <AvatarPickerModal visible={showAvatars} onClose={() => setShowAvatars(false)} />
     <Modal
       visible={visible}
       animationType="slide"
@@ -61,7 +73,8 @@ export function ProfilePhotoModal({
                 {/* 1. Caméra */}
                 <TouchableOpacity
                   style={styles.optionRow}
-                  onPress={() => handleOptionPress(onSelectCamera)}
+                  onPress={() => pickPhoto('camera')}
+                  accessibilityRole="button"
                   activeOpacity={0.7}
                 >
                   <View style={styles.iconBadge}>
@@ -73,7 +86,8 @@ export function ProfilePhotoModal({
                 {/* 2. Galerie */}
                 <TouchableOpacity
                   style={styles.optionRow}
-                  onPress={() => handleOptionPress(onSelectGallery)}
+                  onPress={() => pickPhoto('gallery')}
+                  accessibilityRole="button"
                   activeOpacity={0.7}
                 >
                   <View style={styles.iconBadge}>
@@ -85,7 +99,8 @@ export function ProfilePhotoModal({
                 {/* 3. Utiliser un avatar */}
                 <TouchableOpacity
                   style={styles.optionRow}
-                  onPress={() => handleOptionPress(onSelectAvatar)}
+                  onPress={openAvatars}
+                  accessibilityRole="button"
                   activeOpacity={0.7}
                 >
                   <View style={styles.iconBadge}>
@@ -102,6 +117,7 @@ export function ProfilePhotoModal({
         </View>
       </TouchableWithoutFeedback>
     </Modal>
+    </>
   );
 }
 

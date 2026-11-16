@@ -6,10 +6,9 @@ import {
   ScrollView,
   SafeAreaView,
   Platform,
-  Alert,
 } from 'react-native';
 import { Text } from '@/components/sira-text';
-import { Image } from 'expo-image';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,19 +35,8 @@ export default function ProfileScreen() {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  // Camera, photos or an avatar: handled by the « Photo de profil » window itself.
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false);
-
-  const handleSelectCamera = () => {
-    Alert.alert('Caméra', 'Ouvrir l’appareil photo…');
-  };
-
-  const handleSelectGallery = () => {
-    Alert.alert('Galerie', 'Ouvrir la galerie photos…');
-  };
-
-  const handleSelectAvatar = () => {
-    Alert.alert('Avatar', 'Sélectionner un avatar…');
-  };
 
   // The same pages as the side menu (lib/account-links.ts), then the account itself:
   // signing out, and deleting it (here only, confirmed first).
@@ -91,11 +79,7 @@ export default function ProfileScreen() {
               activeOpacity={0.85}
               onPress={() => setShowProfilePhotoModal(true)}
             >
-              <Image
-                source={require('@/assets/images/sira-character-assistant.png')}
-                style={styles.avatarImage}
-                contentFit="cover"
-              />
+              <ProfileAvatar size={112} />
               <TouchableOpacity
                 style={styles.cameraBadge}
                 activeOpacity={0.8}
@@ -200,13 +184,10 @@ export default function ProfileScreen() {
         }}
       />
 
-      {/* Profile Photo Edit Modal */}
+      {/* « Photo de profil »: camera, photos or one of SIRA's avatars */}
       <ProfilePhotoModal
         visible={showProfilePhotoModal}
         onClose={() => setShowProfilePhotoModal(false)}
-        onSelectCamera={handleSelectCamera}
-        onSelectGallery={handleSelectGallery}
-        onSelectAvatar={handleSelectAvatar}
       />
     </SafeAreaView>
   );

@@ -16,8 +16,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { isFavorite as isFavoriteIn, toggleFavoriteTrip, useFavorites } from '@/lib/favorites';
-import { journeyCategory, tripTitle as titleOf } from '@/lib/trip-history';
+import { journeyCategory } from '@/lib/trip-history';
 import { OsmMapView } from '@/components/osm-map-view';
+import { showSuccess } from '@/components/success-card';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
 import { journeyBrief, stepInFull, type SpokenPart } from '@/lib/spoken';
 import { say, stopSpeaking } from '@/lib/voice';
@@ -87,7 +88,6 @@ export default function RouteDetailScreen() {
   const search = store.search;
   const departure = search?.departure.name ?? '';
   const arrival = search?.arrival.name ?? '';
-  const tripTitle = search ? titleOf({ from: search.departure, to: search.arrival }) : '';
   const steps = journey && search ? timeline(journey, search.departureAt) : [];
   const arrivalAt = journey && search ? arrivalTime(journey, search.departureAt) : null;
   const insets = useSafeAreaInsets();
@@ -196,12 +196,7 @@ export default function RouteDetailScreen() {
       durationMin: Math.round(journey.duration),
       priceF: journey.price ?? null,
     });
-    notify(
-      nowFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris',
-      nowFavorite
-        ? `Le trajet « ${tripTitle} » est enregistré dans tes favoris.`
-        : `Le trajet « ${tripTitle} » a été retiré de tes favoris.`
-    );
+    showSuccess(nowFavorite ? 'Trajet ajouté aux favoris avec succès' : 'Trajet retiré des favoris', nowFavorite ? 'check-decagram' : 'heart-remove');
   };
 
   const handleLike = () => {

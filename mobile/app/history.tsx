@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { addFavoriteTrip } from '@/lib/favorites';
+import { showSuccess } from '@/components/success-card';
 import { formatDuration, formatPrice } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
 import { notify } from '@/lib/notify';
@@ -77,10 +78,9 @@ export default function HistoryScreen() {
   const handleAddToFavorites = () => {
     setIsMenuOpen(false);
     if (selectedItem) {
-      const title = tripTitle(selectedItem);
       const { from, to, category, transport, durationMin, priceF } = selectedItem;
       addFavoriteTrip({ from, to, category, transport, durationMin, priceF });
-      notify('Favoris', `Le trajet « ${title} » a été ajouté à tes favoris.`);
+      showSuccess('Trajet ajouté aux favoris avec succès');
     }
     setSelectedItem(null);
   };
@@ -280,21 +280,23 @@ export default function HistoryScreen() {
             <TouchableOpacity
               style={styles.closeOrangeBtn}
               onPress={() => setIsMenuOpen(false)}
+              accessibilityLabel="Fermer"
               activeOpacity={0.8}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close" size={14} color="#000000" />
+              <Ionicons name="close" size={20} color="#000000" />
             </TouchableOpacity>
 
             <View style={styles.menuItemsList}>
               {/* Option 1: Refaire ce trajet */}
               <TouchableOpacity
                 style={styles.menuOptionRow}
+                accessibilityRole="button"
                 onPress={handleRepeatRoute}
                 activeOpacity={0.7}
               >
                 <View style={styles.darkIconCircle}>
-                  <Ionicons name="refresh" size={18} color="#F26522" />
+                  <Ionicons name="arrow-undo" size={22} color="#F26522" />
                 </View>
                 <Text style={styles.menuOptionText}>Refaire ce trajet</Text>
               </TouchableOpacity>
@@ -302,11 +304,12 @@ export default function HistoryScreen() {
               {/* Option 2: Ajouter aux favoris */}
               <TouchableOpacity
                 style={styles.menuOptionRow}
+                accessibilityRole="button"
                 onPress={handleAddToFavorites}
                 activeOpacity={0.7}
               >
                 <View style={styles.darkIconCircle}>
-                  <Ionicons name="bookmark-outline" size={18} color="#F26522" />
+                  <Ionicons name="bookmark" size={22} color="#F26522" />
                 </View>
                 <Text style={styles.menuOptionText}>Ajouter aux favoris</Text>
               </TouchableOpacity>
@@ -314,11 +317,12 @@ export default function HistoryScreen() {
               {/* Option 3: Partager ce trajet */}
               <TouchableOpacity
                 style={styles.menuOptionRow}
+                accessibilityRole="button"
                 onPress={handleShareRoute}
                 activeOpacity={0.7}
               >
                 <View style={styles.darkIconCircle}>
-                  <Ionicons name="share-social-outline" size={18} color="#F26522" />
+                  <Ionicons name="share-social" size={22} color="#F26522" />
                 </View>
                 <Text style={styles.menuOptionText}>Partager ce trajet</Text>
               </TouchableOpacity>
@@ -326,11 +330,12 @@ export default function HistoryScreen() {
               {/* Option 4: Supprimer de l'historique */}
               <TouchableOpacity
                 style={styles.menuOptionRow}
+                accessibilityRole="button"
                 onPress={handleDeleteItem}
                 activeOpacity={0.7}
               >
                 <View style={styles.darkIconCircle}>
-                  <Ionicons name="trash-outline" size={18} color="#F26522" />
+                  <Ionicons name="trash" size={22} color="#F26522" />
                 </View>
                 <Text style={styles.menuOptionText}>Supprimer de l’historique</Text>
               </TouchableOpacity>
@@ -365,9 +370,10 @@ export default function HistoryScreen() {
               <TouchableOpacity
                 style={styles.closeOrangeBtn}
                 onPress={() => setIsDetailOpen(false)}
+                accessibilityLabel="Fermer"
                 activeOpacity={0.8}
               >
-                <Ionicons name="close" size={14} color="#000000" />
+                <Ionicons name="close" size={20} color="#000000" />
               </TouchableOpacity>
             </View>
 
@@ -661,7 +667,7 @@ const styles = StyleSheet.create({
   },
   blackMenuCard: {
     width: '100%',
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#000000',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -676,11 +682,11 @@ const styles = StyleSheet.create({
   },
   closeOrangeBtn: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    top: 14,
+    right: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F26522',
     justifyContent: 'center',
     alignItems: 'center',
@@ -692,13 +698,13 @@ const styles = StyleSheet.create({
   menuOptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 6,
   },
   darkIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#262626',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#1F1F1F',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,

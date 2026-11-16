@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Text, TextInput } from '@/components/sira-text';
-import { Image } from 'expo-image';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -82,11 +82,7 @@ export default function EditProfileScreen() {
                 activeOpacity={0.85}
                 onPress={() => setShowPhotoModal(true)}
               >
-                <Image
-                  source={require('@/assets/images/sira-character-assistant.png')}
-                  style={styles.avatarImage}
-                  contentFit="cover"
-                />
+                <ProfileAvatar size={112} />
                 <TouchableOpacity
                   style={styles.cameraBadge}
                   activeOpacity={0.8}

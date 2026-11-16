@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
+import { FollowZoneButton } from '@/components/follow-zone-button';
 import { notify } from '@/lib/notify';
 import { voteReport, type TrafficReport } from '@/lib/sira-api';
 import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, upsertReport, useLiveReports, alertBadge, useAlertCount } from '@/lib/reports';
@@ -454,6 +455,11 @@ export default function TrafficScreen() {
                     <Text style={styles.modalCloseButtonText}>Plus là</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Follow the zone around this report: an alert for each new report there, while SIRA is open. */}
+                <FollowZoneButton
+                  place={{ label: selectedIncident.location || selectedIncident.title, latitude: selectedIncident.lat, longitude: selectedIncident.lon }}
+                />
               </>
             )}
           </View>

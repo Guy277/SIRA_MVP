@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '@/components/sira-text';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -115,11 +116,7 @@ export function SideMenuModal({ visible, onClose }: SideMenuModalProps) {
                 activeOpacity={0.8}
               >
                 <View style={styles.avatarRing}>
-                  <Image
-                    source={require('@/assets/images/sira-character-assistant.png')}
-                    style={styles.avatarImage}
-                    contentFit="cover"
-                  />
+                  <ProfileAvatar size={46} />
                 </View>
 
                 <View style={styles.profileTextInfo}>

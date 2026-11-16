@@ -44,6 +44,14 @@
           "locationWhenInUsePermission": "SIRA utilise ta position pour calculer les trajets depuis l'endroit où tu es et pour localiser tes signalements."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SIRA ouvre tes photos seulement pour choisir ta photo de profil. Elle reste sur ton téléphone.",
+          "cameraPermission": "SIRA utilise l'appareil photo seulement pour prendre ta photo de profil. Elle reste sur ton téléphone.",
+          "microphonePermission": false
+        }
+      ],
       "expo-font",
       "expo-image",
       "expo-status-bar",

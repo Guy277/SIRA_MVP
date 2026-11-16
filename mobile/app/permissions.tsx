@@ -3,8 +3,9 @@
 // SIRA ne s'en sert plus, même si le téléphone l'autorise toujours (seuls ses réglages peuvent la retirer).
 // Ouvert depuis Paramètres. Une autorisation n'apparaît ici que si une fonction de SIRA s'en sert vraiment.
 import React from 'react';
-import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/sira-text';
+import { SiraSwitch } from '@/components/sira-switch';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -95,12 +96,9 @@ export default function PermissionsScreen() {
                   )}
                   <View style={styles.switchRow}>
                     <Text style={styles.switchLabel}>{permission.use}</Text>
-                    <Switch
+                    <SiraSwitch
                       value={usage[permission.kind]}
                       onValueChange={(on) => toggle(permission.kind, on)}
-                      trackColor={{ false: '#3F3F46', true: '#F26522' }}
-                      thumbColor="#FFFFFF"
-                      {...({ activeThumbColor: '#FFFFFF' } as object)}
                       accessibilityLabel={permission.use}
                     />
                   </View>

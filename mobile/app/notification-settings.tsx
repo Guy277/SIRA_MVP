@@ -4,10 +4,11 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  Switch,
   Platform,
 } from 'react-native';
 import { Text } from '@/components/sira-text';
+import { SiraSwitch } from '@/components/sira-switch';
+import { unfollowZone, useFollowedZones } from '@/lib/followed-zones';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -71,6 +72,7 @@ export default function NotificationSettingsScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
+  const followedZones = useFollowedZones();
 
   const [settingsState, setSettingsState] = useState<Record<string, boolean>>(() => {
     const initialState: Record<string, boolean> = {};
@@ -120,6 +122,30 @@ export default function NotificationSettingsScreen() {
               Les notifications arrivent dans une prochaine version. En attendant, SIRA te prévient à la voix pendant tes trajets.
             </Text>
           </View>
+          {/* Zones followed from a report (« Suivre cette zone » on Trafic), kept on this phone. */}
+          <View style={styles.zonesCard}>
+            <Text style={styles.cardTitle}>Mes zones suivies</Text>
+            <Text style={styles.cardSubtitle}>
+              {followedZones.length
+                ? 'Une alerte pour chaque nouvel événement signalé dans ces zones, tant que SIRA est ouvert.'
+                : 'Aucune zone suivie. Sur Trafic, touche un signalement puis « Suivre cette zone ».'}
+            </Text>
+            {followedZones.map((zone) => (
+              <View key={zone.id} style={styles.zoneRow}>
+                <Ionicons name="notifications" size={16} color="#F26522" />
+                <Text style={styles.zoneLabel} numberOfLines={1}>{zone.label}</Text>
+                <TouchableOpacity
+                  onPress={() => unfollowZone(zone.id)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ne plus suivre ${zone.label}`}
+                >
+                  <Text style={styles.zoneRemove}>Retirer</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
           {SETTINGS_ITEMS.map((item) => {
             const isEnabled = !!settingsState[item.id];
             return (
@@ -129,13 +155,11 @@ export default function NotificationSettingsScreen() {
                   <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
                 </View>
 
-                <Switch
-                  trackColor={{ false: '#3F3F46', true: '#F26522' }}
-                  thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : isEnabled ? '#FFFFFF' : '#F4F3F4'}
-                  ios_backgroundColor="#3F3F46"
-                  onValueChange={() => toggleSetting(item.id)}
+                <SiraSwitch
                   value={isEnabled}
+                  onValueChange={() => toggleSetting(item.id)}
                   disabled
+                  accessibilityLabel={item.title}
                 />
               </View>
             );
@@ -203,6 +227,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#FDBA74',
     lineHeight: 18,
+  },
+  zonesCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(242,101,34,0.35)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 12,
+    gap: 4,
+  },
+  zoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 10,
+  },
+  zoneLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  zoneRemove: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#F26522',
   },
   settingCard: {
     flexDirection: 'row',
