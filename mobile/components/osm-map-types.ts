@@ -57,5 +57,9 @@ export function routeLabels(active: MapPoint[], activeLabel: string | undefined,
   return labels;
 }
 
+// Bouton « Ma position » : chaque nouvelle key recentre la carte sur ces coordonnées.
+// wide : position approximative, la carte zoome moins pour montrer tout le cercle de précision.
+export type CenterRequest = { coordinates: MapPoint; key: number; wide?: boolean };
+
 // Demande de zoom des boutons + / − : delta en niveaux de zoom (+1, −1) ; key change à chaque toucher.
 export type ZoomRequest = { delta: number; key: number };

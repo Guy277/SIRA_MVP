@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { knownPlace } from '@/lib/places';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import { routeLabels, type MapPlace, type MapPadding, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
+import { routeLabels, type CenterRequest, type MapPlace, type MapPadding, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -33,11 +33,25 @@ interface OsmMapViewProps {
   zoomRequest?: ZoomRequest | null;
   // Centrer la carte sur le voyageur dès que sa position est connue (écran Trafic).
   centerOnUser?: boolean;
+  // Marge d'erreur de la position du voyageur, en mètres : un cercle bleu pâle autour du point.
+  userAccuracyM?: number | null;
+  // Bouton « Ma position » : recentre la carte à chaque nouvelle key.
+  centerRequest?: CenterRequest | null;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
 
 const ABIDJAN_CENTER: [number, number] = [-4.005, 5.365];
+
+// A circle of radiusM metres around a point, as a ring of [lon, lat] (flat earth: fine for a few km).
+function circleRing(center: Coordinates, radiusM: number) {
+  const latStep = radiusM / 111_320;
+  const lonStep = radiusM / (111_320 * Math.cos((center.latitude * Math.PI) / 180));
+  return Array.from({ length: 65 }, (_, index) => {
+    const angle = (index / 64) * 2 * Math.PI;
+    return [center.longitude + lonStep * Math.cos(angle), center.latitude + latStep * Math.sin(angle)];
+  });
+}
 
 function markerElement(className: string, text = '') {
   const node = document.createElement('div');
@@ -54,7 +68,7 @@ const glyph = (name: string) => {
 
 const NO_ROUTES: MapRoute[] = [];
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, style }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, userAccuracyM = null, centerRequest = null, style }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -75,6 +89,10 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       // The map credits start folded (the « i » opens them): unfolded, they cover the bottom of a phone screen.
       map.once('load', () => map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
       map.on('load', () => {
+        // How far off the traveller's position may be: drawn first, under everything else.
+        map.addSource('accuracy', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({ id: 'accuracy-fill', type: 'fill', source: 'accuracy', paint: { 'fill-color': '#2563EB', 'fill-opacity': 0.12 } });
+        map.addLayer({ id: 'accuracy-line', type: 'line', source: 'accuracy', paint: { 'line-color': '#2563EB', 'line-opacity': 0.35, 'line-width': 1.5 } });
         // Other journeys first, so the chosen one is drawn over them; a wide invisible line makes them easy to touch.
         map.addSource('alternatives', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'alternatives-line', type: 'line', source: 'alternatives', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7C828C', 'line-width': 5 } });
@@ -142,6 +160,10 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         type: 'FeatureCollection',
         features: routeCoordinates.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: routeCoordinates.map((point) => [point.longitude, point.latitude]) } }] : [],
       });
+      (map.getSource('accuracy') as GeoJSONSource | undefined)?.setData({
+        type: 'FeatureCollection',
+        features: userPosition && userAccuracyM ? [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [circleRing(userPosition, userAccuracyM)] } }] : [],
+      });
       const drawnAlternatives = alternativeRoutes.filter((route) => route.coordinates.length > 1);
       (map.getSource('alternatives') as GeoJSONSource | undefined)?.setData({
         type: 'FeatureCollection',
@@ -166,7 +188,16 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       }
     });
     return () => { active = false; };
-  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, alternativeRoutes, routeLabel, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, padding]);
+  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, alternativeRoutes, routeLabel, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, userAccuracyM, padding]);
+
+  // Bouton « Ma position » : une demande par nouvelle key.
+  const centerKey = centerRequest?.key;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || centerKey === undefined || !centerRequest) return;
+    map.easeTo({ center: [centerRequest.coordinates.longitude, centerRequest.coordinates.latitude], zoom: centerRequest.wide ? 13.5 : Math.max(map.getZoom(), 15), duration: 600 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule une nouvelle key recentre
+  }, [ready, centerKey]);
 
   // Boutons + / − : une demande de zoom par nouvelle key (zoomRequest change de key à chaque toucher).
   const zoomKey = zoomRequest?.key;
@@ -205,7 +236,14 @@ const MARKER_CSS = `
 .sira-map-report--reliable { background: #991B1B; }
 .sira-map-route-label { padding: 3px 8px; border-radius: 12px; background: #fff; color: #111; border: 1px solid #D4D4D4; box-shadow: 0 1px 4px rgba(0,0,0,.25); font: 700 11px system-ui; white-space: nowrap; cursor: pointer; }
 .sira-map-route-label--chosen { background: #F26522; color: #fff; border-color: #F26522; cursor: default; }
-.sira-map-user { width: 16px; height: 16px; border-radius: 50%; background: #2563EB; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(37,99,235,.2); }
+.sira-map-user { width: 16px; height: 16px; border-radius: 50%; background: #2563EB; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(37,99,235,.2); animation: sira-map-user-pulse 2s ease-out infinite; }
+/* The traveller's dot pulses: a wave grows out of its halo and fades, so it is found at a glance.
+   Drawn as a shadow, it stays under the dot. Not for travellers who asked for less motion. */
+@keyframes sira-map-user-pulse {
+  0% { box-shadow: 0 0 0 6px rgba(37,99,235,.2), 0 0 0 0 rgba(37,99,235,.45); }
+  100% { box-shadow: 0 0 0 6px rgba(37,99,235,.2), 0 0 0 22px rgba(37,99,235,0); }
+}
+@media (prefers-reduced-motion: reduce) { .sira-map-user { animation: none; } }
 .sira-map-place { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); font: 17px 'material-community'; }
 .sira-map-place--garde { width: 36px; height: 36px; font-size: 20px; border: 3px solid #FACC15; }
 `;

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
 import { Text } from '@/components/sira-text';
 import MapView, {
+  Circle,
   Marker,
   Polyline,
   PROVIDER_DEFAULT,
@@ -9,7 +10,29 @@ import MapView, {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { knownPlace } from '@/lib/places';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import { routeLabels, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
+import { routeLabels, type CenterRequest, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+
+// The traveller's dot pulses: a wave grows out from under it and fades, so it is found at a
+// glance (as on the web map). Still for travellers who asked for less motion.
+function PulsingUserDot() {
+  const reduceMotion = useReducedMotion();
+  const wave = useSharedValue(0);
+  useEffect(() => {
+    if (reduceMotion) return;
+    wave.value = withRepeat(withTiming(1, { duration: 2000, easing: Easing.out(Easing.quad) }), -1, false);
+  }, [reduceMotion, wave]);
+  const waveStyle = useAnimatedStyle(() => ({
+    opacity: 0.45 * (1 - wave.value),
+    transform: [{ scale: 1 + 2.4 * wave.value }],
+  }));
+  return (
+    <View style={styles.userDotBox}>
+      {!reduceMotion && <Animated.View style={[styles.userWave, waveStyle]} />}
+      <View style={styles.userMarker} />
+    </View>
+  );
+}
 
 interface OsmMapViewProps {
   departureName?: string;
@@ -36,6 +59,10 @@ interface OsmMapViewProps {
   zoomRequest?: ZoomRequest | null;
   // Centrer la carte sur le voyageur dès que sa position est connue (écran Trafic).
   centerOnUser?: boolean;
+  // Marge d'erreur de la position du voyageur, en mètres : un cercle bleu pâle autour du point.
+  userAccuracyM?: number | null;
+  // Bouton « Ma position » : recentre la carte à chaque nouvelle key.
+  centerRequest?: CenterRequest | null;
   style?: ViewStyle;
   showIntermediateStations?: boolean;
 }
@@ -78,6 +105,8 @@ export function OsmMapView({
   padding,
   zoomRequest,
   centerOnUser = false,
+  userAccuracyM = null,
+  centerRequest = null,
   style,
   showIntermediateStations = false,
 }: OsmMapViewProps) {
@@ -110,6 +139,16 @@ export function OsmMapView({
   }, [centerOnUser, userLat, userLon]);
 
   // Without coordinates, the name is looked up (own position: the live GPS one, never a fixed point).
+  // Bouton « Ma position » : une demande par nouvelle key.
+  const centerKey = centerRequest?.key;
+  useEffect(() => {
+    if (centerKey === undefined || !centerRequest || !mapRef.current) return;
+    const { latitude, longitude } = centerRequest.coordinates;
+    const delta = centerRequest.wide ? 0.06 : 0.02;
+    mapRef.current.animateToRegion({ latitude, longitude, latitudeDelta: delta, longitudeDelta: delta }, 600);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule une nouvelle key recentre
+  }, [centerKey]);
+
   const startCoords = origin ?? (departureName ? knownPlace(departureName) ?? undefined : undefined);
   const endCoords = destination ?? (arrivalName ? knownPlace(arrivalName) ?? undefined : undefined);
 
@@ -203,9 +242,18 @@ export function OsmMapView({
         ))}
 
         {/* Traveller's position and everyday places (categories of the home screen) */}
+        {userPosition && userAccuracyM ? (
+          <Circle
+            center={userPosition}
+            radius={userAccuracyM}
+            fillColor="rgba(37, 99, 235, 0.12)"
+            strokeColor="rgba(37, 99, 235, 0.35)"
+            strokeWidth={1.5}
+          />
+        ) : null}
         {userPosition && (
           <Marker coordinate={userPosition} anchor={{ x: 0.5, y: 0.5 }} title="Ma position" zIndex={0}>
-            <View style={styles.userMarker} />
+            <PulsingUserDot />
           </Marker>
         )}
         {places.map((place) => (
@@ -316,6 +364,20 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // Room for the wave around the dot (it grows to 3.4 times the dot).
+  userDotBox: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userWave: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
   },
   userMarker: {
     width: 16,

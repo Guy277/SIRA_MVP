@@ -6,6 +6,7 @@ import {
   Modal,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Text, TextInput } from '@/components/sira-text';
 import { Image } from 'expo-image';
@@ -18,9 +19,9 @@ import { OsmMapView } from '@/components/osm-map-view';
 import { notify } from '@/lib/notify';
 import { voteReport, type TrafficReport } from '@/lib/sira-api';
 import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, upsertReport, useLiveReports, alertBadge, useAlertCount } from '@/lib/reports';
-import { formatClock } from '@/lib/journey-format';
+import { formatClock, formatDistance } from '@/lib/journey-format';
 import { goBack } from '@/lib/navigation';
-import { ensureCurrentPlace, useCurrentPlace } from '@/lib/places';
+import { ensureCurrentPlace, isApproximate, useCurrentPlace } from '@/lib/places';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,6 +55,29 @@ export default function TrafficScreen() {
   const here = useCurrentPlace();
   useEffect(() => { void ensureCurrentPlace(); }, []);
   const userPosition = here.status === 'ready' && !here.outside ? here.coordinates : null;
+  // A position the device says may be far off gets its margin drawn around the blue dot.
+  const userAccuracyM = userPosition && isApproximate(here) && here.status === 'ready' ? here.accuracyM : null;
+  // « Ma position »: back on the traveller; without a position, it is asked for again.
+  const [centerRequest, setCenterRequest] = useState<{ coordinates: { latitude: number; longitude: number }; key: number; wide?: boolean } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const locateMe = async () => {
+    if (locating) return;
+    setLocating(true);
+    try {
+      const place = await ensureCurrentPlace();
+      if (place.status === 'ready' && !place.outside) setCenterRequest({ coordinates: place.coordinates, key: Date.now(), wide: isApproximate(place) });
+    } finally {
+      setLocating(false);
+    }
+  };
+  // Why the blue dot is missing (or may be off), instead of a map that says nothing.
+  const positionNotice = here.status === 'unavailable'
+    ? 'Position introuvable : autorise la localisation, puis touche le bouton de position.'
+    : here.status === 'ready' && here.outside
+      ? 'Tu es hors du Grand Abidjan : ta position n’apparaît pas sur la carte.'
+      : here.status === 'ready' && isApproximate(here)
+        ? `Ta position est approximative (à ${formatDistance((here.accuracyM ?? 0) / 1000)} près).`
+        : null;
   const [panelFilter, setPanelFilter] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
   const { reports, updatedAt } = useLiveReports();
@@ -98,7 +122,9 @@ export default function TrafficScreen() {
           reports={filteredIncidents}
           onReportPress={(report) => setSelectedId(report.id)}
           userPosition={userPosition}
+          userAccuracyM={userAccuracyM}
           centerOnUser
+          centerRequest={centerRequest}
           zoomRequest={zoomRequest}
         />
 
@@ -140,8 +166,20 @@ export default function TrafficScreen() {
           </View>
         )}
 
-        {/* Zoom Controls */}
+        {/* Zoom Controls, under « Ma position » */}
         <View style={styles.zoomControlBox}>
+          <TouchableOpacity
+            style={[styles.zoomButton, styles.locateButton]}
+            onPress={() => { void locateMe(); }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Ma position"
+          >
+            {locating
+              ? <ActivityIndicator size="small" color="#F26522" />
+              : <Ionicons name={userPosition ? 'locate' : 'locate-outline'} size={20} color="#F26522" />}
+          </TouchableOpacity>
+          <View style={styles.zoomDivider} />
           <TouchableOpacity
             style={styles.zoomButton}
             onPress={() => zoom(1)}
@@ -247,6 +285,18 @@ export default function TrafficScreen() {
 
       {/* Floating Bottom Incident Category Panel (Floating above Bottom Navigation Bar) */}
       <View style={[styles.bottomFloatingPanelWrapper, { bottom: tabBarSpace - 2 }]}>
+        {positionNotice && (
+          <TouchableOpacity
+            style={styles.positionNotice}
+            onPress={() => { void locateMe(); }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLiveRegion="polite"
+          >
+            <Ionicons name="locate-outline" size={16} color="#F26522" />
+            <Text style={styles.positionNoticeText}>{positionNotice}</Text>
+          </TouchableOpacity>
+        )}
         {/* Filter in use: which incidents are shown, and how to see all of them again. */}
         {panelFilter && (
           <TouchableOpacity style={styles.filterChip} onPress={() => setPanelFilter(null)} activeOpacity={0.85} accessibilityRole="button"
@@ -620,6 +670,31 @@ const styles = StyleSheet.create({
   },
   zoomDivider: {
     height: 6,
+  },
+  // White with an orange target, apart from the orange + and −.
+  locateButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#F26522',
+  },
+  positionNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'stretch',
+    marginHorizontal: 4,
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  positionNoticeText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#334155',
   },
   mapMarkerBadge: {
     position: 'absolute',
