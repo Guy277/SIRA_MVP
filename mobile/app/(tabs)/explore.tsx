@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SideMenuModal } from '@/components/side-menu-modal';
-import { CustomBottomTabBar } from '@/components/custom-bottom-tab-bar';
+import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { YangoLocationModal } from '@/components/yango-location-modal';
 import { JourneyBadges } from '@/components/journey-badges';
 import { DepartureTimeSheet, departureLabel } from '@/components/departure-time-sheet';
@@ -41,6 +41,26 @@ const CATEGORIES: { name: CategoryName; label: string; subtitle: string; short: 
 // Reports shown on the map: those this close to a point of a drawn journey.
 const REPORT_NEAR_ROUTE_M = 300;
 const MAP_PADDING: MapPadding = { top: 36, bottom: 36, left: 36, right: 36 };
+// Any screen: the map takes the height left once the blocks and the chosen journey fit above the
+// bottom bar (about 240 on a 6.1-inch iPhone). Never under MAP_MIN, where the page scrolls instead,
+// nor over MAP_MAX, on tall screens. My choices, to adjust.
+const MAP_MIN = 140;
+const MAP_MAX = 340;
+const MAP_DEFAULT = 240;
+const GAP = 10;
+// One padding object per map height: when the height changes, the map sees a new padding and frames
+// the journeys again for its new size (a route framed for 240 could stick out of a smaller map).
+// Above and below, at most 15 % of the height: a small map keeps most of its room for the route.
+const paddingByHeight = new Map<number, MapPadding>();
+function mapPaddingFor(height: number) {
+  let padding = paddingByHeight.get(height);
+  if (!padding) {
+    const vertical = Math.min(MAP_PADDING.top, Math.round(height * 0.15));
+    padding = { ...MAP_PADDING, top: vertical, bottom: vertical };
+    paddingByHeight.set(height, padding);
+  }
+  return padding;
+}
 
 // One block per way to travel, led by the first journey of its engine list. With few
 // options one journey can lead several categories: it is shown once, the other blocks
@@ -105,6 +125,14 @@ export default function RouteExploreScreen() {
   const [picker, setPicker] = useState<'departure' | 'arrival' | null>(null);
   const [timeSheet, setTimeSheet] = useState(false);
   const [showSideMenu, setShowSideMenu] = useState(false);
+  // Measured on screen, for the map's height: the scrolling area, where the map starts, the chosen journey's card.
+  const tabBarSpace = useTabBarSpace();
+  const [bodyHeight, setBodyHeight] = useState(0);
+  const [mapTop, setMapTop] = useState(0);
+  const [panelHeight, setPanelHeight] = useState(0);
+  const mapHeight = bodyHeight && mapTop && panelHeight
+    ? Math.round(Math.min(MAP_MAX, Math.max(MAP_MIN, bodyHeight - tabBarSpace - mapTop - GAP - panelHeight)))
+    : MAP_DEFAULT;
   const [excluded, setExcluded] = useState<LegMode[]>([]);
   // At least one way of travel stays allowed: the last one cannot be taken away.
   const toggleMode = (mode: LegMode) => setExcluded((current) => current.includes(mode)
@@ -236,6 +264,8 @@ export default function RouteExploreScreen() {
           </View>
         </View>
 
+        {/* Wide screens (tablet, computer): one centred column, as wide as a big phone. */}
+        <View style={styles.column}>
         {/* Départ / Arrivée: buttons, typing happens in the picker. */}
         <View style={styles.routeCard}>
           <View style={styles.routeDots}>
@@ -299,6 +329,7 @@ export default function RouteExploreScreen() {
             })}
           </ScrollView>
         </View>
+        </View>
 
         <YangoLocationModal
           visible={picker !== null}
@@ -318,7 +349,7 @@ export default function RouteExploreScreen() {
         />
         <DepartureTimeSheet visible={timeSheet} value={departAt} onClose={() => setTimeSheet(false)} onChange={setDepartAt} />
 
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false} onLayout={(event) => setBodyHeight(event.nativeEvent.layout.height)}>
           {!arrival && (
             <TouchableOpacity style={styles.stateCard} onPress={() => setPicker('arrival')} activeOpacity={0.8}>
               <Ionicons name="search" size={18} color="#F26522" />
@@ -360,9 +391,9 @@ export default function RouteExploreScreen() {
 
           {ready && (
             <>
-              <Text style={styles.sectionTitle}>Comment veux-tu voyager ?</Text>
+              {/* The blocks speak for themselves: no title above them, room left for the map. */}
               {journeys.length === 1 && (
-                <Text style={styles.metaText}>Un seul trajet possible à cette heure : il est à la fois le moins cher et le plus confortable.</Text>
+                <Text style={styles.metaText}>Un seul trajet possible à cette heure.</Text>
               )}
               <View style={styles.blocks}>
                 {blocks.map((block, index) => {
@@ -401,7 +432,7 @@ export default function RouteExploreScreen() {
                 })}
               </View>
 
-              <View style={styles.mapBox}>
+              <View style={[styles.mapBox, { height: mapHeight }]} onLayout={(event) => setMapTop(event.nativeEvent.layout.y)}>
                 <OsmMapView
                   departureName={departure}
                   arrivalName={arrival}
@@ -412,7 +443,7 @@ export default function RouteExploreScreen() {
                   onRoutePress={chooseRoute}
                   routeLabel={chosenLabel}
                   reports={nearbyReports}
-                  padding={MAP_PADDING}
+                  padding={mapPaddingFor(mapHeight)}
                 />
               </View>
 
@@ -420,6 +451,7 @@ export default function RouteExploreScreen() {
               {chosen && chosenJourney && (
                 <TouchableOpacity
                   style={styles.panel}
+                  onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}
                   onPress={() => openJourney(chosenJourney)}
                   activeOpacity={0.85}
                   accessibilityRole="button"
@@ -513,7 +545,8 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconBtn: { padding: 6 },
 
-  routeCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 8, backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#EEEEEE' },
+  column: { width: '100%', maxWidth: 640, alignSelf: 'center' },
+  routeCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 8, backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#EEEEEE' },
   routeDots: { alignItems: 'center', marginRight: 10 },
   originDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 3, borderColor: '#F26522', backgroundColor: '#FFFFFF' },
   dotLine: { width: 1, height: 16, borderLeftWidth: 1, borderColor: '#CCCCCC', borderStyle: 'dashed', marginVertical: 2 },
@@ -521,10 +554,10 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, color: '#888888', fontWeight: '500' },
   fieldValue: { fontSize: 15, color: '#000000', fontWeight: '700' },
   fieldPlaceholder: { color: '#999999', fontWeight: '500' },
-  fieldDivider: { height: 1, backgroundColor: '#EEEEEE', marginVertical: 6 },
+  fieldDivider: { height: 1, backgroundColor: '#EEEEEE', marginVertical: 4 },
   swapButton: { padding: 8, marginLeft: 6, backgroundColor: '#FFF4EE', borderRadius: 12 },
 
-  toolsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16, marginTop: 10 },
+  toolsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16, marginTop: 8 },
   timeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E3E3E3', paddingHorizontal: 12, paddingVertical: 7 },
   timeChipText: { fontSize: 13, fontWeight: '700', color: '#1F1F1F' },
   filters: { gap: 6, paddingRight: 16 },
@@ -537,27 +570,26 @@ const styles = StyleSheet.create({
   modeChipOff: { backgroundColor: '#F2F2F2', borderColor: '#E8E8E8' },
 
   body: { flex: 1 },
-  bodyContent: { padding: 16, paddingBottom: 140, gap: 10 },
+  bodyContent: { width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140, gap: GAP },
   stateCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14 },
   stateText: { flex: 1, fontSize: 14, color: '#333333' },
 
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111111', marginTop: 2 },
   blocks: { flexDirection: 'row', gap: 8 },
   blockWrap: { flex: 1 },
-  block: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 2, borderColor: '#EEEEEE', paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center', gap: 1 },
+  block: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 2, borderColor: '#EEEEEE', paddingVertical: 8, paddingHorizontal: 8, alignItems: 'center', gap: 1 },
   blockSelected: { borderColor: '#F26522', backgroundColor: '#FFF4EE' },
   blockEmpty: { opacity: 0.5 },
-  blockIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  blockIcon: { width: 24, height: 24, borderRadius: 7, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center', marginBottom: 3 },
   blockIconSelected: { backgroundColor: '#F26522' },
   blockLabel: { fontSize: 15, fontWeight: '800', color: '#111111' },
   blockSub: { fontSize: 11, color: '#6B6B6B' },
-  blockDuration: { fontSize: 17, fontWeight: '800', color: '#111111', marginTop: 4 },
+  blockDuration: { fontSize: 17, fontWeight: '800', color: '#111111', marginTop: 2 },
   blockPrice: { fontSize: 12, fontWeight: '700', color: '#F26522' },
-  blockSame: { fontSize: 13, fontWeight: '700', color: '#6B6B6B', marginTop: 4 },
+  blockSame: { fontSize: 13, fontWeight: '700', color: '#6B6B6B', marginTop: 2 },
 
-  mapBox: { height: 240, borderRadius: 16, overflow: 'hidden', backgroundColor: '#EAEAEA' },
+  mapBox: { borderRadius: 16, overflow: 'hidden', backgroundColor: '#EAEAEA' },
 
-  panel: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#EEEEEE', gap: 8 },
+  panel: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#EEEEEE', gap: 6 },
   panelHead: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   panelTitle: { fontSize: 16, fontWeight: '800', color: '#111111' },
   panelSub: { flex: 1, fontSize: 12, color: '#6B6B6B' },
