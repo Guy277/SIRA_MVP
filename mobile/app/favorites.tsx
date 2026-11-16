@@ -8,7 +8,7 @@ import {
   Platform,
   Share,
 } from 'react-native';
-import { Text, TextInput } from '@/components/sira-text';
+import { Text, TextInput, useFocusFrame } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -30,6 +30,8 @@ export default function FavoritesScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
+  // The search bar's frame turns orange while one types in it.
+  const searchFocus = useFocusFrame();
   const favorites = useFavorites();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,9 +137,10 @@ export default function FavoritesScreen() {
 
         {/* Expandable Search Input Bar */}
         {isSearching && (
-          <View style={styles.searchBarContainer}>
+          <View style={[styles.searchBarContainer, searchFocus.frameStyle]}>
             <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
+              {...searchFocus.inputProps}
               style={styles.searchInput}
               placeholder="Lieu, option ou transport…"
               placeholderTextColor="#94A3B8"

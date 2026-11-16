@@ -2,7 +2,7 @@
 // A custom font has one file per weight and Android does not pick the bold file
 // from `fontWeight`, so each weight is turned into its own Montserrat file here.
 // Screens keep writing `fontWeight: '800'` as usual.
-import { createContext, forwardRef, useContext, type ComponentRef } from 'react';
+import { createContext, forwardRef, useContext, useState, type ComponentRef } from 'react';
 import {
   Platform,
   StyleSheet,
@@ -75,6 +75,23 @@ export const Text = forwardRef<ComponentRef<typeof NativeText>, TextProps>(funct
 // Reanimated's Animated.Text wraps React Native's own Text: this one keeps Montserrat.
 export const AnimatedText = Animated.createAnimatedComponent(Text);
 
+// On the web, the browser draws its own black rectangle around a field being typed in, over
+// SIRA's own frame. It is removed here, for every field; each search bar shows its focus
+// instead by its frame turning orange (useFocusFrame). Phones never draw that rectangle.
+const NO_BROWSER_OUTLINE = Platform.OS === 'web' ? ({ outlineStyle: 'none', outlineWidth: 0 } as unknown as TextStyle) : null;
+
 export const TextInput = forwardRef<ComponentRef<typeof NativeTextInput>, TextInputProps>(function TextInput({ style, ...props }, ref) {
-  return <NativeTextInput ref={ref} {...props} style={withFont(style, false)} />;
+  return <NativeTextInput ref={ref} {...props} style={[withFont(style, false), NO_BROWSER_OUTLINE]} />;
 });
+
+// A search bar's frame turns SIRA orange while one types in it: the sign of the field in use,
+// in place of the browser's rectangle (accessibility: focus must stay visible).
+export const FOCUS_FRAME_COLOR = '#F26522';
+export function useFocusFrame() {
+  const [focused, setFocused] = useState(false);
+  return {
+    focused,
+    inputProps: { onFocus: () => setFocused(true), onBlur: () => setFocused(false) },
+    frameStyle: focused ? { borderColor: FOCUS_FRAME_COLOR, borderWidth: 1.5 } : null,
+  };
+}

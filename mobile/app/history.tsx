@@ -8,7 +8,7 @@ import {
   Platform,
   Share,
 } from 'react-native';
-import { Text, TextInput } from '@/components/sira-text';
+import { Text, TextInput, useFocusFrame } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -32,6 +32,8 @@ export default function HistoryScreen() {
   // The list ends above the bottom bar (its last item stays reachable on small phones).
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
+  // The search bar's frame turns orange while one types in it.
+  const searchFocus = useFocusFrame();
   const trips = useTripHistory();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -146,9 +148,10 @@ export default function HistoryScreen() {
 
         {/* Expandable Search Input Bar */}
         {isSearching && (
-          <View style={styles.searchBarContainer}>
+          <View style={[styles.searchBarContainer, searchFocus.frameStyle]}>
             <Ionicons name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
+              {...searchFocus.inputProps}
               style={styles.searchInput}
               placeholder="Rechercher un trajet, un lieu…"
               placeholderTextColor="#94A3B8"

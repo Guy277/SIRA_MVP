@@ -8,7 +8,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { Text, TextInput } from '@/components/sira-text';
+import { Text, TextInput, useFocusFrame } from '@/components/sira-text';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -39,6 +39,8 @@ const PANEL_LABELS: Record<string, string> = {
 
 export default function TrafficScreen() {
   const router = useRouter();
+  // The search bar's frame turns orange while one types in it.
+  const searchFocus = useFocusFrame();
   // The filters float just above the bottom bar and its raised circle.
   const tabBarSpace = useTabBarSpace();
   const alertCount = useAlertCount();
@@ -264,9 +266,10 @@ export default function TrafficScreen() {
 
         {/* Expandable Search Input Bar */}
         {isSearching && (
-          <View style={styles.searchBarContainer}>
+          <View style={[styles.searchBarContainer, searchFocus.frameStyle]}>
             <Ionicons name="search" size={18} color="#64748B" style={{ marginRight: 8 }} />
             <TextInput
+              {...searchFocus.inputProps}
               style={styles.searchInput}
               placeholder="Rechercher un axe, une commune (Abobo, Plateau…)"
               placeholderTextColor="#94A3B8"

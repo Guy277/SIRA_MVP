@@ -6,7 +6,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { Text, TextInput } from '@/components/sira-text';
+import { Text, TextInput, useFocusFrame } from '@/components/sira-text';
 import { Ionicons } from '@expo/vector-icons';
 import { searchPlaces, type PlaceResult } from '@/lib/sira-api';
 import { isApproximate, isOwnPosition, knownPlace, placeLabel, rememberPlace, useCurrentPlace, type CurrentPlace } from '@/lib/places';
@@ -151,6 +151,8 @@ export function LocationSuggestionsList({
   pickAddress,
   onManagePlaces,
 }: LocationSuggestionsListProps) {
+  // The search bar's frame turns orange while one types in it.
+  const searchFocus = useFocusFrame();
   const here = useCurrentPlace();
   // Another departure picked (« Je pars de Yopougon ») is shown as it is.
   const header = isOwnPosition(currentLocationName)
@@ -252,9 +254,10 @@ export function LocationSuggestionsList({
 
       {/* Search Input Bar (Exact Yango Search Bar) */}
       <View style={styles.searchBarWrapper}>
-        <View style={styles.searchBarInputContainer}>
+        <View style={[styles.searchBarInputContainer, searchFocus.frameStyle]}>
           <Ionicons name="search-outline" size={20} color="#777777" style={styles.searchIcon} />
           <TextInput
+            {...searchFocus.inputProps}
             style={styles.searchTextInput}
             placeholder={picking ? `${picking.prompt}…` : placeholder}
             placeholderTextColor="#888888"
