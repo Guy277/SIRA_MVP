@@ -246,10 +246,10 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  // 20 px taller than at first, everything inside 20 px lower: the tilted slogan and its pin
-  // used to stick out of the top and were cut.
+  // 40 px taller than at first, the road and slogan 40 px lower: the tilted slogan and its pin
+  // used to stick out of the top and were cut. The close button stays up in the corner.
   headerBanner: {
-    height: 110,
+    height: 130,
     paddingHorizontal: 14,
     position: 'relative',
     justifyContent: 'center',
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   closeButtonCircle: {
     position: 'absolute',
     left: 14,
-    top: 38,
+    top: 12,
     width: 34,
     height: 34,
     borderRadius: 17,
@@ -272,11 +272,11 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 110,
+    height: 130,
   },
   roadStripeImage: {
     position: 'absolute',
-    top: 16,
+    top: 36,
     left: -20,
     width: 370,
     height: 85,
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   },
   sloganContainer: {
     position: 'absolute',
-    top: 26,
+    top: 46,
     left: 48,
     flexDirection: 'row',
     alignItems: 'center',
