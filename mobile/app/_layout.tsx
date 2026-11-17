@@ -15,6 +15,7 @@ import { FollowedZoneAlerts } from '@/components/followed-zone-alerts';
 import { SuccessHost } from '@/components/success-card';
 import { loadFollowedZones } from '@/lib/followed-zones';
 import { loadProfilePicture } from '@/lib/profile-picture';
+import { loadReportOpinions } from '@/lib/report-opinions';
 import { loadWebFonts, MONTSERRAT_FONTS } from '@/components/sira-text';
 
 export const unstable_settings = {
@@ -22,7 +23,7 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); void loadTripHistory(); void loadFavorites(); void loadUsage(); void loadFollowedZones(); void loadProfilePicture(); }, []);
+  useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); void loadTripHistory(); void loadFavorites(); void loadUsage(); void loadFollowedZones(); void loadProfilePicture(); void loadReportOpinions(); }, []);
   // Montserrat before the first screen, so no text flashes in the system font.
   // Without it (failed download on web), the screens fall back to the system font.
   const [fontsLoaded, fontError] = useFonts(MONTSERRAT_FONTS);

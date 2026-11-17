@@ -18,6 +18,8 @@ import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-t
 import { OsmMapView } from '@/components/osm-map-view';
 import { FollowZoneButton } from '@/components/follow-zone-button';
 import { notify } from '@/lib/notify';
+import { showSuccess } from '@/components/success-card';
+import { confirmationsLabel, OPINION_LABEL, opinionFor, rememberReportOpinion, useReportOpinions } from '@/lib/report-opinions';
 import { voteReport, type TrafficReport } from '@/lib/sira-api';
 import { REPORT_STATUS_LABEL, REPORT_STYLE, timeAgo, upsertReport, useLiveReports, alertBadge, useAlertCount } from '@/lib/reports';
 import { formatClock, formatDistance } from '@/lib/journey-format';
@@ -84,6 +86,8 @@ export default function TrafficScreen() {
   const [panelFilter, setPanelFilter] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
   const { reports, updatedAt } = useLiveReports();
+  // What this phone already said about each report: its window shows it instead of the vote buttons.
+  const opinions = useReportOpinions();
   const selectedIncident = reports.find((report) => report.id === selectedId) ?? null;
 
   const filteredIncidents = useMemo(() => {
@@ -105,10 +109,15 @@ export default function TrafficScreen() {
     setVoting(true);
     try {
       upsertReport(await voteReport(report.id, kind));
+      rememberReportOpinion(report.id, kind);
       setSelectedId(null);
-      notify('Merci', kind === 'confirm' ? 'Confirmation enregistrée.' : 'Ton avis a été enregistré.');
+      showSuccess(kind === 'confirm' ? 'Merci, confirmation enregistrée' : 'Merci, ton avis est enregistré');
     } catch (error) {
-      notify('Vote impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
+      const message = error instanceof Error ? error.message : 'Réessaie dans un instant.';
+      // One opinion per traveller (the author's report counts as one): no error then, the window
+      // simply shows that the opinion is already recorded.
+      if (/déjà donné/i.test(message)) rememberReportOpinion(report.id, 'known');
+      else notify('Vote impossible', message);
     } finally {
       setVoting(false);
     }
@@ -423,7 +432,7 @@ export default function TrafficScreen() {
                         { color: getMarkerColor(selectedIncident.type) },
                       ]}
                     >
-                      {REPORT_STATUS_LABEL[selectedIncident.status]} · {selectedIncident.confirmations} confirmation(s)
+                      {REPORT_STATUS_LABEL[selectedIncident.status]} · {confirmationsLabel(selectedIncident.confirmations)}
                     </Text>
                   </View>
 
@@ -435,6 +444,13 @@ export default function TrafficScreen() {
                   {selectedIncident.description ? <Text style={styles.modalDescription}>{selectedIncident.description}</Text> : null}
                 </View>
 
+                {opinionFor(opinions, selectedIncident.id) ? (
+                  // Already said from this phone (or recorded by the server): no button it would refuse.
+                  <View style={styles.opinionDone} accessibilityLiveRegion="polite">
+                    <Ionicons name="checkmark-circle" size={20} color="#F26522" />
+                    <Text style={styles.opinionDoneText}>{OPINION_LABEL[opinionFor(opinions, selectedIncident.id)!]}</Text>
+                  </View>
+                ) : (
                 <View style={styles.modalActionsRow}>
                   <TouchableOpacity
                     style={styles.modalPrimaryButton}
@@ -455,6 +471,7 @@ export default function TrafficScreen() {
                     <Text style={styles.modalCloseButtonText}>Plus là</Text>
                   </TouchableOpacity>
                 </View>
+                )}
 
                 {/* Follow the zone around this report: an alert for each new report there, while SIRA is open. */}
                 <FollowZoneButton
@@ -856,6 +873,20 @@ const styles = StyleSheet.create({
   modalActionsRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  opinionDone: {
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFF4EE',
+    borderRadius: 12,
+  },
+  opinionDoneText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111111',
   },
   modalPrimaryButton: {
     flex: 1,

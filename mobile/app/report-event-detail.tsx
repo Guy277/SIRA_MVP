@@ -30,6 +30,7 @@ import { REPORT_FAILED, REPORT_SENT, reportDetailSpeech } from '@/lib/spoken';
 import { say, useSpeech } from '@/lib/voice';
 import { locateUser, nearestPlaceLabel } from '@/lib/places';
 import { REPORT_TYPE_BY_CATEGORY, upsertReport, alertBadge, useAlertCount } from '@/lib/reports';
+import { rememberReportOpinion } from '@/lib/report-opinions';
 import { goBack } from '@/lib/navigation';
 
 const { width, height } = Dimensions.get('window');
@@ -108,6 +109,8 @@ export default function ReportEventDetailScreen() {
         description: [descriptionText.trim(), timeText.trim() ? `Constaté : ${timeText.trim()}` : ''].filter(Boolean).join(' · ') || undefined,
       });
       upsertReport(report);
+      // Its window will say « Tu as signalé cet événement » rather than offer a vote the server refuses.
+      rememberReportOpinion(report.id, 'author');
     } catch (error) {
       void say(REPORT_FAILED, 'alert');
       notify('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
