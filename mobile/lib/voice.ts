@@ -124,7 +124,8 @@ export function stopSpeaking() {
 // Sentences written by the app (greeting, steps, prompts) come back often: SIRA's
 // voice for each one is kept (on the phone: in the cache folder, even after a
 // restart; on the web: for the session), so it plays at once the next time.
-const CACHE_VERSION = 'v5';
+// v6 : pierre parle à la vitesse 1,0 (2026-11-19) ; les voix gardées à 1,1 ne resservent plus.
+const CACHE_VERSION = 'v6';
 const WEB_CACHE_MAX = 40;
 const webCache = new Map<string, string>();
 // Waited for, since there is no other voice: a sentence arrives late rather than in another voice.

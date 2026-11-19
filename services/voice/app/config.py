@@ -73,8 +73,8 @@ PIPER_VOICE = _path("VOICE_PIPER_MODEL", LOCAL_MODELS / "piper" / "fr_FR-upmc-me
 # Locuteur dans un modèle à plusieurs voix (upmc : 1 = pierre) ; vide pour un modèle à une seule voix.
 _SPEAKER = os.environ.get("VOICE_PIPER_SPEAKER", "1").strip()
 PIPER_SPEAKER = int(_SPEAKER) if _SPEAKER else None
-# Vitesse de lecture : 1.0 = voix d'origine, 1.1 = 10 % plus rapide (plus naturel pour des consignes courtes).
-SPEECH_RATE = min(1.5, max(0.7, _float("VOICE_SPEECH_RATE", 1.1)))
+# Vitesse de lecture : 1.0 = voix d'origine, choisie à l'écoute le 2026-11-19 (1.1 parlait trop vite).
+SPEECH_RATE = min(1.5, max(0.7, _float("VOICE_SPEECH_RATE", 1.0)))
 # Intonation de Piper : plus bas = voix plus régulière. 0,5 / 0,6 choisis à l'écoute le 2026-10-25 (réglage « D »,
 # préféré à l'actuel 0,667 / 0,8, à « plus posé » et à « plus vivant ») ; les valeurs d'origine du modèle sont 0,667 / 0,8.
 NOISE_SCALE = min(1.0, max(0.0, _float("VOICE_NOISE_SCALE", 0.5)))

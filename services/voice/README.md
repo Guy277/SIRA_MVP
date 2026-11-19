@@ -167,7 +167,7 @@ Si `reply_audio` est vide (Piper non installé), afficher `reply_text` sans le l
 | `VOICE_LLM_TIMEOUT_S` | `20` | au-delà, la voix répond avec ses règles habituelles |
 | `VOICE_ASR` | `hybride` | `hybride` : Parakeet d'abord, Whisper si le lieu ou l'intention ne sont pas sûrs ; `whisper` : Whisper seul |
 | `VOICE_PARAKEET_DIR` | `services/models/voice/parakeet-tdt-0.6b-v3-int8` | modèle Parakeet ; absent, le service utilise Whisper seul |
-| `VOICE_SPEECH_RATE` | `1.1` | vitesse de la voix de SIRA (`1.0` = voix d'origine) |
+| `VOICE_SPEECH_RATE` | `1.0` | vitesse de la voix de SIRA (`1.0` = voix d'origine, choisie à l'écoute ; `1.1` = 10 % plus rapide) |
 | `VOICE_NOISE_SCALE` / `VOICE_NOISE_W` | `0.5` / `0.6` | intonation de Piper : plus bas = plus régulier (choisi à l'écoute le 2026-10-25 ; valeurs du modèle `0.667` / `0.8`) |
 | `VOICE_AUDIO_FORMAT` | `mp3` | voix envoyée à l'appli : `mp3` (≈ 9 fois plus léger, arrive vite en 3G) ou `wav` |
 | `VOICE_AUDIO_BITRATE` | `40000` | débit du MP3 en bits/s |
