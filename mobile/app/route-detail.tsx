@@ -262,22 +262,6 @@ export default function RouteDetailScreen() {
               focusCoordinates={focusPath}
             />
 
-            {/* Top Right Map Legend Badges */}
-            <View style={styles.mapLegendContainer}>
-              <View style={styles.legendRow}>
-                <View style={[styles.legendLine, { backgroundColor: '#F26522' }]} />
-                <View style={styles.legendIconCircle}>
-                  <Ionicons name="star" size={11} color="#FFFFFF" />
-                </View>
-              </View>
-              <View style={styles.legendRow}>
-                <View style={[styles.legendLine, { backgroundColor: '#1E40AF' }]} />
-                <View style={styles.legendIconCircleBlue}>
-                  <Ionicons name="ribbon" size={11} color="#FFFFFF" />
-                </View>
-              </View>
-            </View>
-
             {/* Orange Compass FAB Icon (Bottom Right of Map) */}
             <TouchableOpacity
               style={styles.mapCompassFab}
@@ -555,47 +539,6 @@ const styles = StyleSheet.create({
   mapImage: {
     width: '100%',
     height: '100%',
-  },
-  mapLegendContainer: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 6,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  legendLine: {
-    width: 32,
-    height: 4,
-    borderRadius: 2,
-  },
-  legendIconCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#F26522',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  legendIconCircleBlue: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#1E40AF',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   mapCompassFab: {
     position: 'absolute',
