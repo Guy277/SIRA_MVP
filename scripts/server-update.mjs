@@ -2,6 +2,7 @@
 //
 // Cibles :
 //   api, engine, community, voice   le code du service, puis reconstruction de son conteneur seul
+//                                   (api : Nginx est redémarré ensuite, sinon il vise l'ancien conteneur → 502)
 //   models                          services/models/voice, puis redémarrage de la voix
 //   data                            data/ (monté dans l'API), puis redémarrage de l'API
 //   infra                           infra/ et scripts/server/, puis relance de la stack, de Nginx et de Caddy
@@ -29,7 +30,9 @@ const remoteDir = "sira"; // ~/sira sur le serveur (scripts/server/install.sh)
 const compose = "sudo docker compose --env-file infra/server.env -f infra/compose.yaml -f infra/compose.server.yaml";
 
 const TARGETS = {
-  api: { paths: ["services/api"], build: ["api"] },
+  // Un conteneur reconstruit change d'adresse interne ; Nginx garde l'ancienne et répond 502 (vu le 2026-11-08 et le
+  // 2026-11-19) : on le redémarre après l'API.
+  api: { paths: ["services/api"], build: ["api"], restart: ["nginx"] },
   engine: { paths: ["services/engine"], build: ["engine"] },
   community: { paths: ["services/community"], build: ["community"] },
   voice: { paths: ["services/voice"], build: ["voice"] },

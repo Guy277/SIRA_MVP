@@ -108,7 +108,7 @@ Adresse **complète** avec `/api/v1` : l'appli en déduit aussi celle des signal
 
   | Cible | Envoie | Puis |
   |---|---|---|
-  | `api`, `engine`, `community`, `voice` | `services/<cible>` | reconstruit ce conteneur seul |
+  | `api`, `engine`, `community`, `voice` | `services/<cible>` | reconstruit ce conteneur seul (`api` : puis redémarre Nginx, qui sinon répond 502) |
   | `models` | `services/models/voice` | redémarre la voix |
   | `data` | `data/` | redémarre l'API |
   | `infra` | `infra/`, `scripts/server/` | relance la stack, Nginx et Caddy |
