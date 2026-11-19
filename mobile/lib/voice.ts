@@ -31,8 +31,9 @@ export const VOICE_MODE_DETAILS: Record<VoiceMode, string> = {
   off: 'SIRA ne parle pas : tout reste écrit à l’écran.',
 };
 
-// Until the traveller chooses, SIRA stays silent.
-export const DEFAULT_VOICE_MODE: VoiceMode = 'off';
+// SIRA speaks from the start (« Akwaba » at home), as asked for the demo on 2026-11-19; the traveller can
+// still pick « Alertes seulement » or « Voix coupée » (Paramètres, or the speaker button).
+export const DEFAULT_VOICE_MODE: VoiceMode = 'on';
 let mode: VoiceMode = DEFAULT_VOICE_MODE;
 const listeners = new Set<() => void>();
 
@@ -48,7 +49,7 @@ export async function loadVoiceMode() {
   try {
     const saved = await readSetting(KEY);
     if (saved && (MODES as string[]).includes(saved)) { mode = saved as VoiceMode; listeners.forEach((l) => l()); }
-  } catch { /* réglage illisible : voix coupée */ }
+  } catch { /* réglage illisible : voix activée */ }
 }
 
 export function setVoiceMode(next: VoiceMode) {
