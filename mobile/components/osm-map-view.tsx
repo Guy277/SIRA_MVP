@@ -10,7 +10,7 @@ import MapView, {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { knownPlace } from '@/lib/places';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import { routeLabels, type CenterRequest, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
+import { routeLabels, type CenterRequest, type MapDisplayOptions, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 // The traveller's dot pulses: a wave grows out from under it and fades, so it is found at a
@@ -34,7 +34,8 @@ function PulsingUserDot() {
   );
 }
 
-interface OsmMapViewProps {
+// MapDisplayOptions : boutons de carte de la version web, ignorés ici (react-native-maps) jusqu'au passage à MapLibre.
+interface OsmMapViewProps extends MapDisplayOptions {
   departureName?: string;
   arrivalName?: string;
   // Real coordinates win over the name lookup when known.

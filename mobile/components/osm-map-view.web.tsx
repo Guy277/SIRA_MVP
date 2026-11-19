@@ -2,14 +2,15 @@
 // build uses MapLibre GL with OpenFreeMap tiles, like the SIRA web front.
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
-import type { Map as MapLibreMap, Marker as MapLibreMarker, GeoJSONSource } from 'maplibre-gl';
+import type { Map as MapLibreMap, Marker as MapLibreMarker, GeoJSONSource, ExpressionSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { knownPlace } from '@/lib/places';
-import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import { routeLabels, type CenterRequest, type MapPlace, type MapPadding, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
+import { MAP_STYLE_URLS, TRANSIT_MODE_COLORS, type MapStyleName } from '@/lib/map-settings';
+import { apiBaseUrl, type Coordinates, type TrafficReport } from '@/lib/sira-api';
+import { headingAlong, routeLabels, type CenterRequest, type MapDisplayOptions, type MapPlace, type MapPadding, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
 
-interface OsmMapViewProps {
+interface OsmMapViewProps extends MapDisplayOptions {
   departureName?: string;
   arrivalName?: string;
   origin?: Coordinates | null;
@@ -42,6 +43,51 @@ interface OsmMapViewProps {
 }
 
 const ABIDJAN_CENTER: [number, number] = [-4.005, 5.365];
+// Inclinaison de la vue 3D et du guidage : assez pour voir les bâtiments debout, la route reste lisible.
+const TILT = 55;
+const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+// Couche « Lignes SIRA » : une couleur par mode, comme sur la fiche Calques.
+const TRANSIT_COLOR: ExpressionSpecification = ['match', ['get', 'sira_mode'],
+  ...Object.entries(TRANSIT_MODE_COLORS).flat(), '#6B7280'] as unknown as ExpressionSpecification;
+
+// Les 611 lignes allégées (~1 Mo), chargées une seule fois et seulement quand la couche est allumée.
+let transitLines: Promise<GeoJSON.FeatureCollection | null> | null = null;
+function loadTransitLines() {
+  transitLines ??= fetch(`${apiBaseUrl()}/mobility/transport/lines/map`)
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null)
+    .then((data) => { if (!data) transitLines = null; return data; });  // échec : on réessaiera
+  return transitLines;
+}
+
+// Les couches de SIRA, ajoutées au chargement et après chaque changement de fond (setStyle les efface).
+function addSiraLayers(map: MapLibreMap, style: MapStyleName) {
+  const source = (id: string) => map.addSource(id, { type: 'geojson', data: EMPTY });
+  // Bâtiments en relief pour les fonds qui n'en ont pas (Nuit, Épuré) ; « Plan » a déjà sa couche building-3d.
+  if (!map.getLayer('building-3d') && map.getSource('openmaptiles')) {
+    map.addLayer({ id: 'sira-building-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
+      paint: { 'fill-extrusion-color': style === 'nuit' ? '#3A3F47' : '#DADADA', 'fill-extrusion-height': ['get', 'render_height'],
+        'fill-extrusion-base': ['get', 'render_min_height'], 'fill-extrusion-opacity': 0.8 } });
+  }
+  // Les lignes de transport sous tout le reste : le trajet choisi reste au-dessus.
+  source('transit');
+  map.addLayer({ id: 'transit-line', type: 'line', source: 'transit', layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
+    paint: { 'line-color': TRANSIT_COLOR, 'line-opacity': 0.8, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 14, 2.5, 17, 4] } });
+  map.addLayer({ id: 'transit-hit', type: 'line', source: 'transit', layout: { visibility: 'none' }, paint: { 'line-color': '#000000', 'line-opacity': 0, 'line-width': 14 } });
+  // How far off the traveller's position may be: drawn under the journeys.
+  source('accuracy');
+  map.addLayer({ id: 'accuracy-fill', type: 'fill', source: 'accuracy', paint: { 'fill-color': '#2563EB', 'fill-opacity': 0.12 } });
+  map.addLayer({ id: 'accuracy-line', type: 'line', source: 'accuracy', paint: { 'line-color': '#2563EB', 'line-opacity': 0.35, 'line-width': 1.5 } });
+  // Other journeys first, so the chosen one is drawn over them; a wide invisible line makes them easy to touch.
+  source('alternatives');
+  map.addLayer({ id: 'alternatives-line', type: 'line', source: 'alternatives', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7C828C', 'line-width': 5 } });
+  map.addLayer({ id: 'alternatives-hit', type: 'line', source: 'alternatives', paint: { 'line-color': '#000000', 'line-opacity': 0, 'line-width': 18 } });
+  source('journey');
+  map.addLayer({ id: 'journey-line', type: 'line', source: 'journey', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#F26522', 'line-width': 5 } });
+  source('focus');
+  map.addLayer({ id: 'focus-line', type: 'line', source: 'focus', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1E1E1E', 'line-width': 7 } });
+}
 
 // A circle of radiusM metres around a point, as a ring of [lon, lat] (flat earth: fine for a few km).
 function circleRing(center: Coordinates, radiusM: number) {
@@ -68,14 +114,23 @@ const glyph = (name: string) => {
 
 const NO_ROUTES: MapRoute[] = [];
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, userAccuracyM = null, centerRequest = null, style }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, userAccuracyM = null, centerRequest = null, style, mapStyle = 'plan', tilted = false, showTransitLines = false, showBuildings = true, onBearingChange, northRequest = null, follow = null, onFollowStop }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
   const [ready, setReady] = useState(false);
-  // The map's click handler is set once: it reads the latest callback here.
+  // Changes with each new map background: the effects that fill SIRA's layers run again.
+  const [styleVersion, setStyleVersion] = useState(0);
+  // The map's handlers are set once: they read the latest callbacks here.
   const routePress = useRef(onRoutePress);
-  useEffect(() => { routePress.current = onRoutePress; }, [onRoutePress]);
+  const bearingChange = useRef(onBearingChange);
+  const followStop = useRef(onFollowStop);
+  const following = useRef(Boolean(follow));
+  useEffect(() => { routePress.current = onRoutePress; bearingChange.current = onBearingChange; followStop.current = onFollowStop; following.current = Boolean(follow); });
+  const shownStyle = useRef(mapStyle);
+  const followOn = Boolean(follow);
+  const tiltedNow = useRef(tilted);
+  useEffect(() => { tiltedNow.current = tilted; });
 
   // Without coordinates, the name is looked up (own position: the live GPS one, never a fixed point).
   const start = origin ?? (departureName ? knownPlace(departureName) ?? undefined : undefined);
@@ -85,28 +140,33 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
     let cancelled = false;
     import('maplibre-gl').then(({ default: maplibregl }) => {
       if (cancelled || !container.current) return;
-      const map = new maplibregl.Map({ container: container.current, style: 'https://tiles.openfreemap.org/styles/liberty', center: ABIDJAN_CENTER, zoom: 11.5, attributionControl: { compact: true } });
+      const map = new maplibregl.Map({ container: container.current, style: MAP_STYLE_URLS[shownStyle.current], center: ABIDJAN_CENTER, zoom: 11.5, attributionControl: { compact: true } });
       // The map credits start folded (the « i » opens them): unfolded, they cover the bottom of a phone screen.
       map.once('load', () => map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'));
       map.on('load', () => {
-        // How far off the traveller's position may be: drawn first, under everything else.
-        map.addSource('accuracy', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({ id: 'accuracy-fill', type: 'fill', source: 'accuracy', paint: { 'fill-color': '#2563EB', 'fill-opacity': 0.12 } });
-        map.addLayer({ id: 'accuracy-line', type: 'line', source: 'accuracy', paint: { 'line-color': '#2563EB', 'line-opacity': 0.35, 'line-width': 1.5 } });
-        // Other journeys first, so the chosen one is drawn over them; a wide invisible line makes them easy to touch.
-        map.addSource('alternatives', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({ id: 'alternatives-line', type: 'line', source: 'alternatives', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#7C828C', 'line-width': 5 } });
-        map.addLayer({ id: 'alternatives-hit', type: 'line', source: 'alternatives', paint: { 'line-color': '#000000', 'line-opacity': 0, 'line-width': 18 } });
+        addSiraLayers(map, shownStyle.current);
+        // Layer handlers stay on the map: they work again after each new background.
         map.on('click', 'alternatives-hit', (event) => {
           const id = event.features?.[0]?.properties?.id;
           if (typeof id === 'string') routePress.current?.(id);
         });
         map.on('mouseenter', 'alternatives-hit', () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', 'alternatives-hit', () => { map.getCanvas().style.cursor = ''; });
-        map.addSource('journey', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({ id: 'journey-line', type: 'line', source: 'journey', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#F26522', 'line-width': 5 } });
-        map.addSource('focus', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-        map.addLayer({ id: 'focus-line', type: 'line', source: 'focus', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#1E1E1E', 'line-width': 7 } });
+        // A line of the « Lignes SIRA » layer, touched: its name (« bus 06 : Aéroport ↔ Gare Sud »).
+        map.on('click', 'transit-hit', (event) => {
+          const name = event.features?.[0]?.properties?.name;
+          if (name) new maplibregl.Popup({ closeButton: false, className: 'sira-map-line-popup' }).setLngLat(event.lngLat).setText(String(name)).addTo(map);
+        });
+        // The compass shows while the map is turned: told every few degrees, and at the end of each turn.
+        let told = 0;
+        const tell = (always: boolean) => {
+          const bearing = map.getBearing();
+          if (always || Math.abs(bearing - told) >= 3) { told = bearing; bearingChange.current?.(bearing); }
+        };
+        map.on('rotate', () => tell(false));
+        map.on('rotateend', () => tell(true));
+        // Moving the map by hand during guidance pauses the following.
+        map.on('dragstart', () => { if (following.current) followStop.current?.(); });
         mapRef.current = map;
         setReady(true);
       });
@@ -114,6 +174,17 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
     return () => { cancelled = true; mapRef.current?.remove(); mapRef.current = null; };
   }, []);
 
+  // Fond choisi dans Calques (Plan, Nuit, Épuré) : le nouveau fond efface les couches de SIRA, on les remet.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || shownStyle.current === mapStyle) return;
+    shownStyle.current = mapStyle;
+    map.once('style.load', () => { addSiraLayers(map, mapStyle); setStyleVersion((version) => version + 1); });
+    map.setStyle(MAP_STYLE_URLS[mapStyle], { diff: false });
+  }, [ready, mapStyle]);
+
+  // The map frames the journeys once per new set of points, not after a change of background.
+  const framed = useRef('');
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
@@ -174,12 +245,19 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         type: 'FeatureCollection',
         features: focus ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: focus.map((point) => [point.longitude, point.latitude]) } }] : [],
       });
+      // Guidage : c'est le suivi qui place la carte.
+      if (following.current) { framed.current = 'suivi'; return; }
       const placePoints = places.length ? [...places.map((place) => ({ latitude: place.lat, longitude: place.lon })), ...(userPosition ? [userPosition] : [])] : [];
       const routePoints = [...routeCoordinates, ...drawnAlternatives.flatMap((route) => route.coordinates)];
       const points = focus ?? (routePoints.length ? routePoints : placePoints.length ? placePoints : [start, end].filter((point): point is Coordinates => Boolean(point)));
+      const key = points.length ? `${points.length}:${points[0].latitude},${points[0].longitude}:${points[points.length - 1].latitude},${points[points.length - 1].longitude}` : '';
+      if (key === framed.current) return;
+      framed.current = key;
       if (points.length >= 2) {
         const lons = points.map((point) => point.longitude); const lats = points.map((point) => point.latitude);
-        map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: padding ?? 50, duration: 600, maxZoom: 16 });
+        // Cadré à plat (nord en haut), ou penché si le voyageur a choisi la 3D : un seul mouvement, que rien n'interrompt.
+        const camera = map.cameraForBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: padding ?? 50, maxZoom: 16 });
+        if (camera) map.easeTo({ ...camera, pitch: tiltedNow.current ? TILT : 0, bearing: tiltedNow.current ? map.getBearing() : 0, duration: 600 });
       } else if (points.length === 1 && placePoints.length) {
         // Un seul lieu (fiche sans position du voyageur) : centré dessus. Les autres écrans à un seul point
         // (signalement, localisation) gardent leur cadrage ; une marge absente ne doit pas être transmise,
@@ -188,7 +266,51 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
       }
     });
     return () => { active = false; };
-  }, [ready, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, alternativeRoutes, routeLabel, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, userAccuracyM, padding]);
+  }, [ready, styleVersion, followOn, start?.latitude, start?.longitude, end?.latitude, end?.longitude, routeCoordinates, alternativeRoutes, routeLabel, focusCoordinates, reports, onReportPress, places, onPlacePress, userPosition?.latitude, userPosition?.longitude, userAccuracyM, padding]);
+
+  // Couche « Lignes SIRA » : chargée au premier allumage, puis seulement montrée ou cachée.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    ['transit-line', 'transit-hit'].forEach((id) => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', showTransitLines ? 'visible' : 'none'); });
+    if (!showTransitLines) return;
+    let active = true;
+    void loadTransitLines().then((data) => { if (active && data) (map.getSource('transit') as GeoJSONSource | undefined)?.setData(data); });
+    return () => { active = false; };
+  }, [ready, showTransitLines, styleVersion]);
+
+  // Bâtiments : ceux de « Plan » restent visibles à plat ; ceux qu'on ajoute aux autres fonds, seulement en 3D.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    if (map.getLayer('building-3d')) map.setLayoutProperty('building-3d', 'visibility', showBuildings ? 'visible' : 'none');
+    if (map.getLayer('sira-building-3d')) map.setLayoutProperty('sira-building-3d', 'visibility', showBuildings && (tilted || followOn) ? 'visible' : 'none');
+  }, [ready, showBuildings, tilted, followOn, styleVersion]);
+
+  // Bouton 2D / 3D : la carte se penche ; en 2D elle revient à plat, nord en haut. Le guidage a sa propre vue.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || followOn) return;
+    map.easeTo(tilted ? { pitch: TILT, duration: 600 } : { pitch: 0, bearing: 0, duration: 600 });
+  }, [ready, tilted, followOn]);
+
+  // Guidage : la carte suit le voyageur, penchée, la route montant devant lui.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !follow) return;
+    const heading = headingAlong(routeCoordinates, follow);
+    map.easeTo({ center: [follow.longitude, follow.latitude], zoom: Math.max(map.getZoom(), 16.5), pitch: TILT,
+      bearing: heading ?? map.getBearing(), offset: [0, 120], duration: 800 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule une nouvelle position (ou un autre trajet) déplace la carte
+  }, [ready, follow?.latitude, follow?.longitude, routeCoordinates]);
+
+  // Boussole : une demande par nouvelle key.
+  const northKey = northRequest?.key;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || northKey === undefined) return;
+    map.easeTo({ bearing: 0, duration: 400 });
+  }, [ready, northKey]);
 
   // Bouton « Ma position » : une demande par nouvelle key.
   const centerKey = centerRequest?.key;
@@ -246,6 +368,7 @@ const MARKER_CSS = `
 @media (prefers-reduced-motion: reduce) { .sira-map-user { animation: none; } }
 .sira-map-place { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); font: 17px 'material-community'; }
 .sira-map-place--garde { width: 36px; height: 36px; font-size: 20px; border: 3px solid #FACC15; }
+.sira-map-line-popup .maplibregl-popup-content { padding: 6px 10px; border-radius: 10px; font: 600 12px system-ui; color: #111; }
 `;
 
 export default OsmMapView;

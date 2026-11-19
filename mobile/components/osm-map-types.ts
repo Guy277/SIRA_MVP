@@ -63,3 +63,37 @@ export type CenterRequest = { coordinates: MapPoint; key: number; wide?: boolean
 
 // Demande de zoom des boutons + / − : delta en niveaux de zoom (+1, −1) ; key change à chaque toucher.
 export type ZoomRequest = { delta: number; key: number };
+
+// Ce que règlent les boutons de carte (Calques, 2D/3D, boussole) et le guidage. Seule la carte web
+// (MapLibre) s'en sert pour l'instant ; la carte du téléphone les ignore jusqu'à son passage à MapLibre.
+export type MapDisplayOptions = {
+  mapStyle?: 'plan' | 'nuit' | 'epure';
+  tilted?: boolean;  // carte inclinée, bâtiments debout
+  showTransitLines?: boolean;  // couche « Lignes SIRA »
+  showBuildings?: boolean;
+  // Cap de la carte en degrés (0 = nord en haut) : l'écran montre la boussole quand elle est tournée.
+  onBearingChange?: (bearing: number) => void;
+  // Boussole : chaque nouvelle key remet le nord en haut.
+  northRequest?: { key: number } | null;
+  // Guidage : la carte suit ce point, inclinée et tournée dans le sens du trajet ; null = vue d'ensemble.
+  follow?: MapPoint | null;
+  // Le voyageur a déplacé la carte pendant le suivi : l'écran lui propose de reprendre.
+  onFollowStop?: () => void;
+};
+
+const toRad = (degrees: number) => (degrees * Math.PI) / 180;
+const metres = (a: MapPoint, b: MapPoint) =>
+  Math.hypot(b.latitude - a.latitude, (b.longitude - a.longitude) * Math.cos(toRad(a.latitude))) * 111_320;
+
+// Sens de marche (0 = nord, 90 = est) au point le plus proche du trajet, vers un point ~25 m plus loin :
+// la carte du guidage se tourne pour que la route monte devant le voyageur. null : trajet trop court.
+export function headingAlong(path: MapPoint[], here: MapPoint): number | null {
+  if (path.length < 2) return null;
+  let nearest = 0;
+  path.forEach((point, index) => { if (metres(here, point) < metres(here, path[nearest])) nearest = index; });
+  const from = path[nearest];
+  const ahead = path.slice(nearest + 1).find((point) => metres(from, point) >= 25) ?? path[path.length - 1];
+  if (metres(from, ahead) < 1) return null;
+  const angle = Math.atan2((ahead.longitude - from.longitude) * Math.cos(toRad(from.latitude)), ahead.latitude - from.latitude);
+  return ((angle * 180) / Math.PI + 360) % 360;
+}

@@ -16,6 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBottomTabBar, useTabBarSpace } from '@/components/custom-bottom-tab-bar';
 import { OsmMapView } from '@/components/osm-map-view';
+import { MapLayersSheet } from '@/components/map-layers-sheet';
+import { setMapSettings, useMapSettings } from '@/lib/map-settings';
 import { FollowZoneButton } from '@/components/follow-zone-button';
 import { notify } from '@/lib/notify';
 import { showSuccess } from '@/components/success-card';
@@ -56,6 +58,12 @@ export default function TrafficScreen() {
   // Boutons + / − : chaque toucher envoie une demande de zoom à la carte (nouvelle key).
   const [zoomRequest, setZoomRequest] = useState<{ delta: number; key: number } | null>(null);
   const zoom = (delta: number) => setZoomRequest((previous) => ({ delta, key: (previous?.key ?? 0) + 1 }));
+  // Calques, 2D / 3D et boussole : sur la carte web (MapLibre) seulement, tant que le téléphone garde sa carte native.
+  const mapButtons = Platform.OS === 'web';
+  const mapSettings = useMapSettings();
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [bearing, setBearing] = useState(0);
+  const [northRequest, setNorthRequest] = useState<{ key: number } | null>(null);
   // Le voyageur sur la carte (point bleu), et la carte centrée sur lui.
   const here = useCurrentPlace();
   useEffect(() => { void ensureCurrentPlace(); }, []);
@@ -131,13 +139,19 @@ export default function TrafficScreen() {
       <View style={styles.mapWrapper}>
         <OsmMapView
           style={styles.mapImage}
-          reports={filteredIncidents}
+          reports={mapSettings.reports ? filteredIncidents : []}
           onReportPress={(report) => setSelectedId(report.id)}
           userPosition={userPosition}
           userAccuracyM={userAccuracyM}
           centerOnUser
           centerRequest={centerRequest}
           zoomRequest={zoomRequest}
+          mapStyle={mapSettings.style}
+          tilted={mapSettings.tilted}
+          showTransitLines={mapSettings.transitLines}
+          showBuildings={mapSettings.buildings}
+          onBearingChange={setBearing}
+          northRequest={northRequest}
         />
 
         {/* Legend: what the colours of the incidents mean, only when there are incidents to read. */}
@@ -178,8 +192,32 @@ export default function TrafficScreen() {
           </View>
         )}
 
-        {/* Zoom Controls, under « Ma position » */}
-        <View style={styles.zoomControlBox}>
+        {/* Boussole : seulement quand la carte est tournée ; la toucher remet le nord en haut. */}
+        {mapButtons && Math.abs(bearing) > 1 && (
+          <TouchableOpacity style={styles.compassButton} onPress={() => setNorthRequest((previous) => ({ key: (previous?.key ?? 0) + 1 }))}
+            activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Remettre le nord en haut">
+            <View style={{ transform: [{ rotate: `${-bearing}deg` }] }}>
+              <Ionicons name="navigate" size={18} color="#EF4444" style={styles.compassNeedle} />
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Calques et 2D / 3D au-dessus de « Ma position », puis le zoom */}
+        <View style={[styles.zoomControlBox, mapButtons && styles.zoomControlBoxTall]}>
+          {mapButtons && (
+            <>
+              <TouchableOpacity style={[styles.zoomButton, styles.locateButton]} onPress={() => setLayersOpen(true)} activeOpacity={0.8}
+                accessibilityRole="button" accessibilityLabel="Calques : type de carte et lignes">
+                <Ionicons name="layers-outline" size={20} color="#F26522" />
+              </TouchableOpacity>
+              <View style={styles.zoomDivider} />
+              <TouchableOpacity style={[styles.zoomButton, styles.locateButton]} onPress={() => setMapSettings({ tilted: !mapSettings.tilted })} activeOpacity={0.8}
+                accessibilityRole="button" accessibilityLabel={mapSettings.tilted ? 'Repasser la carte en 2D' : 'Voir la carte en 3D'}>
+                <Text style={styles.tiltText}>{mapSettings.tilted ? '2D' : '3D'}</Text>
+              </TouchableOpacity>
+              <View style={styles.zoomGroupGap} />
+            </>
+          )}
           <TouchableOpacity
             style={[styles.zoomButton, styles.locateButton]}
             onPress={() => { void locateMe(); }}
@@ -484,6 +522,7 @@ export default function TrafficScreen() {
       </Modal>
 
       {/* Bottom Navigation Bar */}
+      {mapButtons && <MapLayersSheet visible={layersOpen} onClose={() => setLayersOpen(false)} />}
       <CustomBottomTabBar />
     </View>
   );
@@ -696,6 +735,35 @@ const styles = StyleSheet.create({
   },
   zoomDivider: {
     height: 6,
+  },
+  // Deux boutons de plus (Calques, 3D) : la colonne monte d'autant pour ne pas toucher le panneau du bas.
+  zoomControlBoxTall: {
+    top: height * 0.42 - 92,
+  },
+  zoomGroupGap: {
+    height: 14,
+  },
+  tiltText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#F26522',
+  },
+  compassButton: {
+    position: 'absolute',
+    top: height * 0.42 - 92 - 52,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  compassNeedle: {
+    transform: [{ rotate: '-45deg' }],
   },
   // White with an orange target, apart from the orange + and −.
   locateButton: {

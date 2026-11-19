@@ -1526,3 +1526,15 @@ test("une ligne directe à quelques centaines de mètres est prise dès le dépa
   assert.deepEqual(route.legs.map((leg) => leg.lineId), ["DIRECT"]);
   assert.ok(route.access.distanceKm > 0.35 && route.access.distanceKm < 0.45, "la marche jusqu'à la ligne est comptée");
 });
+
+test("la couche « Lignes SIRA » recolle les tronçons, simplifie le tracé et ne garde que nom, code et mode", () => {
+  const { joinSegments, mapLayer, simplifyLine } = require("../dist/mobility/map-layer.js");
+  assert.deepEqual(joinSegments([[[0, 0], [1, 0]], [[1, 0], [2, 0]], [[5, 5], [6, 5]]]), [[[0, 0], [1, 0], [2, 0]], [[5, 5], [6, 5]]]);
+  // Un point à 1 m de la droite disparaît, un détour de 50 m reste.
+  assert.deepEqual(simplifyLine([[0, 0], [0.001, 0.00001], [0.002, 0]]), [[0, 0], [0.002, 0]]);
+  assert.equal(simplifyLine([[0, 0], [0.001, 0.0005], [0.002, 0]]).length, 3);
+  const layer = mapLayer([{ properties: { code: "06", name: "bus 06", sira_mode: "SOTRA_BUS", frequency: "60" },
+    geometry: { type: "MultiLineString", coordinates: [[[-4.0000001, 5.3], [-3.99, 5.3]], [[-3.99, 5.3], [-3.98, 5.3]]] } }]);
+  assert.deepEqual(layer.features[0].properties, { code: "06", name: "bus 06", sira_mode: "SOTRA_BUS" });
+  assert.deepEqual(layer.features[0].geometry.coordinates, [[[-4, 5.3], [-3.98, 5.3]]]);
+});

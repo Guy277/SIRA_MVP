@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableExcept
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TransportGraph, type AvoidArea, type NetworkJourney, type TransportFeature } from "./transport-graph";
+import { mapLayer } from "./map-layer";
 import { distanceToLineM } from "../reports/reports.service";
 import { combineConfidence, type SiraTransportMode, estimateRideDuration, estimateWait } from "./estimators";
 import { decodeValhallaShape, haversineKm, routePedestrian, type PedestrianRoute } from "./pedestrian-router";
@@ -223,6 +224,8 @@ export class MobilityService implements OnModuleInit {
   private sourceLabel?: string;
   // Named stops of the network (where to get on and off, landmarks for walking); null if the file is missing.
   private stopIndex?: StopIndex | null;
+  // Couche « Lignes SIRA » de la carte, calculée une fois (map-layer.ts).
+  private transportMapLayer?: ReturnType<typeof mapLayer>;
   // Off-thread graph search keeps the API responsive during a search.
   private readonly useGraphWorker = process.env.SIRA_GRAPH_WORKER === "true";
   private graphWorker?: GraphWorkerClient;
@@ -326,6 +329,11 @@ export class MobilityService implements OnModuleInit {
       },
       features,
     };
+  }
+
+  getTransportMapLayer() {
+    this.transportMapLayer ??= mapLayer(this.readTransportDataset().features);
+    return this.transportMapLayer;
   }
 
   async getTransportNetworks() {

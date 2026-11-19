@@ -19,7 +19,8 @@ import { TripRatingModal } from '@/components/trip-rating-modal';
 import { notify } from '@/lib/notify';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { fetchJourneys, journeyImpact, reportFare, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
-import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legPath, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import { useMapSettings } from '@/lib/map-settings';
 import { upsertReport, useLiveReports } from '@/lib/reports';
 import { locateUser, refreshCurrentPlace } from '@/lib/places';
 import { usageAllowed } from '@/lib/usage';
@@ -72,6 +73,13 @@ export default function NavigationActiveScreen() {
 
   const targetDestination = search?.arrival.name ?? 'Destination';
   const steps = useMemo(() => journey ? timeline(journey, startedAt) : [], [journey, startedAt]);
+  // Carte du guidage (web, MapLibre) : penchée, elle suit le voyageur, la route montant devant lui, comme un GPS.
+  // Sans GPS, elle suit le début de l'étape en cours. « Vue d'ensemble » la remet à plat sur tout le trajet.
+  const mapSettings = useMapSettings();
+  const [here, setHere] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [overview, setOverview] = useState(false);
+  const stepPath = steps[currentStepIndex] ? legPath(steps[currentStepIndex].leg) : [];
+  const followPoint = Platform.OS === 'web' && !overview && !arrived ? here ?? stepPath[0] ?? null : null;
   const current = steps[Math.min(currentStepIndex, Math.max(steps.length - 1, 0))];
 
   // Re-evaluates confirmed incidents on this journey whenever reports change.
@@ -258,6 +266,7 @@ export default function NavigationActiveScreen() {
         subscription = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 3000 },
           ({ coords }) => {
+            setHere({ latitude: coords.latitude, longitude: coords.longitude });
             const { steps: all, index, arrived: done, destination, destinationName: place } = latest.current;
             if (done) return;
             const key = `${journeyId}:${index}`;
@@ -327,6 +336,11 @@ export default function NavigationActiveScreen() {
         destination={search?.arrival}
         routeCoordinates={journeyPath(alternative ?? journey)}
         reports={reports}
+        userPosition={here}
+        mapStyle={mapSettings.style}
+        showBuildings={mapSettings.buildings}
+        follow={followPoint}
+        onFollowStop={() => setOverview(true)}
       />
 
       {/* Overlay Safe Area */}
@@ -395,6 +409,13 @@ export default function NavigationActiveScreen() {
           <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={() => router.push('/report-event')}>
             <Ionicons name="warning" size={22} color="#EF4444" />
           </TouchableOpacity>
+
+          {Platform.OS === 'web' && !arrived && (
+            <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={() => setOverview((value) => !value)}
+              accessibilityRole="button" accessibilityLabel={overview ? 'Reprendre le suivi, carte penchée' : 'Vue d’ensemble du trajet'}>
+              <Ionicons name={overview ? 'navigate' : 'map-outline'} size={22} color="#F26522" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Journey traffic status from confirmed community reports */}

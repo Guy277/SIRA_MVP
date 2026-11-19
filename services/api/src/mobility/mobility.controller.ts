@@ -38,6 +38,12 @@ export class MobilityController {
     return this.mobility.getTransportGeoJson({ bbox, operator, network, siraMode, validationStatus });
   }
 
+  // Tracés allégés pour la carte (couche « Lignes SIRA »), avant :id qui prendrait « map » pour un identifiant.
+  @Get("transport/lines/map")
+  getTransportMapLayer() {
+    return this.mobility.getTransportMapLayer();
+  }
+
   @Get("transport/lines/:id")
   async getTransportLine(@Param("id") id: string) {
     return this.mobility.getTransportLine(id);
