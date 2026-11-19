@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import csv
 import json
 import logging
 import threading
@@ -25,6 +26,7 @@ from . import config
 from .companion import Companion
 from .dialog import FIXED_REPLIES, NOTHING_HEARD, VoiceDialog
 from .knowledge import KnowledgeBase
+from .lexicon import Lexicon, sira
 from .llm import LocalLLM
 from .resolver import PlaceResolver
 from .short_answer import parse_amount, yes_no
@@ -59,6 +61,7 @@ class ChatRequest(TextRequest):
 
 class TtsRequest(BaseModel):
     text: str = Field(min_length=1, max_length=600)
+    tel_quel: bool = False  # page du dictionnaire : lire sans le dictionnaire, pour comparer
 
 
 def build_state(app: FastAPI, nlu=None, planner=None, live=None):
@@ -92,7 +95,7 @@ def build_state(app: FastAPI, nlu=None, planner=None, live=None):
     state.fast_asr = fast if config.ASR_MODE == "hybride" and fast.available else None
     state.tts = Synthesizer(config.PIPER_VOICE, config.SPEECH_RATE, config.PIPER_SPEAKER,
                             noise_scale=config.NOISE_SCALE, noise_w=config.NOISE_W)
-    state.spoken = SpokenCache(lambda text: encode_audio(state.tts.synthesize(text)))
+    state.spoken = SpokenCache(lambda text: encode_audio(state.tts.synthesize(text)), speak_as=lambda text: sira().for_speech(text))
     if config.PRELOAD:
         # En arrière-plan : le service répond tout de suite, et la première phrase n'attend plus 10 à 20 s.
         threading.Thread(target=warm_speech, args=(state,), daemon=True, name="voice-warmup").start()
@@ -146,6 +149,32 @@ def encode_audio(wav: bytes) -> tuple[bytes, str]:
         except Exception as error:  # FFmpeg absent ou audio inattendu : la voix part quand même
             log.warning("Encodage MP3 impossible, envoi en WAV : %s", error)
     return wav, "audio/wav"
+
+
+def example_sentence(row: dict, words: Lexicon) -> str:
+    """Le mot du dictionnaire dans une phrase que SIRA pourrait dire (on l'entend avec sa liaison et son article)."""
+    word = row["mot"]
+    if row.get("categorie") == "mode":
+        return f"Prends le {word} ici."
+    if row.get("categorie") == "mot":
+        return f"Tu peux me dire « {word} », je comprends."
+    return f"Pour aller {words.a(word)}, prends le gbaka."
+
+
+def dictionary_entries(tts) -> dict:
+    """Lignes du dictionnaire à écouter (sans les noms communs, qui ne servent qu'aux articles)."""
+    words, path = sira(), config.DICTIONARY_PATH
+    rows = []
+    if path.exists():
+        with open(path, encoding="utf-8-sig", newline="") as file:
+            rows = [row for row in csv.DictReader(file, delimiter=";") if row.get("mot") and row.get("categorie") != "nom_commun"]
+    for row in rows:
+        row["phrase"] = example_sentence(row, words)
+        try:
+            row["phonemes_piper"] = tts.phonemes(words.for_speech(row["mot"]))
+        except SpeechUnavailable:
+            row["phonemes_piper"] = None
+    return {"fichier": str(path), "entries": rows}
 
 
 def ctx_raw_passthrough(context: str | None) -> dict | None:
@@ -346,10 +375,22 @@ def create_app(nlu=None, planner=None, live=None) -> FastAPI:
     async def tts(request: TtsRequest):
         # Phrase fixe ou suite d'une réponse : souvent déjà prête (SpokenCache).
         try:
-            audio, mime = await run_in_threadpool(app.state.spoken.get, request.text)
+            if request.tel_quel:
+                audio, mime = await run_in_threadpool(lambda: encode_audio(app.state.tts.synthesize(request.text)))
+            else:
+                audio, mime = await run_in_threadpool(app.state.spoken.get, request.text)
         except SpeechUnavailable as error:
             raise HTTPException(503, detail=str(error)) from error
         return Response(content=audio, media_type=mime)
+
+    @app.get("/voice/dictionnaire/page", include_in_schema=False)
+    def dictionary_page():
+        return FileResponse(STATIC / "dictionnaire.html")
+
+    @app.get("/voice/dictionnaire")
+    async def dictionary():
+        """Le dictionnaire SIRA à écouter : chaque mot dans une phrase de SIRA, et ce que Piper en prononce."""
+        return await run_in_threadpool(dictionary_entries, app.state.tts)
 
     return app
 

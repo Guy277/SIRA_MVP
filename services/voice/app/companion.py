@@ -25,6 +25,7 @@ from typing import Callable
 
 from . import normalize as nz
 from .dialog import ROUTE_INTENTS, STEP_LISTENER, TRIP_INTENT_MIN_CONFIDENCE, VoiceDialog, step
+from .lexicon import sira
 from .llm import LocalLLM, clean_reply
 from .resolver import norm
 
@@ -355,7 +356,7 @@ class Companion:
             if request.get("preference") != "fast":
                 options.append("Et le plus rapide ?")
             if dest:
-                options.append(f"Ça bouche vers {dest} ?")
+                options.append(f"Ça bouche {sira().vers(dest)} ?")
             if emotion(text) == "retard" and "Et le plus rapide ?" in options:
                 options.remove("Et le plus rapide ?")
                 options.insert(0, "Et le plus rapide ?")

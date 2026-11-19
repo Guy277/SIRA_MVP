@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from . import normalize as nz
 from .knowledge import Retriever
+from .lexicon import sira
 from .llm import LocalLLM
 from .nlu import NLUModel
 from .personal import clean_places, find_place
@@ -530,7 +531,7 @@ class VoiceDialog:
                 return self._reply(u, prefix + f"{name} fait partie du Grand Abidjan, mais ses transports ne sont pas encore "
                                    "dans SIRA : je ne peux pas encore calculer ce trajet.", request=request, sources=["lieux"])
             request = dict(request, destination={"lat": depart["lat"], "lon": depart["lon"], "name": depart["canonical"]})
-            prefix += (f"{name} n'est pas encore dans le réseau de SIRA : je t'emmène à {depart['canonical']}, "
+            prefix += (f"{name} n'est pas encore dans le réseau de SIRA : je t'emmène {sira().a(depart['canonical'])}, "
                        f"d'où partent les véhicules pour {name}. ")
         if self.plan_journeys is None:
             return self._reply(u, prefix + "J'ai compris ta demande, mais le calcul des trajets n'est pas branché.", request=request)
@@ -562,7 +563,7 @@ class VoiceDialog:
             return None
         cheapest = min(priced, key=lambda j: j["price"])
         dest = (request.get("destination") or {}).get("name", "ta destination")
-        text = (f"{prefix}Avec {request['budget']} francs, je ne trouve pas de trajet pour aller à {dest}. "
+        text = (f"{prefix}Avec {request['budget']} francs, je ne trouve pas de trajet pour aller {sira().a(dest)}. "
                 f"Le moins cher coûte {_price(cheapest['price'])} : {_spoken_route(cheapest)}. Il est sur l'écran.")
         payload = self._reply(u, text, request={k: v for k, v in request.items() if k != "budget"}, journeys=wider,
                               sources=["sira-more"])
@@ -585,8 +586,8 @@ class VoiceDialog:
         name = place.get("canonical", "cet endroit")
         incident = next((e["text"] for e in u.entities if e["label"] == "INCIDENT_TYPE"), None)
         return {
-            "report_incident": f"Merci. Je prépare le signalement{f' « {incident} »' if incident else ''} vers {name}. Confirme-le sur l'écran pour prévenir les autres voyageurs.",
-            "report_road_condition": f"Merci. Je prépare le signalement de l'état de la route vers {name}. Confirme-le sur l'écran.",
+            "report_incident": f"Merci. Je prépare le signalement{f' « {incident} »' if incident else ''} {sira().vers(name)}. Confirme-le sur l'écran pour prévenir les autres voyageurs.",
+            "report_road_condition": f"Merci. Je prépare le signalement de l'état de la route {sira().vers(name)}. Confirme-le sur l'écran.",
             **OTHER_REPLIES,
         }.get(u.intent, DEFAULT_REPLY)
 
@@ -684,11 +685,11 @@ def describe_journeys(result: dict, request: dict, intent: str) -> str:
     walking = chosen.get("walking_minutes") or 0
     route = _spoken_route(chosen)
     if intent == "ask_fare":
-        return f"{note}Pour aller à {dest} : {_price(chosen.get('price'))}, avec {route}."
+        return f"{note}Pour aller {sira().a(dest)} : {_price(chosen.get('price'))}, avec {route}."
     if intent == "ask_eta":
-        return f"{note}Pour aller à {dest}, compte environ {duration} minutes{_walking(walking)}."
+        return f"{note}Pour aller {sira().a(dest)}, compte environ {duration} minutes{_walking(walking)}."
     lead = {"fast": "Le plus rapide", "cheap": "Le moins cher"}.get(request.get("preference"), "Je te conseille")
-    parts = [f"{note}{lead} pour aller à {dest} : {route}.",
+    parts = [f"{note}{lead} pour aller {sira().a(dest)} : {route}.",
              f"{_price(chosen.get('price')).capitalize()}, {duration} minutes{_walking(walking)}."]
     ride = _first_ride(chosen)
     if ride:

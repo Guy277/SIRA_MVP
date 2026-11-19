@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from . import normalize as nz
+from .lexicon import sira
 from .resolver import PlaceResolver
 
 RIDE_MODES = {"sotra", "gbaka", "woro", "boat", "taxi"}
@@ -102,7 +103,7 @@ class TripAnswers:
 
     def _where(self, point) -> str:
         name = self._near(point)
-        return f"vers {name}" if name else "à l'arrêt indiqué sur la carte"
+        return sira().vers(name) if name else "à l'arrêt indiqué sur la carte"
 
     # ------------------------------------------------------------------ réponses
     def answer(self, action: str, trip: dict | None, position: dict | None) -> tuple[str, list[str]]:
@@ -118,7 +119,7 @@ class TripAnswers:
         dest = trip["destination"]["name"]
         figures = [f"{trip['duration']} minutes" if trip["duration"] is not None else None,
                    _francs(trip["price"]) if rides else None]
-        first = f"Ton trajet vers {dest} : {route}" + (f", {' et '.join(f for f in figures if f)}." if any(figures) else ".")
+        first = f"Ton trajet {sira().vers(dest)} : {route}" + (f", {' et '.join(f for f in figures if f)}." if any(figures) else ".")
         incidents, sources = self._incident_sentence(trip, short=True)
         return f"{first} {incidents}".strip(), ["sira-more:trajet", *sources]
 
@@ -137,11 +138,11 @@ class TripAnswers:
                 minutes = _number(best.get("duration"))
                 if minutes is not None:
                     arrival = self.now() + timedelta(minutes=minutes)
-                    return (f"D'ici, compte environ {minutes} minutes jusqu'à {dest['name']}, arrivée vers {_clock(arrival)}. "
+                    return (f"D'ici, compte environ {minutes} minutes {sira().jusqu_a(dest['name'])}, arrivée vers {_clock(arrival)}. "
                             "C'est le calcul de SIRA depuis ta position actuelle."), ["sira-more:calcul-depuis-ma-position"]
         if trip["duration"] is None:
             return "Je n'ai pas la durée de ce trajet. Relance la recherche pour la voir.", []
-        return f"Ton trajet vers {dest['name']} dure environ {trip['duration']} minutes au total, d'après SIRA.", ["sira-more:trajet"]
+        return f"Ton trajet {sira().vers(dest['name'])} dure environ {trip['duration']} minutes au total, d'après SIRA.", ["sira-more:trajet"]
 
     def price(self, trip: dict, position: dict | None) -> tuple[str, list[str]]:
         rides = _rides(trip)
@@ -193,7 +194,7 @@ class TripAnswers:
         if affected:
             report = affected[0].get("report") or {}
             what = str(report.get("title") or "un incident").lower()
-            where = f" vers {report['location']}" if report.get("location") else ""
+            where = f" {sira().vers(report['location'])}" if report.get("location") else ""
             delay = _number(impact.get("delayMinutes"))
             late = f", environ {delay} minutes de retard" if delay else ""
             first = f"Attention : {what} signalé{where} sur ton trajet{late}."
@@ -205,7 +206,7 @@ class TripAnswers:
             return first + (f" Il y a {others} autre{'s' if others > 1 else ''} signalement{'s' if others > 1 else ''} sur l'écran." if others else ""), ["signalements"]
         if unconfirmed and not short:
             report = unconfirmed[0].get("report") or {}
-            where = f" vers {report['location']}" if report.get("location") else ""
+            where = f" {sira().vers(report['location'])}" if report.get("location") else ""
             return (f"Un voyageur a signalé {str(report.get('title') or 'un incident').lower()}{where}, sur ton trajet. "
                     "Ce n'est pas encore confirmé par d'autres voyageurs."), ["signalements"]
         return "Aucun incident signalé sur ton trajet pour le moment.", ["signalements"]
@@ -213,7 +214,7 @@ class TripAnswers:
     # ------------------------------------------------------------------ « ça bouche à Adjamé ? »
     def place_status(self, place: dict) -> tuple[str, list[str]]:
         if not self.reports:
-            return f"Je ne peux pas vérifier les signalements vers {place['name']} pour le moment.", []
+            return f"Je ne peux pas vérifier les signalements {sira().vers(place['name'])} pour le moment.", []
         try:
             reports = self.reports()
         except LiveDataError:
@@ -221,7 +222,7 @@ class TripAnswers:
         near = [r for r in reports if isinstance(r, dict) and r.get("status") in ("reported", "confirmed", "reliable")
                 and _close(r, place, PLACE_REPORTS_M)]
         if not near:
-            return f"Aucun incident signalé vers {place['name']} pour le moment.", ["signalements"]
+            return f"Aucun incident signalé {sira().vers(place['name'])} pour le moment.", ["signalements"]
         first = near[0]
         more = f" Il y a {len(near) - 1} autre{'s' if len(near) > 2 else ''} signalement{'s' if len(near) > 2 else ''} dans le coin." if len(near) > 1 else ""
         confirmed = "" if first.get("status") != "reported" else ", pas encore confirmé"

@@ -88,8 +88,12 @@ class SpokenCache:
       l'application joue la première phrase. Une phrase demandée pendant sa préparation attend juste la fin de celle-ci.
     """
 
-    def __init__(self, produce: Callable[[str], tuple[bytes, str]], size: int = 256):
+    def __init__(self, produce: Callable[[str], tuple[bytes, str]], size: int = 256,
+                 speak_as: Callable[[str], str] = lambda text: text):
         self._produce = produce
+        # Texte vraiment lu par Piper (dictionnaire SIRA appliqué) : c'est lui la clé, donc une prononciation
+        # corrigée dans le dictionnaire n'est jamais servie avec l'ancienne voix.
+        self._speak_as = speak_as
         self._size = size
         self._items: OrderedDict[str, Future] = OrderedDict()
         self._lock = threading.Lock()
@@ -121,7 +125,7 @@ class SpokenCache:
             future.set_exception(error)
 
     def get(self, text: str) -> tuple[bytes, str]:
-        text = text.strip()
+        text = self._speak_as(text.strip())
         future, mine = self._claim(text)
         if mine:
             self._fill(text, future)
@@ -129,7 +133,7 @@ class SpokenCache:
 
     def prepare(self, texts: Iterable[str]) -> None:
         for text in texts:
-            text = text.strip()
+            text = self._speak_as(text.strip())
             if text:
                 future, mine = self._claim(text)
                 if mine:
@@ -281,6 +285,10 @@ class Synthesizer:
                     raise SpeechUnavailable("piper-tts n'est pas installé (npm run voice:setup)") from error
                 self._voice = PiperVoice.load(str(self.voice_path))
         return self._voice
+
+    def phonemes(self, text: str) -> str:
+        """Ce que Piper prononce, dans l'alphabet de espeak (celui de la colonne `phonemes` du dictionnaire)."""
+        return " ".join("".join(sentence) for sentence in self._load().phonemize(text))
 
     def synthesize(self, text: str) -> bytes:
         voice = self._load()

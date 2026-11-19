@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import time
 import unittest
 import wave
 from datetime import datetime, timezone
@@ -920,13 +921,13 @@ class FaqDialogTest(unittest.TestCase):
 
     def test_je_descends_ou(self):
         out = self.dialog(FixedNLU("ask_transfer")).ask("je descends où ?", POSITION, trip=TRIP)
-        self.assertEqual(out["reply_text"], "Monte dans le gbaka vers Adjamé, et descends vers Plateau. "
-                                            "Ensuite, monte dans le bus SOTRA 52 vers Plateau, et descends vers Koumassi.")
+        self.assertEqual(out["reply_text"], "Monte dans le gbaka vers Adjamé, et descends vers le Plateau. "
+                                            "Ensuite, monte dans le bus SOTRA 52 vers le Plateau, et descends vers Koumassi.")
         self.assertEqual(out["kind"], "info")
 
     def test_je_change_ou(self):
         out = self.dialog(FixedNLU("ask_transfer")).ask("je change où ?", POSITION, trip=TRIP)
-        self.assertEqual(out["reply_text"], "Tu changes vers Plateau : tu quittes le gbaka pour prendre le bus SOTRA 52.")
+        self.assertEqual(out["reply_text"], "Tu changes vers le Plateau : tu quittes le gbaka pour prendre le bus SOTRA 52.")
 
     def test_prix_du_trajet_en_cours(self):
         out = self.dialog(FixedNLU("ask_fare")).ask("ça fait combien ?", POSITION, trip=TRIP)
@@ -948,7 +949,7 @@ class FaqDialogTest(unittest.TestCase):
         live = FakeLive({"affected": [{"report": {"title": "Accident", "location": "Pont HKB"}, "delayMinutes": 10, "legIndex": 2}],
                          "unconfirmed": [], "delayMinutes": 10, "blocking": False, "requiresReroute": False})
         out = self.dialog(FixedNLU("traffic_status"), live=live).ask("y a des bouchons sur mon trajet ?", POSITION, trip=TRIP)
-        self.assertEqual(out["reply_text"], "Attention : accident signalé vers Pont HKB sur ton trajet, environ 10 minutes de retard.")
+        self.assertEqual(out["reply_text"], "Attention : accident signalé vers le Pont HKB sur ton trajet, environ 10 minutes de retard.")
         self.assertIn("signalements", out["sources"])
         self.assertEqual(len(live.calls[0]), len(TRIP["journey"]["legs"]))
         calm = self.dialog(FixedNLU("traffic_status")).ask("y a des bouchons sur mon trajet ?", POSITION, trip=TRIP)
@@ -1018,7 +1019,7 @@ class ApiTest(unittest.TestCase):
         body = self.client.post("/voice/ask", json={"text": "je descends où ?", "position": POSITION, "trip": TRIP}).json()
         self.assertEqual(body["kind"], "info")
         self.assertIn("trajet.arrets", body["sources"])
-        self.assertIn("descends vers Plateau", body["reply_text"])
+        self.assertIn("descends vers le Plateau", body["reply_text"])
         self.assertGreater(self.client.get("/health").json()["components"]["faq"], 40)
 
     def test_understand(self):
@@ -1149,6 +1150,74 @@ class SpeechSettingsTest(unittest.TestCase):
         with TestClient(app):
             pierre = app.state.tts
             self.assertEqual((pierre.noise_scale, pierre.noise_w, pierre.speaker_id), (0.5, 0.6, 1))
+
+
+class DictionnaireSiraTest(unittest.TestCase):
+    """knowledge/dictionnaire.csv : « au Plateau » et non « à Plateau », et la prononciation lue par Piper."""
+
+    ROWS = [{"mot": "Plateau", "categorie": "commune", "article": "le"},
+            {"mot": "Deux-Plateaux", "categorie": "quartier", "article": "les"},
+            {"mot": "gare", "categorie": "nom_commun", "article": "la"},
+            {"mot": "aéroport", "categorie": "nom_commun", "article": "l'"},
+            {"mot": "Adjamé", "categorie": "commune", "article": "", "dire_comme": "Adjaméé"},
+            {"mot": "wôrô-wôrô", "categorie": "mode", "article": "le", "phonemes": "wɔɾɔwɔɾɔ"}]
+
+    def lexicon(self):
+        from services.voice.app.lexicon import Lexicon
+        return Lexicon.from_rows(self.ROWS)
+
+    def test_articles_des_lieux(self):
+        lx = self.lexicon()
+        self.assertEqual([lx.a(n) for n in ("Plateau", "Adjamé", "Deux-Plateaux", "Gare Nord", "Aéroport", "Le Réservoir",
+                                            "Les Oscars", "Chez Tantie", "ta destination")],
+                         ["au Plateau", "à Adjamé", "aux Deux-Plateaux", "à la Gare Nord", "à l'Aéroport", "au Réservoir",
+                          "aux Oscars", "chez Tantie", "à ta destination"])
+        self.assertEqual((lx.vers("Plateau"), lx.vers("Adjamé"), lx.jusqu_a("Plateau"), lx.jusqu_a("Gare Nord")),
+                         ("vers le Plateau", "vers Adjamé", "jusqu'au Plateau", "jusqu'à la Gare Nord"))
+
+    def test_prononciation_pour_piper(self):
+        lx = self.lexicon()
+        self.assertEqual(lx.for_speech("Le wôrô-wôrô pour Adjamé, pas pour Adjamé-Nord."),
+                         "Le [[ wɔɾɔwɔɾɔ ]] pour Adjaméé, pas pour Adjamé-Nord.")  # mot entier seulement
+        self.assertEqual(lx.for_speech("Je vais au Plateau."), "Je vais au Plateau.")
+
+    def test_vrai_dictionnaire(self):
+        from services.voice.app import config
+        from services.voice.app.lexicon import Lexicon
+        lx = Lexicon.load(config.DICTIONARY_PATH)
+        self.assertEqual((lx.a("Plateau"), lx.a("Yopougon"), lx.a("Riviera Palmeraie")),
+                         ("au Plateau", "à Yopougon", "à la Riviera Palmeraie"))
+
+    def test_correction_relue_et_jamais_servie_avec_l_ancienne_voix(self):
+        import tempfile
+        from services.voice.app.lexicon import LexiconFile
+        from services.voice.app.speech import SpokenCache
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "dictionnaire.csv"
+            path.write_text("mot;categorie;article;dire_comme\nAdjamé;commune;;\n", encoding="utf-8")
+            words = LexiconFile(path)
+            said = []
+            cache = SpokenCache(lambda text: (said.append(text) or text.encode(), "audio/wav"),
+                                speak_as=lambda text: words.get().for_speech(text))
+            cache.get("Je vais à Adjamé.")
+            path.write_text("mot;categorie;article;dire_comme\nAdjamé;commune;;Adjaméé\n", encoding="utf-8")
+            os.utime(path, (time.time() + 5, time.time() + 5))  # même seconde : on force un changement visible
+            self.assertEqual(cache.get("Je vais à Adjamé."), (b"Je vais \xc3\xa0 Adjam\xc3\xa9\xc3\xa9.", "audio/wav"))
+            self.assertEqual(said, ["Je vais à Adjamé.", "Je vais à Adjaméé."])
+
+    def test_page_du_dictionnaire(self):
+        app = create_app(nlu=FakeNLU(), planner=Planner(), live=FakeLive())
+        with TestClient(app) as client:
+            class Voice:
+                def phonemes(self, text):
+                    return f"/{text}/"
+            app.state.tts = Voice()
+            body = client.get("/voice/dictionnaire").json()
+            plateau = next(e for e in body["entries"] if e["mot"] == "Plateau")
+            self.assertEqual(plateau["phrase"], "Pour aller au Plateau, prends le gbaka.")
+            self.assertEqual(plateau["phonemes_piper"], "/Plateau/")
+            self.assertFalse(any(e["categorie"] == "nom_commun" for e in body["entries"]))
+            self.assertEqual(client.get("/voice/dictionnaire/page").status_code, 200)
 
 
 class PhraseParPhraseTest(unittest.TestCase):

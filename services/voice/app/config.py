@@ -118,6 +118,8 @@ COMPANION_TIMEOUT_S = max(1.0, _float("VOICE_COMPANION_TIMEOUT_S", 30.0))
 # Compléments du répertoire de lieux (dans Git) : lieux ajoutés, coordonnées manquantes, variantes d'orthographe et
 # commune exacte de chaque lieu (scripts/corriger_lieux.py). Appliqués au chargement par PlaceResolver.
 LIEUX_COMPLEMENTS = _path("VOICE_LIEUX_COMPLEMENTS", KNOWLEDGE_DIR / "lieux_complements.json")
+# Dictionnaire SIRA : article et prononciation des lieux, modes et mots d'Abidjan (app/lexicon.py)
+DICTIONARY_PATH = _path("VOICE_DICTIONARY", KNOWLEDGE_DIR / "dictionnaire.csv")
 
 MAX_AUDIO_BYTES = int(_float("VOICE_MAX_AUDIO_BYTES", 5 * 1024 * 1024))
 MAX_AUDIO_SECONDS = _float("VOICE_MAX_AUDIO_SECONDS", 30.0)

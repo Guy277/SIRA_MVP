@@ -58,7 +58,7 @@ class CompagnonTest(unittest.TestCase):
         self.assertEqual(reply["companion"]["emotion"], "fatigue")
         self.assertIn(reply["safe_reply_text"], reply["reply_text"])  # les faits de SIRA, tels quels
         self.assertFalse(reply["reply_text"].startswith(reply["safe_reply_text"]))  # une phrase d'empathie d'abord
-        self.assertIn("Aucun incident signalé vers Plateau", reply["reply_text"])
+        self.assertIn("Aucun incident signalé vers le Plateau", reply["reply_text"])
         self.assertEqual(reply["facts_sources"], ["Calcul SIRA-MORE", "Signalements des voyageurs"])
         self.assertEqual([a["id"] for a in reply["actions"]], ["voir_trajets"])
         self.assertIn("Et le moins cher ?", reply["suggestions"])
@@ -72,7 +72,7 @@ class CompagnonTest(unittest.TestCase):
                         position=POSITION, context=first["context"])
         self.assertEqual(follow["kind"], "journeys")
         self.assertEqual((planner.calls[-1]["destination"]["name"], planner.calls[-1]["preference"]), ("Plateau", "cheap"))
-        self.assertTrue(follow["safe_reply_text"].startswith("Le moins cher pour aller à Plateau"))
+        self.assertTrue(follow["safe_reply_text"].startswith("Le moins cher pour aller au Plateau"))
         self.assertNotIn("Et le moins cher ?", follow["suggestions"])
 
     def test_signalement_vers_la_destination(self):

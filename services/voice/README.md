@@ -243,6 +243,24 @@ Les questions qui ne sont pas des demandes de trajet (« c'est quoi un gbaka ? �
 - Hors sujet (« raconte-moi une blague ») : refus poli, sans rien inventer.
 - Côté app : écran **Discuter avec SIRA** (`mobile/app/chat.tsx`), depuis le profil.
 
+## Dictionnaire SIRA : articles et prononciation (`knowledge/dictionnaire.csv`)
+
+Un seul fichier, modifiable dans Excel (séparateur `;`), relu par le service dès qu'il change (`app/lexicon.py`) :
+
+| Colonne | Rôle |
+|---|---|
+| `mot` | lieu, mode ou mot d'Abidjan, écrit comme dans SIRA |
+| `categorie` | `commune`, `quartier`, `mode`, `mot`, ou `nom_commun` (premier mot d'un nom de lieu : « Gare » → la) |
+| `article` | `le`, `la`, `les`, `l'` ou vide : « au Plateau », « vers la Gare Nord », « à Adjamé » |
+| `dire_comme` | façon de l'écrire pour que pierre le dise bien (vide = tel quel) |
+| `phonemes` | prononciation exacte dans l'alphabet d'espeak, prioritaire sur `dire_comme` |
+| `statut` | `à écouter` puis `validé` par un Ivoirien |
+
+Page d'écoute : http://localhost:8200/voice/dictionnaire/page (chaque mot dans une phrase de SIRA, ce que Piper
+prononce, et un champ pour essayer une autre écriture). Une prononciation corrigée change la clé du cache de voix :
+l'ancienne voix n'est plus jamais servie. Les articles des noms propres (« le Plateau », « la Riviera ») et les
+`note` sont des propositions à valider ; les prononciations ne sont remplies que par des Ivoiriens, à l'écoute.
+
 ## Limites à connaître
 
 - Données d'entraînement **100 % synthétiques** ; bruit ASR **simulé** : une seule vraie voix mesurée pour l'instant
