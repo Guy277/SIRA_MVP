@@ -45,7 +45,13 @@ const MODE_COLORS: Record<LegMode, string> = {
 
 export default function NavigationActiveScreen() {
   const router = useRouter();
-  const { activeJourney: journey, search } = useJourneyStore();
+  const { activeJourney, search } = useJourneyStore();
+  // « Quitter » and « Terminer » clear the followed journey, then go back. The screen keeps the last journey
+  // until it is gone: without it, it showed « Aucun trajet en cours » for a moment while leaving (the flash
+  // with the tall red « Retour » bar, 22 novembre 2026).
+  const [lastJourney, setLastJourney] = useState(activeJourney);
+  if (activeJourney && activeJourney !== lastJourney) setLastJourney(activeJourney);
+  const journey = activeJourney ?? lastJourney;
   const { reports } = useLiveReports();
   const [startedAt] = useState(() => new Date());
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -341,8 +347,8 @@ export default function NavigationActiveScreen() {
       <View style={[styles.container, styles.emptyContainer]}>
         <StatusBar style="light" />
         <Ionicons name="navigate-circle" size={54} color="#F26522" />
-        <Text style={styles.exitModalTitle}>Aucun trajet en cours</Text>
-        <TouchableOpacity style={styles.confirmExitBtn} onPress={() => goBack(router)} activeOpacity={0.8}>
+        <Text style={[styles.exitModalTitle, styles.emptyTitle]}>Aucun trajet en cours</Text>
+        <TouchableOpacity style={[styles.confirmExitBtn, styles.emptyButton]} onPress={() => goBack(router)} activeOpacity={0.8}>
           <Text style={styles.confirmExitText}>Retour</Text>
         </TouchableOpacity>
       </View>
@@ -739,6 +745,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 14,
   },
+  // Light title on the dark screen; the button keeps its own size (confirmExitBtn grows with flex: 1 in a row).
+  emptyTitle: { color: '#FFFFFF' },
+  emptyButton: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', alignSelf: 'center', paddingHorizontal: 36 },
   liveTrafficBadgeAlert: {
     backgroundColor: '#991B1B',
   },
