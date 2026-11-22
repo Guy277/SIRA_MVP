@@ -389,6 +389,8 @@ export default function HomeScreen() {
           sansPosition={sansPosition}
           onChoisirPosition={() => setChoixPoint(true)}
           onOuvrir={ouvrirLieu}
+          onSignaler={categorieLieux.id === 'pharmacie' || categorieLieux.id === 'sante' ? undefined
+            : () => router.push({ pathname: '/signaler-lieu', params: categorieLieux.id === 'autour' ? {} : { categorie: categorieLieux.id } })}
           hauteur={PANNEAU_LIEUX_HAUTEUR}
         />
       )}

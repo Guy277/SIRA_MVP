@@ -18,12 +18,14 @@ type Props = {
   sansPosition: string | null;
   onChoisirPosition: () => void;
   onOuvrir: (id: string) => void;
+  // « Signaler un lieu » : absent pour les pharmacies et la santé (jamais signalées par les voyageurs).
+  onSignaler?: () => void;
   hauteur: number;
 };
 
 export const appeler = (numero: string) => Linking.openURL(`tel:${numero.replace(/[^\d+]/g, '')}`).catch(() => {});
 
-export function LieuxPanneau({ categorie, lieux, attribution, sansPosition, onChoisirPosition, onOuvrir, hauteur }: Props) {
+export function LieuxPanneau({ categorie, lieux, attribution, sansPosition, onChoisirPosition, onOuvrir, onSignaler, hauteur }: Props) {
   const { points, classement, etat } = lieux;
   // Les 5 lieux classés dès qu'ils arrivent ; avant, les 5 plus proches avec « Calcul du trajet… ».
   const liste: (LieuProche | LieuClasse)[] = classement?.lieux ?? points?.lieux.slice(0, 5) ?? [];
@@ -100,6 +102,17 @@ export function LieuxPanneau({ categorie, lieux, attribution, sansPosition, onCh
           </View>
         )}
 
+        {/* Même sans GPS : le lieu se place sur la carte. */}
+        {onSignaler && (sansPosition || etat !== 'chargement') && (
+          <TouchableOpacity style={styles.signaler} onPress={onSignaler} activeOpacity={0.85} accessibilityRole="button">
+            <Ionicons name="add-circle-outline" size={20} color="#C2410C" />
+            <View style={styles.ligneTexte}>
+              <Text style={styles.signalerTitre}>Tu connais un bon coin qui manque ?</Text>
+              <Text style={styles.ou}>Signale-le : les autres voyageurs le confirmeront.</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         {attribution ? <Text style={styles.attribution}>{attribution}</Text> : null}
       </ScrollView>
     </View>
@@ -119,6 +132,7 @@ function Ligne({ lieu, onPress }: { lieu: LieuProche | LieuClasse; onPress: () =
         <View style={styles.ligneTitre}>
           <Text style={styles.nom} numberOfLines={1}>{lieu.nom}</Text>
           {lieu.deGarde && <Text style={styles.badgeGarde} numberOfLines={1}>De garde</Text>}
+          {lieu.voyageurs && <Text style={styles.badgeVoyageurs} numberOfLines={1}>{lieu.voyageurs.statut === 'signale' ? 'Signalé' : 'Voyageurs'}</Text>}
           {ouverture && <Text style={[styles.badge, classe?.ouverture === 'ferme' && styles.badgeFerme]} numberOfLines={1}>{ouverture}</Text>}
         </View>
         <Text style={styles.ou} numberOfLines={1}>{ou}</Text>
@@ -233,5 +247,8 @@ const styles = StyleSheet.create({
   etatBoutonTexte: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
   gris: { backgroundColor: '#E5E7EB' },
   barre: { height: 10, borderRadius: 5, backgroundColor: '#E5E7EB', marginVertical: 2 },
+  signaler: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: '#FDBA74', backgroundColor: '#FFF7ED' },
+  signalerTitre: { fontSize: 14, fontWeight: '700', color: '#9A3412' },
+  badgeVoyageurs: { fontSize: 11, fontWeight: '800', color: '#9A3412', backgroundColor: '#FFEDD5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
   attribution: { marginTop: 14, fontSize: 10.5, color: '#9CA3AF', textAlign: 'center' },
 });

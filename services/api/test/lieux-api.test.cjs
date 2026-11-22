@@ -7,6 +7,7 @@ const path = require("node:path");
 const { lireRecherche } = require("../dist/lieux/lieux.controller.js");
 const { LieuxService, CATEGORIES_CARTE, MAX_POINTS } = require("../dist/lieux/lieux.service.js");
 const { LieuxConfirmations } = require("../dist/lieux/lieux-confirmations.js");
+const { LieuxVoyageurs } = require("../dist/lieux/lieux-voyageurs.js");
 
 // Lieux FICTIFS autour de la position de démo (Abobo) ; 0,001° de latitude ≈ 111 m.
 const DEMO = { lat: 5.441, lon: -4.009 };
@@ -37,7 +38,7 @@ const semaine = {
 };
 const depot = { tous: () => LIEUX, parId: (id) => LIEUX.find((l) => l.id === id) ?? null, attribution: () => "© sources FICTIVES" };
 const garde = { lieuxDeGarde: async () => new Set(["l_ph_garde"]), semaineCourante: async () => semaine };
-const service = (confirmations = new LieuxConfirmations(null)) => new LieuxService(depot, garde, confirmations);
+const service = (confirmations = new LieuxConfirmations(null)) => new LieuxService(depot, garde, confirmations, new LieuxVoyageurs(null));
 const recherche = (champs) => ({ ...DEMO, categorie: "autour", ...champs });
 
 test("paramètres : position dans le Grand Abidjan, catégorie et sous-filtre connus, rayon borné", () => {
@@ -98,7 +99,7 @@ test("pharmacies de garde : badge, liste sans position de la commune du voyageur
 
 test(`au plus ${MAX_POINTS} points sur la carte`, async () => {
   const beaucoup = Array.from({ length: 40 }, (_, i) => lieu(`l_${String(i).padStart(2, "0")}`, `Lieu ${i} FICTIF`, "marche", i * 10));
-  const s = new LieuxService({ ...depot, tous: () => beaucoup }, garde, new LieuxConfirmations(null));
+  const s = new LieuxService({ ...depot, tous: () => beaucoup }, garde, new LieuxConfirmations(null), new LieuxVoyageurs(null));
   const reponse = await s.proches(recherche({ categorie: "marche" }));
   assert.equal(reponse.lieux.length, MAX_POINTS);
   assert.equal(reponse.total, 40);
@@ -123,10 +124,10 @@ test("« Encore là ? » : une réponse par voyageur, par lieu et par jour ; gar
   confirmations.repondre("l_garba", "voyageur-1", true, jour1);
   confirmations.repondre("l_garba", "voyageur-1", false, jour1); // change d'avis le même jour
   confirmations.repondre("l_garba", "voyageur-2", true, new Date("2026-11-10T09:00:00Z"));
-  assert.deepEqual(confirmations.resume("l_garba"), { encoreLaOui: 1, encoreLaNon: 1, derniereConfirmation: "2026-11-10T09:00:00.000Z" });
+  assert.deepEqual(confirmations.resume("l_garba"), { encoreLaOui: 1, encoreLaNon: 1, derniereConfirmation: "2026-11-10T09:00:00.000Z", trouvesAvecSira: 0 });
   confirmations.repondre("l_garba", "voyageur-1", true, new Date("2026-11-11T08:00:00Z")); // le lendemain, compte de nouveau
   const relu = new LieuxConfirmations(fichier);
-  assert.deepEqual(relu.resume("l_garba"), { encoreLaOui: 2, encoreLaNon: 1, derniereConfirmation: "2026-11-11T08:00:00.000Z" });
+  assert.deepEqual(relu.resume("l_garba"), { encoreLaOui: 2, encoreLaNon: 1, derniereConfirmation: "2026-11-11T08:00:00.000Z", trouvesAvecSira: 0 });
   const proche = (await service(relu).proches(recherche({ categorie: "saveurs", specialite: "garba" }))).lieux[0];
   assert.equal(proche.derniereConfirmation, "2026-11-11T08:00:00.000Z");
   assert.throws(() => service(relu).repondreEncoreLa("l_attente", "voyageur-1", true), /introuvable/);

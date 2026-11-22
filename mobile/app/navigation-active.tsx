@@ -30,6 +30,8 @@ import { arrivalPhrase, placeForTitle } from '@/lib/saved-places';
 import { alightSoonSpeech, arrivalSpeech, fareQuestion, gpsEvent, gpsHint, minutes, spokenJourney, startSpeech, stepSpeech } from '@/lib/guidance';
 import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
 import { useSpokenQuestion } from '@/lib/use-spoken-question';
+import { lieuViseVers, oublierLieuVise } from '@/lib/lieu-vise';
+import { repondreEncoreLa } from '@/lib/lieux';
 
 const { height } = Dimensions.get('window');
 
@@ -54,6 +56,8 @@ export default function NavigationActiveScreen() {
   const [gpsOn, setGpsOn] = useState(false);
   const [arrived, setArrived] = useState(false);
   const [fare, setFare] = useState<{ state: 'ask' | 'sent'; typed: string }>({ state: 'ask', typed: '' });
+  // « Tu l'as trouvé ? » : arrivé au lieu choisi depuis sa fiche (« Y aller »).
+  const [found, setFound] = useState<'ask' | 'sending' | 'yes' | 'no'>('ask');
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   // « Comment s'est passé ton trajet ? », asked when the traveller ends an arrived trip.
   const [showRating, setShowRating] = useState(false);
@@ -167,9 +171,31 @@ export default function NavigationActiveScreen() {
     }
   };
 
+  // The place picked from its sheet, when this trip goes there: on arrival SIRA asks « Tu l'as trouvé ? ».
+  // A yes near the place counts as « trouvé avec SIRA », the strongest proof that the place exists.
+  const targetPlace = lieuViseVers(search?.arrival);
+  const answerFound = async (yes: boolean) => {
+    if (!targetPlace || found !== 'ask') return;
+    setFound('sending');
+    try {
+      try {
+        await repondreEncoreLa(targetPlace.id, yes, yes && here ? here : undefined);
+      } catch (error) {
+        // Too far from the place (arrival by touch, poor GPS): the yes still counts as « encore là ».
+        if (!(yes && here)) throw error;
+        await repondreEncoreLa(targetPlace.id, yes);
+      }
+      setFound(yes ? 'yes' : 'no');
+    } catch (error) {
+      setFound('ask');
+      notify('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
+    }
+  };
+
   // Arrived: the trip is over, the home map is next (as in Google Maps and Waze).
   const finishTrip = () => {
     setShowRating(false);
+    oublierLieuVise();
     journeyStore.finish();
     void refreshCurrentPlace();
     goHome(router);
@@ -530,6 +556,21 @@ export default function NavigationActiveScreen() {
               </>
             )}
             {fare.state === 'sent' && <Text style={styles.arrivalSub}>Merci ! Ton prix aide les prochains voyageurs.</Text>}
+            {targetPlace && currentToken() && (found === 'ask' || found === 'sending') && (
+              <>
+                <Text style={styles.arrivalSub}>Tu as trouvé « {targetPlace.nom} » ?</Text>
+                <View style={styles.alternativeButtons}>
+                  <TouchableOpacity style={[styles.confirmExitBtn, styles.arrivalButton]} onPress={() => answerFound(true)} disabled={found === 'sending'} activeOpacity={0.85}>
+                    <Text style={styles.confirmExitText}>Oui, c’est là</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.cancelExitBtn, styles.arrivalButton]} onPress={() => answerFound(false)} disabled={found === 'sending'} activeOpacity={0.85}>
+                    <Text style={styles.cancelExitText}>Non, pas trouvé</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+            {found === 'yes' && <Text style={styles.arrivalSub}>Merci ! Ta confirmation aide les prochains voyageurs à y croire.</Text>}
+            {found === 'no' && <Text style={styles.arrivalSub}>C’est noté : si d’autres ne le trouvent pas non plus, le lieu disparaîtra de SIRA.</Text>}
             <TouchableOpacity
               style={[styles.cancelExitBtn, styles.arrivalDone]}
               onPress={() => {

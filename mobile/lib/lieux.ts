@@ -23,6 +23,8 @@ export type LieuProche = {
   nbSources: number;
   deGarde: boolean;
   derniereConfirmation: string | null;
+  // Lieu signalé par les voyageurs SIRA (sinon null) : l'étiquette de ses preuves.
+  voyageurs: { statut: StatutVoyageurs; libelleStatut: string } | null;
 };
 export type Ouverture = 'ouvert' | 'ferme' | 'inconnu';
 export type ResumeTrajet = { dureeMin: number; prixF: number | null; modes: string[] };
@@ -36,6 +38,36 @@ type InfosGarde = { source: string; origine: string; debut: string | null; fin: 
 
 export type ReponseProches = { rayonM: number; elargi: boolean; total: number; lieux: LieuProche[]; attribution: string; garde?: InfosGarde; sansPosition?: PharmacieSansPosition[]; commune?: string | null };
 export type ReponseClassement = Omit<ReponseProches, 'lieux'> & { lieux: LieuClasse[]; complet: boolean };
+
+// ---------- Lieux signalés par les voyageurs ----------
+// SIRA n'affirme jamais qu'un tel lieu existe : il montre les preuves et chacun juge (docs/lieux.md).
+export type StatutVoyageurs = 'signale' | 'confirme' | 'verifie_recemment' | 'plus_la' | 'efface' | 'masque';
+export type PreuvesVoyageurs = {
+  statut: StatutVoyageurs;
+  libelleStatut: string;
+  personnes: number;
+  signalements: number;
+  encoreLaSemaine: number;
+  plusLaSemaine: number;
+  trouvesAvecSira: number;
+  derniereConfirmation: string | null;
+  etiquettes: { id: string; libelle: string; nb: number }[];
+  moments: { id: string; libelle: string; nb: number }[];
+  prix: { medianeF: number; nb: number; majLe: string } | null;
+  commentaires: { texte: string; le: string }[];
+};
+export type ReglesSignalement = {
+  categories: CategorieLieu[];
+  etiquettes: { id: string; libelle: string; categories: CategorieLieu[] | null }[];
+  moments: { id: string; libelle: string }[];
+  raisonsContenu: RaisonContenu[];
+};
+export type RaisonContenu = 'faux' | 'choquant' | 'publicite' | 'commercant';
+export type Temoignage = { etiquettes?: string[]; moments?: string[]; prixF?: number | null; commentaire?: string | null };
+export type NouveauLieu = Temoignage & { nom: string; categorie: CategorieLieu; specialite?: string | null; lat: number; lon: number; repere?: string | null; forcer?: boolean };
+export type Doublon = { id: string; nom: string; distanceM: number; voyageurs: boolean };
+export type ReponseSignalement = { cree: true; id: string; preuves: PreuvesVoyageurs } | { cree: false; doublons: Doublon[] };
+type ResumeEncoreLa = { encoreLaOui: number; encoreLaNon: number; derniereConfirmation: string | null; trouvesAvecSira: number; voyageurs?: PreuvesVoyageurs };
 
 export type FicheLieu = {
   id: string;
@@ -59,6 +91,8 @@ export type FicheLieu = {
   encoreLaOui: number;
   encoreLaNon: number;
   derniereConfirmation: string | null;
+  trouvesAvecSira: number;
+  voyageurs: PreuvesVoyageurs | null;
   attribution: string;
 };
 
@@ -73,14 +107,25 @@ function parametres(recherche: RechercheLieux) {
   return params.toString();
 }
 
-export const categoriesLieux = () => apiJson<{ categories: CategorieCarte[]; attribution: string }>('/lieux/categories');
+export const categoriesLieux = () => apiJson<{ categories: CategorieCarte[]; attribution: string; signalement: ReglesSignalement }>('/lieux/categories');
 export const lieuxProches = (recherche: RechercheLieux) => apiJson<ReponseProches>(`/lieux/proches?${parametres(recherche)}`);
 // Les trajets se calculent un par un sur le serveur : jusqu'à ~20 s à froid, instantané ensuite (cache).
 export const classementLieux = (recherche: RechercheLieux) => apiJson<ReponseClassement>(`/lieux/classement?${parametres(recherche)}`, { timeoutMs: 30_000 });
 export const ficheLieu = (id: string) => apiJson<FicheLieu>(`/lieux/${encodeURIComponent(id)}`);
-// « Encore là ? » : il faut être connecté (un voyageur compte une fois par jour).
-export const repondreEncoreLa = (id: string, encoreLa: boolean) =>
-  apiJson<{ encoreLaOui: number; encoreLaNon: number; derniereConfirmation: string | null }>(`/lieux/${encodeURIComponent(id)}/confirmation`, { method: 'POST', body: JSON.stringify({ encoreLa }) });
+// « Encore là ? » : il faut être connecté (un voyageur compte une fois par jour). arrivee : la position du
+// voyageur arrivé avec « Y aller » (« Tu l'as trouvé ? »), comptée à part comme « trouvé avec SIRA ».
+export const repondreEncoreLa = (id: string, encoreLa: boolean, arrivee?: Coordinates) =>
+  apiJson<ResumeEncoreLa>(`/lieux/${encodeURIComponent(id)}/confirmation`, {
+    method: 'POST',
+    body: JSON.stringify({ encoreLa, ...(arrivee ? { arrivee: { lat: arrivee.latitude, lng: arrivee.longitude } } : {}) }),
+  });
+// « Signaler un lieu » ; { cree: false, doublons } : demander « C'est bien celui-ci ? », puis forcer: true.
+export const signalerLieu = (lieu: NouveauLieu) => apiJson<ReponseSignalement>('/lieux/signalements', { method: 'POST', body: JSON.stringify(lieu) });
+// « Moi aussi je l'ai vu » (ou « C'est bien celui-ci »).
+export const temoignerLieu = (id: string, temoignage: Temoignage) =>
+  apiJson<{ voyageurs?: PreuvesVoyageurs }>(`/lieux/${encodeURIComponent(id)}/temoignage`, { method: 'POST', body: JSON.stringify(temoignage) });
+export const signalerContenuLieu = (id: string, raison: RaisonContenu) =>
+  apiJson<{ statut: StatutVoyageurs; masque: boolean }>(`/lieux/${encodeURIComponent(id)}/contenu`, { method: 'POST', body: JSON.stringify({ raison }) });
 
 // ---------- Mise en forme ----------
 const MODES: Record<string, string> = { walk: 'marche', sotra: 'bus', gbaka: 'gbaka', woro: 'wôrô-wôrô', taxi: 'taxi', boat: 'bateau-bus' };
@@ -97,6 +142,24 @@ export const OUVERTURE: Record<Ouverture, string | null> = { ouvert: 'Ouvert', f
 
 // « Confirmé par 2 sources » : jamais présenté comme une fréquentation.
 export const confirmeParSources = (nb: number) => `Confirmé par ${nb} source${nb > 1 ? 's' : ''}`;
+
+// « 7 voyageurs le confirment · 4 « encore là » cette semaine · 1 « plus là » · dernière confirmation le 20 novembre »
+export function lignePreuves(preuves: PreuvesVoyageurs) {
+  const morceaux = [
+    `${preuves.personnes} voyageur${preuves.personnes > 1 ? 's le confirment' : ' le confirme'}`,
+    `${preuves.encoreLaSemaine} « encore là » cette semaine`,
+  ];
+  if (preuves.plusLaSemaine) morceaux.push(`${preuves.plusLaSemaine} « plus là »`);
+  if (preuves.derniereConfirmation) morceaux.push(`dernière confirmation le ${dateCourte(preuves.derniereConfirmation)}`);
+  return morceaux.join(' · ');
+}
+
+export const RAISONS_CONTENU: Record<RaisonContenu, string> = {
+  faux: 'Ce lieu n’existe pas',
+  choquant: 'Contenu choquant',
+  publicite: 'Publicité déguisée',
+  commercant: 'Je suis le commerçant : retirez-moi',
+};
 
 const NOMS_SOURCES: Record<string, string> = { osm: 'OpenStreetMap', hotosm: 'HOT OSM', overture: 'Overture Maps', foursquare: 'Foursquare', uvci: 'enquête UVCI', presse: 'presse', equipe: 'équipe SIRA', utilisateur: 'voyageurs SIRA' };
 export const nomsSources = (sources: string[]) => sources.map((source) => NOMS_SOURCES[source] ?? source).join(', ');

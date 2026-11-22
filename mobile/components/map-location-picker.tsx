@@ -11,8 +11,8 @@ import { reversePlace, type Coordinates } from '@/lib/sira-api';
 import { ABIDJAN_CENTRE, GRAND_ABIDJAN_RADIUS_M, distanceM, nearestPlaceLabel, rememberPlace, useCurrentPlace } from '@/lib/places';
 
 type Props = {
-  // report: where a traveller's report happened (Signaler un événement).
-  purpose: 'departure' | 'arrival' | 'report';
+  // report: where a traveller's report happened (Signaler un événement); lieu: a place a traveller signals.
+  purpose: 'departure' | 'arrival' | 'report' | 'lieu';
   // The place's name, and where it is.
   onConfirm: (title: string, coordinates: Coordinates) => void;
   onBack: () => void;
@@ -66,8 +66,8 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
     rememberPlace(current.title, center);
     onConfirm(current.title, center);
   };
-  const label = purpose === 'departure' ? 'Départ' : purpose === 'report' ? 'Lieu de l’événement' : 'Destination';
-  const action = purpose === 'departure' ? 'Partir d’ici' : purpose === 'report' ? 'Placer l’événement ici' : 'Aller ici';
+  const label = purpose === 'departure' ? 'Départ' : purpose === 'report' ? 'Lieu de l’événement' : purpose === 'lieu' ? 'Lieu à signaler' : 'Destination';
+  const action = purpose === 'departure' ? 'Partir d’ici' : purpose === 'report' ? 'Placer l’événement ici' : purpose === 'lieu' ? 'Le lieu est ici' : 'Aller ici';
 
   return (
     <View style={styles.screen}>
@@ -111,7 +111,7 @@ export function MapLocationPicker({ purpose, onConfirm, onBack }: Props) {
           <Text style={styles.warning}>Ce point est hors du Grand Abidjan : SIRA ne couvre que le Grand Abidjan.</Text>
         ) : !chosenByTraveller && !moving ? (
           <Text style={[styles.placeSubtitle, styles.waiting]}>
-            {purpose === 'arrival' ? 'Déplace' : 'Ta position n’est pas connue : déplace'} la carte jusqu’{purpose === 'report' ? 'au lieu de l’événement' : 'à ton point'}, ou touche un endroit.
+            {purpose === 'arrival' ? 'Déplace' : 'Ta position n’est pas connue : déplace'} la carte jusqu’{purpose === 'report' ? 'au lieu de l’événement' : purpose === 'lieu' ? 'au lieu exact' : 'à ton point'}, ou touche un endroit.
           </Text>
         ) : current && !moving ? (
           <>

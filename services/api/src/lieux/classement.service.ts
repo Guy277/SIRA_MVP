@@ -29,14 +29,17 @@ export function specialitesDuMoment(moments: Moment[], maintenant: Date): Set<st
 const RANG_OUVERTURE: Record<Ouverture, number> = { ouvert: 0, inconnu: 1, ferme: 2 };
 
 // Ordre de la liste, sans aucun avantage commercial (aucun lieu ne remonte parce qu'il est partenaire) :
+// 0. un lieu seulement « signalé » par un voyageur (pas encore confirmé) ne passe jamais devant les autres ;
 // 1. ouvert maintenant, puis horaires inconnus, puis fermé ;
 // 2. pour « Saveurs du coin », les spécialités du moment d'abord ;
 // 3. trajet le plus court (un lieu sans trajet calculé vient après, par distance) ;
 // 4. confirmé par le plus de sources ; 5. confirmé le plus récemment ; enfin la distance.
 export function classer(lieux: LieuClasse[]): LieuClasse[] {
   const duree = (lieu: LieuClasse) => (lieu.etat === "calcule" ? lieu.trajet.dureeMin : Number.POSITIVE_INFINITY);
+  const nonConfirme = (lieu: LieuClasse) => Number(lieu.voyageurs?.statut === "signale");
   return [...lieux].sort((a, b) =>
-    RANG_OUVERTURE[a.ouverture] - RANG_OUVERTURE[b.ouverture]
+    nonConfirme(a) - nonConfirme(b)
+    || RANG_OUVERTURE[a.ouverture] - RANG_OUVERTURE[b.ouverture]
     || Number(b.duMoment) - Number(a.duMoment)
     || duree(a) - duree(b)
     || b.nbSources - a.nbSources

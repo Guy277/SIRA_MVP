@@ -4,9 +4,10 @@ import { dirname, resolve } from "node:path";
 
 // Réponses « Encore là ? » des voyageurs sur un lieu. Un voyageur compte une fois par lieu et par jour :
 // répondre de nouveau le même jour remplace sa réponse. « Oui » met à jour la date de dernière confirmation.
+// trouveAvecSira : le voyageur est arrivé au lieu avec « Y aller » et l'a trouvé (la preuve la plus forte).
 
-export type ResumeConfirmations = { encoreLaOui: number; encoreLaNon: number; derniereConfirmation: string | null };
-type Stocke = { oui: number; non: number; derniere: string | null; votes: Record<string, { jour: string; encoreLa: boolean }> };
+export type ResumeConfirmations = { encoreLaOui: number; encoreLaNon: number; derniereConfirmation: string | null; trouvesAvecSira: number };
+type Stocke = { oui: number; non: number; derniere: string | null; votes: Record<string, { jour: string; encoreLa: boolean; trouveAvecSira?: string }> };
 
 // Où les réponses survivent à un redémarrage (même règle que les signalements, reports.service.ts).
 // SIRA_LIEUX_CONFIRMATIONS_FILE la remplace ; « memoire » les garde seulement en mémoire.
@@ -26,10 +27,15 @@ export class LieuxConfirmations {
 
   resume(lieuId: string): ResumeConfirmations {
     const stocke = this.parLieu.get(lieuId);
-    return { encoreLaOui: stocke?.oui ?? 0, encoreLaNon: stocke?.non ?? 0, derniereConfirmation: stocke?.derniere ?? null };
+    return {
+      encoreLaOui: stocke?.oui ?? 0,
+      encoreLaNon: stocke?.non ?? 0,
+      derniereConfirmation: stocke?.derniere ?? null,
+      trouvesAvecSira: Object.values(stocke?.votes ?? {}).filter((vote) => vote.trouveAvecSira).length,
+    };
   }
 
-  repondre(lieuId: string, voyageurId: string, encoreLa: boolean, maintenant = new Date()): ResumeConfirmations {
+  repondre(lieuId: string, voyageurId: string, encoreLa: boolean, maintenant = new Date(), trouveAvecSira = false): ResumeConfirmations {
     const jour = maintenant.toISOString().slice(0, 10);
     const stocke = this.parLieu.get(lieuId) ?? { oui: 0, non: 0, derniere: null, votes: {} };
     const precedent = stocke.votes[voyageurId];
@@ -41,7 +47,9 @@ export class LieuxConfirmations {
       stocke.oui += 1;
       stocke.derniere = maintenant.toISOString();
     } else stocke.non += 1;
-    stocke.votes[voyageurId] = { jour, encoreLa };
+    // « Trouvé avec SIRA » reste acquis tant que la personne ne répond pas « plus là ».
+    const trouve = encoreLa ? (trouveAvecSira ? maintenant.toISOString() : precedent?.trouveAvecSira) : undefined;
+    stocke.votes[voyageurId] = { jour, encoreLa, ...(trouve ? { trouveAvecSira: trouve } : {}) };
     this.parLieu.set(lieuId, stocke);
     this.enregistrer();
     return this.resume(lieuId);

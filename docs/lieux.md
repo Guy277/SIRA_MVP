@@ -7,7 +7,8 @@ Le voyageur touche une catégorie, voit les lieux proches et le résumé du traj
 existants (propositions Coulé / Debout / Suspendu, puis décomposition).
 
 SIRA est la couche « comment y aller » : la liste des lieux et des pharmacies de garde vient de sources
-extérieures, chacune derrière un adaptateur (Max it pourra remplacer la source des gardes).
+extérieures, chacune derrière un adaptateur (Max it pourra remplacer la source des gardes). Les voyageurs
+peuvent aussi **signaler un lieu** absent des cartes (voir « Lieux signalés par les voyageurs »).
 
 ## Où se trouve quoi
 
@@ -18,9 +19,10 @@ extérieures, chacune derrière un adaptateur (Max it pourra remplacer la source
 | Table PostGIS (serveur) | `infra/database/init/004_lieux.sql` (pas encore testée sur une base) |
 | API (module `lieux`) | `services/api/src/lieux/` |
 | Pharmacies de garde | `services/api/src/lieux/garde/` ; copie de secours `services/api/secours/pharmacies-de-garde.json` |
+| Lieux signalés par les voyageurs | `services/api/src/lieux/lieux-voyageurs.ts` (règles et seuils) ; appli `mobile/app/signaler-lieu.tsx`, `mobile/lib/lieu-vise.ts` |
 | Ordre des Saveurs selon l'heure | `services/api/config/saveurs-moments.json` (proposition à valider par l'équipe) |
 | Appli | `mobile/lib/lieux.ts`, `mobile/lib/use-lieux.ts`, `mobile/components/lieux-*.tsx`, `mobile/app/lieu.tsx`, `mobile/app/y-aller.tsx`, accueil `mobile/app/(tabs)/index.tsx` |
-| Tests | `tests/lieux-fusion.test.mjs`, `services/api/test/lieux-*.test.cjs` |
+| Tests | `tests/lieux-fusion.test.mjs`, `services/api/test/lieux-*.test.cjs` (dont `lieux-voyageurs`) |
 
 ## Lancer
 
@@ -68,9 +70,10 @@ Rapport : `data/lieux/rapport-import.json` et la sortie de la commande.
 ## Liste sous la carte : classement et trajets
 
 `GET /api/v1/lieux/classement` : les 5 lieux les plus proches à vol d'oiseau, avec le trajet que SIRA-MORE
-recommande, dans cet ordre : ouvert maintenant (puis horaires inconnus, puis fermé) ; spécialités du moment pour
+recommande, dans cet ordre : un lieu seulement « Signalé » par un voyageur toujours après les autres ; ouvert maintenant (puis horaires inconnus, puis fermé) ; spécialités du moment pour
 « Saveurs du coin » ; trajet le plus court ; nombre de sources ; confirmation récente ; distance.
-Aucun lieu ne remonte parce qu'il est partenaire, Points Orange compris. Jamais de note ni d'avis.
+Aucun lieu ne remonte parce qu'il est partenaire, Points Orange compris. Jamais de note sur 5 : les lieux
+signalés par les voyageurs portent des étiquettes factuelles et des commentaires courts, sans effet sur l'ordre.
 
 Le moteur calcule un trajet à la fois (1 à 3 s chacun) : une liste prend jusqu'à 20 s la première fois, puis
 s'affiche tout de suite (cache par zone d'environ 100 m).
@@ -91,7 +94,52 @@ s'affiche tout de suite (cache par zone d'environ 100 m).
 | `GET /classement?…` (mêmes paramètres) | liste des 5 avec leur trajet ; `complet: false` tant que des trajets se calculent |
 | `GET /pharmacies-de-garde` | semaine de garde, chaque pharmacie avec son lieu ou sans position |
 | `GET /:id` | fiche |
-| `POST /:id/confirmation` `{ "encoreLa": true }` | « Encore là ? », voyageur connecté, une réponse par jour |
+| `POST /:id/confirmation` `{ "encoreLa": true, "arrivee"?: { "lat", "lng" } }` | « Encore là ? », voyageur connecté, une réponse par jour ; avec `arrivee` (à moins de 150 m) : « trouvé avec SIRA » |
+| `POST /signalements` | « Signaler un lieu » (voir ci-dessous) ; `{ cree: false, doublons }` s'il existe un lieu semblable à moins de 50 m |
+| `POST /:id/temoignage` | « Moi aussi je l'ai vu » : étiquettes, moments, prix vu, commentaire |
+| `POST /:id/contenu` `{ "raison": "faux" \| "choquant" \| "publicite" \| "commercant" }` | « Signaler ce contenu » |
+
+## Lieux signalés par les voyageurs
+
+La vendeuse d'alloco du carrefour n'est sur aucune carte : un voyageur connecté la signale (« Tu connais un
+bon coin qui manque ? » sous la liste), d'autres la confirment, et **Y aller** y mène. SIRA n'affirme jamais
+qu'un tel lieu existe : la fiche montre les preuves et chacun juge.
+
+- **Ce qu'on signale** : position (épingle à déplacer), catégorie (Saveurs, Points Orange, marchés, écoles,
+  mosquées, églises ; **jamais pharmacie ni santé**, un faux « médicament par terre » mettrait des gens en
+  danger), nom, repère, moments où il est ouvert, étiquettes (« Bien fait », « Copieux », « Pas cher »,
+  « Propre », « Accueillant », « Rapide »), prix vu (Saveurs et marchés), commentaire de 200 caractères.
+  Pas de lien ni d'adresse web. Pas de photo dans cette première version.
+- **Un seul lieu pour plusieurs signalements** : même catégorie à moins de 50 m, l'appli demande « C'est bien
+  celui-ci ? » ; oui, le témoignage s'ajoute au lieu existant (sur un lieu des sources extérieures, il compte
+  comme « encore là ») ; non, un autre lieu est créé.
+- **On compte des personnes, pas des clics** : un compte = une voix par lieu ; un nouveau témoignage de la même
+  personne remplace l'ancien ; sa dernière réponse à « Encore là ? » compte.
+- **Preuves affichées** : « 7 voyageurs le confirment · 4 « encore là » cette semaine · 1 « plus là » ·
+  dernière confirmation le 20 novembre », les voyageurs arrivés avec SIRA, les étiquettes comptées, les moments,
+  le prix médian et les commentaires, toujours sans nom (« un voyageur SIRA »).
+- **« Tu l'as trouvé ? »** : arrivé avec **Y aller** depuis la fiche, le voyageur répond ; un oui à moins de
+  150 m du lieu compte à part, comme « trouvé avec SIRA » (le plus fort : il y est vraiment allé). Plus loin
+  (arrivée au toucher, GPS imprécis), le oui compte comme un simple « encore là ». Vaut aussi pour les autres lieux.
+
+| Étiquette | Règle |
+| --- | --- |
+| Signalé | une seule personne dit qu'il existe ; après tous les autres dans la liste |
+| Confirmé par plusieurs voyageurs | au moins 2 personnes distinctes |
+| Vérifié récemment | quelqu'un d'autre que l'auteur l'a confirmé ces 7 derniers jours, sans plus de « plus là » que de « encore là » |
+| Plus là (caché) | au moins 2 « plus là » cette semaine, et 2 de plus que les « encore là » |
+| Effacé (caché) | aucune preuve positive depuis 30 jours |
+| Masqué (caché) | 3 personnes ont signalé le contenu, ou le commerçant a demandé à être retiré (tout de suite) |
+
+**Ces seuils sont une proposition** (`lieux-voyageurs.ts`), à valider par l'équipe. Les lieux masqués restent
+dans `services/api/runtime/lieux-voyageurs.json` pour que l'équipe les revoie ; il n'y a pas encore d'écran
+pour les rétablir.
+
+| Variable | Rôle |
+| --- | --- |
+| `SIRA_LIEUX_VOYAGEURS_FILE` | fichier des lieux des voyageurs (défaut `services/api/runtime/lieux-voyageurs.json`) ; `memoire` : rien sur disque |
+| `SIRA_LIEUX_SIGNALEMENTS_PAR_JOUR` | lieux et témoignages par compte et par jour (défaut 10) |
+| `SIRA_LIEUX_CONTENUS_PAR_JOUR` | « Signaler ce contenu » par compte et par jour (défaut 20) |
 
 ## Appli
 
@@ -110,6 +158,12 @@ npx --prefix mobile tsc --noEmit -p mobile
 ```
 
 ## Limites connues
+
+- **Lieux des voyageurs** : dans un fichier JSON comme les confirmations (pas encore dans la table PostGIS) ;
+  un seul processus d'API. Plusieurs comptes sur un même téléphone ou des amis du vendeur peuvent gonfler les
+  chiffres : « trouvé avec SIRA » et le compte par personne limitent ce risque, sans anti-fraude plus poussé.
+  Le retrait « Je suis le commerçant » n'est pas vérifié : un concurrent pourrait l'utiliser (choix : la vie
+  privée du commerçant passe avant ; l'équipe peut rétablir le lieu dans le fichier).
 
 - **SIRA-MORE ne propose jamais la marche pour un lieu tout proche** : à 130 m, il conseille un wôrô-wôrô
   (10 min, 200 F) ou un taxi. Le résumé de la liste l'affiche tel quel ; la correction relève du moteur.

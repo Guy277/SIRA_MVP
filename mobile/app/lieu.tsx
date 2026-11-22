@@ -1,9 +1,10 @@
 // Fiche d'un lieu du quotidien (ouverte depuis la liste ou la carte de l'accueil) : où il est, s'il est
 // ouvert, ses sources, puis « Y aller » (écrans d'itinéraire existants), « Appeler » et « Encore là ? ».
-// Ni note, ni avis, ni jugement sur la qualité : seulement des faits et leurs sources.
-import React, { useEffect, useMemo, useState } from 'react';
+// Pas de note sur 5 : des faits et leurs sources. Lieu signalé par les voyageurs : SIRA n'affirme pas qu'il
+// existe, il montre les preuves (combien de personnes, quand, ce qu'elles en disent) et chacun juge.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,9 +17,11 @@ import { goBack } from '@/lib/navigation';
 import { notify } from '@/lib/notify';
 import { rememberPlace, useCurrentPlace } from '@/lib/places';
 import { currentToken } from '@/lib/session';
+import { viserLieu } from '@/lib/lieu-vise';
 import {
-  COULEUR_CATEGORIE, ICONE_CATEGORIE, LIBELLE_CATEGORIE, LIBELLE_SPECIALITE, OUVERTURE,
-  confirmeParSources, dateCourte, ficheLieu, nomsSources, repondreEncoreLa, type FicheLieu,
+  COULEUR_CATEGORIE, ICONE_CATEGORIE, LIBELLE_CATEGORIE, LIBELLE_SPECIALITE, OUVERTURE, RAISONS_CONTENU,
+  confirmeParSources, dateCourte, ficheLieu, lignePreuves, nomsSources, repondreEncoreLa, signalerContenuLieu,
+  type FicheLieu, type PreuvesVoyageurs, type RaisonContenu,
 } from '@/lib/lieux';
 import { formatPrice } from '@/lib/journey-format';
 
@@ -30,6 +33,7 @@ export default function LieuScreen() {
   const here = useCurrentPlace();
   const [envoi, setEnvoi] = useState(false);
   const [essai, setEssai] = useState(0);
+  const [raisons, setRaisons] = useState(false); // « Signaler ce contenu » ouvert
   // Réponse rangée avec la demande qui l'a produite : une autre demande en cours n'affiche rien de périmé.
   const id = params.id ?? '';
   const cle = `${id}#${essai}`;
@@ -47,6 +51,14 @@ export default function LieuScreen() {
     return () => { annule = true; };
   }, [id, cle]);
 
+  // Retour de « Moi aussi je l'ai vu » : la fiche se recharge sans repasser par l'écran de chargement.
+  const recharger = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!recharger.current || !id) return;
+    recharger.current = false;
+    ficheLieu(id).then((reponse) => setResultat({ cle, fiche: reponse, erreur: null })).catch(() => {});
+  }, [id, cle]));
+
   const places = useMemo<MapPlace[]>(() => (fiche?.lat != null && fiche.lon != null ? [{
     id: fiche.id, lat: fiche.lat, lon: fiche.lon, label: fiche.nom, highlighted: fiche.deGarde,
     color: COULEUR_CATEGORIE[fiche.categorie], icon: ICONE_CATEGORIE[fiche.categorie],
@@ -58,29 +70,63 @@ export default function LieuScreen() {
   const yAller = () => {
     if (!fiche || fiche.lat == null || fiche.lon == null) return;
     rememberPlace(fiche.nom, { latitude: fiche.lat, longitude: fiche.lon });
+    // À l'arrivée, le guidage demandera « Tu l'as trouvé ? ».
+    viserLieu({ id: fiche.id, nom: fiche.nom, coordonnees: { latitude: fiche.lat, longitude: fiche.lon } });
     router.push({ pathname: '/(tabs)/explore', params: { destination: fiche.nom, query: fiche.nom, ...(params.from ? { from: params.from } : {}) } });
+  };
+
+  // Répondre, témoigner, signaler : un compte (un numéro Orange = une voix).
+  const connecte = (pourquoi: string) => {
+    if (currentToken()) return true;
+    notify('Connexion requise', `Connecte-toi avec ton numéro Orange pour ${pourquoi}.`, [
+      { text: 'Me connecter', onPress: () => router.push('/login') },
+      { text: 'Plus tard', onPress: () => {} },
+    ]);
+    return false;
   };
 
   const encoreLa = async (reponse: boolean) => {
     if (!fiche || envoi) return;
     // Une réponse change l'ordre des lieux pour les autres : un compte, une réponse par jour.
-    if (!currentToken()) {
-      notify('Connexion requise', 'Connecte-toi avec ton numéro Orange pour dire si ce lieu est encore là.', [
-        { text: 'Me connecter', onPress: () => router.push('/login') },
-        { text: 'Plus tard', onPress: () => {} },
-      ]);
-      return;
-    }
+    if (!connecte('dire si ce lieu est encore là')) return;
     setEnvoi(true);
     try {
-      const resume = await repondreEncoreLa(fiche.id, reponse);
-      setFiche({ ...fiche, ...resume, derniereConfirmation: resume.derniereConfirmation ?? fiche.derniereConfirmation });
+      const { voyageurs, ...resume } = await repondreEncoreLa(fiche.id, reponse);
+      setFiche({ ...fiche, ...resume, voyageurs: voyageurs ?? fiche.voyageurs, derniereConfirmation: resume.derniereConfirmation ?? fiche.derniereConfirmation });
       notify('Merci', reponse ? 'Ta confirmation aide les autres voyageurs.' : 'C’est noté : SIRA en tiendra compte.');
     } catch (error) {
       notify('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.');
     } finally {
       setEnvoi(false);
     }
+  };
+
+  // « Moi aussi je l'ai vu » : étiquettes, moment, prix vu, commentaire. La fiche se recharge au retour.
+  const temoigner = () => {
+    if (!fiche || !connecte('donner ton avis sur ce lieu')) return;
+    recharger.current = true;
+    router.push({ pathname: '/signaler-lieu', params: { id: fiche.id, nom: fiche.nom, categorie: fiche.categorie } });
+  };
+
+  const signalerContenu = (raison: RaisonContenu) => {
+    if (!fiche || !connecte('signaler ce contenu')) return;
+    notify(RAISONS_CONTENU[raison], raison === 'commercant'
+      ? 'Le lieu sera retiré tout de suite de SIRA. L’équipe pourra te contacter pour vérifier.'
+      : 'Si d’autres voyageurs le signalent aussi, le lieu sera masqué en attendant l’équipe SIRA.', [
+      {
+        text: 'Envoyer',
+        onPress: () => {
+          signalerContenuLieu(fiche.id, raison)
+            .then(({ masque }) => {
+              setRaisons(false);
+              notify('Merci', masque ? 'Ce lieu n’apparaît plus sur SIRA.' : 'C’est noté.');
+              if (masque) goBack(router);
+            })
+            .catch((error: unknown) => notify('Envoi impossible', error instanceof Error ? error.message : 'Réessaie dans un instant.'));
+        },
+      },
+      { text: 'Annuler', onPress: () => {} },
+    ]);
   };
 
   const ouverture = fiche ? OUVERTURE[fiche.ouverture] : null;
@@ -132,6 +178,7 @@ export default function LieuScreen() {
             </View>
 
             <View style={styles.badges}>
+              {fiche.voyageurs && <Text style={styles.badgeVoyageurs}>Signalé par des voyageurs SIRA</Text>}
               {fiche.deGarde && <Text style={styles.badgeGarde}>De garde</Text>}
               <Text style={[styles.badge, fiche.ouverture === 'ferme' && styles.badgeFerme, !ouverture && styles.badgeInconnu]}>
                 {ouverture ?? 'Horaires inconnus'}
@@ -151,12 +198,19 @@ export default function LieuScreen() {
             {fiche.garde ? (
               <Info icone="medkit-outline" texte={`Source : ${fiche.garde.source}, semaine du ${dateCourte(fiche.garde.debut)} au ${dateCourte(fiche.garde.fin)}`} />
             ) : null}
-            <Info icone="checkmark-done-outline" texte={`${confirmeParSources(fiche.nbSources)} : ${nomsSources(fiche.sources)}`} />
+            {fiche.voyageurs ? (
+              <Preuves preuves={fiche.voyageurs} onTemoigner={temoigner} />
+            ) : (
+              <Info icone="checkmark-done-outline" texte={`${confirmeParSources(fiche.nbSources)} : ${nomsSources(fiche.sources)}`} />
+            )}
+            {!fiche.voyageurs && fiche.trouvesAvecSira > 0 ? <Info icone="navigate-circle-outline" texte={trouvesAvecSira(fiche.trouvesAvecSira)} /> : null}
 
             <View style={styles.encoreLa}>
               <Text style={styles.encoreLaTitre}>Encore là ?</Text>
               <Text style={styles.texteGris}>
-                {fiche.encoreLaOui + fiche.encoreLaNon === 0
+                {fiche.voyageurs
+                  ? 'Ta réponse compte une fois, et aide les autres à juger.'
+                  : fiche.encoreLaOui + fiche.encoreLaNon === 0
                   ? 'Personne n’a encore répondu.'
                   : `${fiche.encoreLaOui} oui · ${fiche.encoreLaNon} non${fiche.derniereConfirmation ? ` · confirmé le ${dateCourte(fiche.derniereConfirmation)}` : ''}`}
               </Text>
@@ -170,7 +224,21 @@ export default function LieuScreen() {
               </View>
             </View>
 
-            {fiche.attribution ? <Text style={styles.attribution}>{fiche.attribution}</Text> : null}
+            {fiche.voyageurs ? (
+              <View style={styles.contenuSignale}>
+                <TouchableOpacity onPress={() => setRaisons(!raisons)} accessibilityRole="button" accessibilityState={{ expanded: raisons }}>
+                  <Text style={styles.lienDiscret}>Signaler ce contenu</Text>
+                </TouchableOpacity>
+                {raisons && (Object.keys(RAISONS_CONTENU) as RaisonContenu[]).map((raison) => (
+                  <TouchableOpacity key={raison} style={styles.raison} onPress={() => signalerContenu(raison)} accessibilityRole="button">
+                    <Text style={styles.raisonTexte}>{RAISONS_CONTENU[raison]}</Text>
+                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+
+            {fiche.attribution && !fiche.voyageurs ? <Text style={styles.attribution}>{fiche.attribution}</Text> : null}
           </ScrollView>
 
           <View style={styles.actions}>
@@ -188,6 +256,53 @@ export default function LieuScreen() {
         </>
       )}
     </SafeAreaView>
+  );
+}
+
+const trouvesAvecSira = (nb: number) => `${nb} voyageur${nb > 1 ? 's y sont allés' : ' y est allé'} avec SIRA et l’${nb > 1 ? 'ont' : 'a'} trouvé`;
+
+// Les preuves d'un lieu signalé par les voyageurs : l'étiquette, les chiffres (négatifs compris), puis ce que
+// les voyageurs en disent. Aucun nom : « un voyageur SIRA ».
+function Preuves({ preuves, onTemoigner }: { preuves: PreuvesVoyageurs; onTemoigner: () => void }) {
+  const fort = preuves.statut === 'verifie_recemment';
+  return (
+    <View style={styles.preuves}>
+      <View style={styles.preuvesTitre}>
+        <Ionicons name={fort ? 'shield-checkmark' : preuves.statut === 'confirme' ? 'people' : 'flag-outline'} size={18} color={fort ? '#15803D' : '#C2410C'} />
+        <Text style={[styles.statut, fort && styles.statutFort]}>{preuves.libelleStatut}</Text>
+      </View>
+      <Text style={styles.texteGris}>{lignePreuves(preuves)}</Text>
+      {preuves.trouvesAvecSira > 0 && (
+        <Text style={styles.trouves}>{trouvesAvecSira(preuves.trouvesAvecSira)}</Text>
+      )}
+      {preuves.statut === 'signale' && (
+        <Text style={styles.texteGris}>Une seule personne l’a signalé pour l’instant : à toi de juger.</Text>
+      )}
+
+      {preuves.etiquettes.length > 0 && (
+        <View style={styles.etiquettes}>
+          {preuves.etiquettes.map((e) => <Text key={e.id} style={styles.etiquette}>{e.libelle} · {e.nb}</Text>)}
+        </View>
+      )}
+      {preuves.moments.length > 0 && (
+        <Text style={styles.infoTexte}>Vu ouvert : {preuves.moments.map((m) => `${m.libelle.toLowerCase()} (${m.nb})`).join(', ')}</Text>
+      )}
+      {preuves.prix && (
+        <Text style={styles.infoTexte}>
+          {formatPrice(preuves.prix.medianeF)}, prix vu par {preuves.prix.nb} voyageur{preuves.prix.nb > 1 ? 's' : ''} (dernier le {dateCourte(preuves.prix.majLe)})
+        </Text>
+      )}
+      {preuves.commentaires.map((c) => (
+        <View key={`${c.le}-${c.texte}`} style={styles.commentaire}>
+          <Text style={styles.infoTexte}>« {c.texte} »</Text>
+          <Text style={styles.commentaireQui}>Un voyageur SIRA · {dateCourte(c.le)}</Text>
+        </View>
+      ))}
+
+      <TouchableOpacity style={[styles.boutonSecondaire, styles.temoigner]} onPress={onTemoigner} accessibilityRole="button">
+        <Text style={styles.boutonSecondaireTexte}>Moi aussi je l’ai vu</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -219,6 +334,21 @@ const styles = StyleSheet.create({
   badge: { fontSize: 12, fontWeight: '700', color: '#15803D', backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
   badgeFerme: { color: '#B91C1C', backgroundColor: '#FEE2E2' },
   badgeInconnu: { color: '#4B5563', backgroundColor: '#F3F4F6' },
+  badgeVoyageurs: { fontSize: 12, fontWeight: '800', color: '#9A3412', backgroundColor: '#FFEDD5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
+  preuves: { marginTop: 8, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#FED7AA', backgroundColor: '#FFF7ED', gap: 6 },
+  preuvesTitre: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statut: { fontSize: 15, fontWeight: '800', color: '#9A3412' },
+  statutFort: { color: '#15803D' },
+  trouves: { fontSize: 13.5, fontWeight: '700', color: '#15803D' },
+  etiquettes: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  etiquette: { fontSize: 12.5, fontWeight: '700', color: '#374151', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: 'hidden' },
+  commentaire: { paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#FED7AA' },
+  commentaireQui: { fontSize: 11.5, color: '#9CA3AF', marginTop: 2 },
+  temoigner: { alignSelf: 'flex-start', marginTop: 4 },
+  contenuSignale: { marginTop: 18, gap: 4 },
+  lienDiscret: { fontSize: 13, color: '#6B7280', textDecorationLine: 'underline', textAlign: 'center' },
+  raison: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#F9FAFB' },
+  raisonTexte: { fontSize: 14, color: '#374151' },
   badgeGarde: { fontSize: 12, fontWeight: '800', color: '#713F12', backgroundColor: '#FACC15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
   info: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 8 },
   infoTexte: { flex: 1, fontSize: 14, color: '#374151', lineHeight: 20 },

@@ -4,12 +4,26 @@ import { RateLimiter } from "../rate-limit";
 import { ClassementService } from "./classement.service";
 import { PharmaciesDeGardeService } from "./garde/pharmacies-de-garde.service";
 import { CATEGORIES, type Categorie } from "./lieux.repository";
+import type { EntreeSignalement } from "./lieux-voyageurs";
 import { LieuxService, SPECIALITES, type RechercheProches } from "./lieux.service";
 
 // Même emprise que les signalements (reports.service.ts).
 const GRAND_ABIDJAN = { minLat: 5.1, maxLat: 5.65, minLon: -4.35, maxLon: -3.7 };
 // Une réponse « Encore là ? » change l'ordre des lieux pour les autres : un compte, un nombre limité de réponses.
 const reponsesParVoyageur = new RateLimiter(Number(process.env.SIRA_LIEUX_CONFIRMATIONS_PAR_HEURE ?? 30), 60 * 60_000);
+// Lieux signalés et témoignages : un lieu créé se voit de tous, donc peu par jour et par compte.
+const signalementsParVoyageur = new RateLimiter(Number(process.env.SIRA_LIEUX_SIGNALEMENTS_PAR_JOUR ?? 10), 24 * 60 * 60_000);
+const contenusParVoyageur = new RateLimiter(Number(process.env.SIRA_LIEUX_CONTENUS_PAR_JOUR ?? 20), 24 * 60 * 60_000);
+
+// Position d'arrivée envoyée avec « Tu l'as trouvé ? » ({ lat, lng }), ou null.
+export function lireArrivee(valeur: unknown): { lat: number; lon: number } | null {
+  if (valeur === undefined || valeur === null) return null;
+  const point = valeur as { lat?: unknown; lng?: unknown; lon?: unknown };
+  const lat = Number(point.lat);
+  const lon = Number(point.lng ?? point.lon);
+  if (typeof valeur !== "object" || !Number.isFinite(lat) || !Number.isFinite(lon)) throw new BadRequestException("arrivee vaut { lat, lng }.");
+  return { lat, lon };
+}
 
 // Paramètres de GET /lieux/proches, vérifiés un par un (messages en français pour l'appli).
 export function lireRecherche(query: Record<string, string | undefined>): RechercheProches {
@@ -76,17 +90,44 @@ export class LieuxController {
     return this.garde.semaineCourante();
   }
 
+  // « Signaler un lieu » (voyageur connecté). { cree: false, doublons } : un lieu semblable existe tout près,
+  // l'appli demande « C'est bien celui-ci ? » puis renvoie avec forcer: true si c'est un autre lieu.
+  @Post("signalements")
+  async signaler(@Headers("authorization") authorization: string | undefined, @Body() corps: EntreeSignalement) {
+    const voyageurId = await this.travellers.idFrom(authorization);
+    if (!signalementsParVoyageur.allow(voyageurId)) throw new HttpException("Tu as déjà signalé beaucoup de lieux aujourd'hui. Réessaie demain.", 429);
+    return this.lieux.signaler(corps ?? {}, voyageurId);
+  }
+
   @Get(":id")
   fiche(@Param("id") id: string) {
     return this.lieux.fiche(id);
   }
 
-  // « Encore là ? » : { encoreLa: true | false }, voyageur connecté.
+  // « Encore là ? » : { encoreLa: true | false }, voyageur connecté. Avec arrivee: { lat, lng } (arrivé avec
+  // « Y aller », à moins de 150 m) : « Tu l'as trouvé ? », compté à part comme « trouvé avec SIRA ».
   @Post(":id/confirmation")
-  async confirmation(@Headers("authorization") authorization: string | undefined, @Param("id") id: string, @Body() corps: { encoreLa?: unknown }) {
+  async confirmation(@Headers("authorization") authorization: string | undefined, @Param("id") id: string, @Body() corps: { encoreLa?: unknown; arrivee?: unknown }) {
     if (typeof corps?.encoreLa !== "boolean") throw new BadRequestException("encoreLa vaut true ou false.");
+    const arrivee = lireArrivee(corps.arrivee);
     const voyageurId = await this.travellers.idFrom(authorization);
     if (!reponsesParVoyageur.allow(voyageurId)) throw new HttpException("Tu as déjà beaucoup répondu. Réessaie plus tard.", 429);
-    return this.lieux.repondreEncoreLa(id, voyageurId, corps.encoreLa);
+    return this.lieux.repondreEncoreLa(id, voyageurId, corps.encoreLa, arrivee);
+  }
+
+  // « Moi aussi je l'ai vu » : étiquettes, moments, prix vu et commentaire (même corps que /signalements).
+  @Post(":id/temoignage")
+  async temoignage(@Headers("authorization") authorization: string | undefined, @Param("id") id: string, @Body() corps: EntreeSignalement) {
+    const voyageurId = await this.travellers.idFrom(authorization);
+    if (!signalementsParVoyageur.allow(voyageurId)) throw new HttpException("Tu as déjà beaucoup témoigné aujourd'hui. Réessaie demain.", 429);
+    return this.lieux.temoigner(id, corps ?? {}, voyageurId);
+  }
+
+  // « Signaler ce contenu » : { raison: "faux" | "choquant" | "publicite" | "commercant" }.
+  @Post(":id/contenu")
+  async contenu(@Headers("authorization") authorization: string | undefined, @Param("id") id: string, @Body() corps: { raison?: unknown }) {
+    const voyageurId = await this.travellers.idFrom(authorization);
+    if (!contenusParVoyageur.allow(voyageurId)) throw new HttpException("Tu as déjà beaucoup signalé aujourd'hui. Réessaie demain.", 429);
+    return this.lieux.signalerContenu(id, voyageurId, corps?.raison);
   }
 }
