@@ -77,8 +77,11 @@ export type MapDisplayOptions = {
   northRequest?: { key: number } | null;
   // Guidage : la carte suit ce point, inclinée et tournée dans le sens du trajet ; null = vue d'ensemble.
   follow?: MapPoint | null;
-  // Le voyageur a déplacé la carte pendant le suivi : l'écran lui propose de reprendre.
-  onFollowStop?: () => void;
+  // Suivi en pause (le voyageur regarde ailleurs) : la carte reste penchée là où il l'a mise.
+  followPaused?: boolean;
+  // Le voyageur déplace la carte à un doigt pendant le suivi (à chaque fois) : l'écran met le suivi en pause.
+  // Zoomer à deux doigts ne compte pas : le suivi continue, au zoom choisi.
+  onFollowPause?: () => void;
 };
 
 const toRad = (degrees: number) => (degrees * Math.PI) / 180;

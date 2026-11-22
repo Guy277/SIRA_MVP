@@ -45,6 +45,7 @@ interface OsmMapViewProps extends MapDisplayOptions {
 const ABIDJAN_CENTER: [number, number] = [-4.005, 5.365];
 // Inclinaison de la vue 3D et du guidage : assez pour voir les bâtiments debout, la route reste lisible.
 const TILT = 55;
+const FOLLOW_ZOOM = 16.5;
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 // Couche « Lignes SIRA » : une couleur par mode, comme sur la fiche Calques.
@@ -114,7 +115,7 @@ const glyph = (name: string) => {
 
 const NO_ROUTES: MapRoute[] = [];
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, userAccuracyM = null, centerRequest = null, style, mapStyle = 'plan', tilted = false, showTransitLines = false, showBuildings = true, onBearingChange, northRequest = null, follow = null, onFollowStop }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, userAccuracyM = null, centerRequest = null, style, mapStyle = 'plan', tilted = false, showTransitLines = false, showBuildings = true, onBearingChange, northRequest = null, follow = null, followPaused = false, onFollowPause }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -124,9 +125,11 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
   // The map's handlers are set once: they read the latest callbacks here.
   const routePress = useRef(onRoutePress);
   const bearingChange = useRef(onBearingChange);
-  const followStop = useRef(onFollowStop);
+  const followPause = useRef(onFollowPause);
   const following = useRef(Boolean(follow));
-  useEffect(() => { routePress.current = onRoutePress; bearingChange.current = onBearingChange; followStop.current = onFollowStop; following.current = Boolean(follow); });
+  useEffect(() => { routePress.current = onRoutePress; bearingChange.current = onBearingChange; followPause.current = onFollowPause; following.current = Boolean(follow); });
+  // Zoom du suivi : 16,5 au départ, puis celui que le voyageur choisit à deux doigts (ou à la molette).
+  const followZoom = useRef(FOLLOW_ZOOM);
   const shownStyle = useRef(mapStyle);
   const followOn = Boolean(follow);
   const tiltedNow = useRef(tilted);
@@ -165,8 +168,15 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
         };
         map.on('rotate', () => tell(false));
         map.on('rotateend', () => tell(true));
-        // Moving the map by hand during guidance pauses the following.
-        map.on('dragstart', () => { if (following.current) followStop.current?.(); });
+        // Moving the map with one finger (or the mouse) during guidance pauses the following; the map stays
+        // tilted where the traveller put it. Two fingers zoom: the following goes on, at the zoom chosen.
+        map.on('dragstart', (event) => {
+          const touches = (event.originalEvent as TouchEvent | undefined)?.touches?.length ?? 0;
+          if (following.current && touches < 2) followPause.current?.();
+        });
+        map.on('zoomend', (event) => {
+          if (following.current && event.originalEvent) followZoom.current = Math.min(19, Math.max(14, map.getZoom()));
+        });
         mapRef.current = map;
         setReady(true);
       });
@@ -294,15 +304,16 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
     map.easeTo(tilted ? { pitch: TILT, duration: 600 } : { pitch: 0, bearing: 0, duration: 600 });
   }, [ready, tilted, followOn]);
 
-  // Guidage : la carte suit le voyageur, penchée, la route montant devant lui.
+  // Guidage : la carte suit le voyageur, penchée, la route montant devant lui. En pause, elle ne bouge plus ;
+  // à la reprise (« Recentrer » ou retour automatique), elle revient sur lui.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !follow) return;
+    if (!map || !ready || !follow || followPaused) return;
     const heading = headingAlong(routeCoordinates, follow);
-    map.easeTo({ center: [follow.longitude, follow.latitude], zoom: Math.max(map.getZoom(), 16.5), pitch: TILT,
+    map.easeTo({ center: [follow.longitude, follow.latitude], zoom: followZoom.current, pitch: TILT,
       bearing: heading ?? map.getBearing(), offset: [0, 120], duration: 800 });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seule une nouvelle position (ou un autre trajet) déplace la carte
-  }, [ready, follow?.latitude, follow?.longitude, routeCoordinates]);
+  }, [ready, follow?.latitude, follow?.longitude, routeCoordinates, followPaused]);
 
   // Boussole : une demande par nouvelle key.
   const northKey = northRequest?.key;

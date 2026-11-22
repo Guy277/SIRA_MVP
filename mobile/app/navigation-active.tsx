@@ -41,6 +41,9 @@ const MODE_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
 const MODE_COLORS: Record<LegMode, string> = {
   walk: '#10B981', wait: '#64748B', transfer: '#7C3AED', sotra: '#F26522', gbaka: '#F26522', woro: '#1E6091', taxi: '#1E6091', boat: '#0284C7',
 };
+// Map moved by hand during guidance: it follows the traveller again after this long without a touch.
+// 8 s: a proposal (Waze also comes back by itself after a few seconds), to adjust in real use.
+const RECENTER_AFTER_MS = 8_000;
 // Speaker button, as in Google Maps: all spoken → alerts only → muted.
 
 export default function NavigationActiveScreen() {
@@ -88,8 +91,35 @@ export default function NavigationActiveScreen() {
   const mapSettings = useMapSettings();
   const [here, setHere] = useState<{ latitude: number; longitude: number } | null>(null);
   const [overview, setOverview] = useState(false);
-  const stepPath = steps[currentStepIndex] ? legPath(steps[currentStepIndex].leg) : [];
-  const followPoint = Platform.OS === 'web' && !overview && !arrived ? here ?? stepPath[0] ?? null : null;
+  // Le voyageur a déplacé la carte : le suivi s'arrête, la carte reste penchée. « Recentrer » le reprend, et il
+  // reprend tout seul après RECENTER_AFTER_MS sans toucher la carte (comme Waze).
+  const [followPaused, setFollowPaused] = useState(false);
+  const recenterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearRecenterTimer = () => { if (recenterTimer.current) clearTimeout(recenterTimer.current); recenterTimer.current = null; };
+  const pauseFollow = () => {
+    setFollowPaused(true);
+    clearRecenterTimer();
+    recenterTimer.current = setTimeout(() => { recenterTimer.current = null; setFollowPaused(false); }, RECENTER_AFTER_MS);
+  };
+  const recenter = () => { clearRecenterTimer(); setFollowPaused(false); setOverview(false); };
+  // « Vue d'ensemble » : the whole trip, flat; only by its button, never by moving the map.
+  const showOverview = () => { clearRecenterTimer(); setFollowPaused(false); setOverview(true); };
+  useEffect(() => clearRecenterTimer, []);
+  // Without GPS, the map follows the start of the current step. A step drawn without a path (waiting at a stop,
+  // changing on foot) takes the start of the next drawn step, else the end of the previous one: without it the
+  // map lost its point and fell flat on the whole trip, as if the traveller had asked for the overview.
+  const stepStart = useMemo(() => {
+    for (let index = currentStepIndex; index < steps.length; index += 1) {
+      const path = legPath(steps[index].leg);
+      if (path.length) return path[0];
+    }
+    for (let index = currentStepIndex - 1; index >= 0; index -= 1) {
+      const path = legPath(steps[index].leg);
+      if (path.length) return path[path.length - 1];
+    }
+    return null;
+  }, [steps, currentStepIndex]);
+  const followPoint = Platform.OS === 'web' && !overview && !arrived ? here ?? stepStart : null;
   const current = steps[Math.min(currentStepIndex, Math.max(steps.length - 1, 0))];
 
   // Re-evaluates confirmed incidents on this journey whenever reports change.
@@ -372,7 +402,8 @@ export default function NavigationActiveScreen() {
         mapStyle={mapSettings.style}
         showBuildings={mapSettings.buildings}
         follow={followPoint}
-        onFollowStop={() => setOverview(true)}
+        followPaused={followPaused}
+        onFollowPause={pauseFollow}
       />
 
       {/* Overlay Safe Area */}
@@ -443,7 +474,7 @@ export default function NavigationActiveScreen() {
           </TouchableOpacity>
 
           {Platform.OS === 'web' && !arrived && (
-            <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={() => setOverview((value) => !value)}
+            <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={overview ? recenter : showOverview}
               accessibilityRole="button" accessibilityLabel={overview ? 'Reprendre le suivi, carte penchée' : 'Vue d’ensemble du trajet'}>
               <Ionicons name={overview ? 'navigate' : 'map-outline'} size={22} color="#F26522" />
             </TouchableOpacity>
@@ -595,6 +626,15 @@ export default function NavigationActiveScreen() {
         {/* Bottom Navigation Dashboard Card */}
         {!arrived && (
         <View style={styles.bottomDashboardCard}>
+          {/* « Recentrer », just above the card (as in Google Maps): the map follows the traveller again. */}
+          {Platform.OS === 'web' && (followPaused || overview) && (
+            <View style={styles.recenterRow} pointerEvents="box-none">
+              <TouchableOpacity style={styles.recenterPill} onPress={recenter} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Recentrer la carte sur moi">
+                <Ionicons name="navigate" size={18} color="#FFFFFF" />
+                <Text style={styles.recenterText}>Recentrer</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {/* Progress Bar with Milestones */}
           <View style={styles.progressTrackContainer}>
             <View style={styles.progressTrackBg}>
@@ -984,6 +1024,12 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     lineHeight: 16,
   },
+  recenterRow: { position: 'absolute', top: -60, left: 0, right: 0, alignItems: 'center' },
+  recenterPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, height: 44, borderRadius: 22,
+    backgroundColor: '#F26522', shadowColor: '#000000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6,
+  },
+  recenterText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   bottomDashboardCard: {
     marginHorizontal: 16,
     marginBottom: Platform.OS === 'ios' ? 10 : 16,
