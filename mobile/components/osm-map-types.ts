@@ -79,6 +79,8 @@ export type MapDisplayOptions = {
   follow?: MapPoint | null;
   // Suivi en pause (le voyageur regarde ailleurs) : la carte reste penchée là où il l'a mise.
   followPaused?: boolean;
+  // Vue du suivi selon l'étape (lib/ride-progress-core.ts) : à pied, à l'arrêt, en véhicule.
+  followCamera?: { kind: string; zoom: number; pitch: number } | null;
   // Le voyageur déplace la carte à un doigt pendant le suivi (à chaque fois) : l'écran met le suivi en pause.
   // Zoomer à deux doigts ne compte pas : le suivi continue, au zoom choisi.
   onFollowPause?: () => void;

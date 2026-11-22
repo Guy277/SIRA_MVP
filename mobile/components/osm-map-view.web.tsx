@@ -115,7 +115,7 @@ const glyph = (name: string) => {
 
 const NO_ROUTES: MapRoute[] = [];
 
-export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, userAccuracyM = null, centerRequest = null, style, mapStyle = 'plan', tilted = false, showTransitLines = false, showBuildings = true, onBearingChange, northRequest = null, follow = null, followPaused = false, onFollowPause }: OsmMapViewProps) {
+export function OsmMapView({ departureName, arrivalName, origin, destination, routeCoordinates = [], alternativeRoutes = NO_ROUTES, onRoutePress, routeLabel, focusCoordinates, reports = [], onReportPress, places = [], onPlacePress, userPosition, padding, zoomRequest, centerOnUser = false, userAccuracyM = null, centerRequest = null, style, mapStyle = 'plan', tilted = false, showTransitLines = false, showBuildings = true, onBearingChange, northRequest = null, follow = null, followPaused = false, followCamera = null, onFollowPause }: OsmMapViewProps) {
   const container = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef<MapLibreMarker[]>([]);
@@ -128,8 +128,11 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
   const followPause = useRef(onFollowPause);
   const following = useRef(Boolean(follow));
   useEffect(() => { routePress.current = onRoutePress; bearingChange.current = onBearingChange; followPause.current = onFollowPause; following.current = Boolean(follow); });
-  // Zoom du suivi : 16,5 au départ, puis celui que le voyageur choisit à deux doigts (ou à la molette).
-  const followZoom = useRef(FOLLOW_ZOOM);
+  // Zoom choisi par le voyageur à deux doigts (ou à la molette) pendant le suivi ; oublié à l'étape d'un autre genre
+  // (de la marche au véhicule…), qui a sa propre vue.
+  const userZoom = useRef<number | null>(null);
+  const cameraKind = followCamera?.kind ?? 'marche';
+  useEffect(() => { userZoom.current = null; }, [cameraKind]);
   const shownStyle = useRef(mapStyle);
   const followOn = Boolean(follow);
   const tiltedNow = useRef(tilted);
@@ -175,7 +178,7 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
           if (following.current && touches < 2) followPause.current?.();
         });
         map.on('zoomend', (event) => {
-          if (following.current && event.originalEvent) followZoom.current = Math.min(19, Math.max(14, map.getZoom()));
+          if (following.current && event.originalEvent) userZoom.current = Math.min(19, Math.max(13, map.getZoom()));
         });
         mapRef.current = map;
         setReady(true);
@@ -310,10 +313,10 @@ export function OsmMapView({ departureName, arrivalName, origin, destination, ro
     const map = mapRef.current;
     if (!map || !ready || !follow || followPaused) return;
     const heading = headingAlong(routeCoordinates, follow);
-    map.easeTo({ center: [follow.longitude, follow.latitude], zoom: followZoom.current, pitch: TILT,
-      bearing: heading ?? map.getBearing(), offset: [0, 120], duration: 800 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule une nouvelle position (ou un autre trajet) déplace la carte
-  }, [ready, follow?.latitude, follow?.longitude, routeCoordinates, followPaused]);
+    map.easeTo({ center: [follow.longitude, follow.latitude], zoom: userZoom.current ?? followCamera?.zoom ?? FOLLOW_ZOOM,
+      pitch: followCamera?.pitch ?? TILT, bearing: heading ?? map.getBearing(), offset: [0, 120], duration: 800 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une nouvelle position, un autre trajet ou une autre vue déplace la carte
+  }, [ready, follow?.latitude, follow?.longitude, routeCoordinates, followPaused, followCamera?.kind, followCamera?.zoom, followCamera?.pitch]);
 
   // Boussole : une demande par nouvelle key.
   const northKey = northRequest?.key;

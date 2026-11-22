@@ -4,6 +4,7 @@
 import type { ApiJourney, ApiLeg, Coordinates } from '@/lib/sira-api';
 import { isVehicle, MODE_NAMES, toLatLng, walkStepText } from '@/lib/journey-format';
 import { distanceM } from '@/lib/places';
+import { rideProgress, warnByStops } from '@/lib/ride-progress-core';
 
 export type Step = { leg: ApiLeg; start: Date; end: Date };
 
@@ -179,8 +180,13 @@ export function gpsEvent(steps: Step[], index: number, here: Coordinates, warned
     }
     default: {
       if (reached(isLast ? ARRIVED_M : ALIGHT_DONE_M)) return next();
+      if (warned) return null;
+      // Stops known: as the next stop is the traveller's (« Ton arrêt est le prochain »). Otherwise 600 m before
+      // the end, on rides long enough for it to mean something.
+      const byStops = leg.mode === 'taxi' ? null : warnByStops(rideProgress(leg, here));
+      if (byStops !== null) return byStops ? { type: 'alight-soon' } : null;
       const long = end != null && first(leg) != null && distanceM(first(leg)!, end) > ALIGHT_WARN_M * 1.5;
-      return !warned && long && reached(ALIGHT_WARN_M) ? { type: 'alight-soon' } : null;
+      return long && reached(ALIGHT_WARN_M) ? { type: 'alight-soon' } : null;
     }
   }
 }

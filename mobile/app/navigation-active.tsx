@@ -31,6 +31,8 @@ import { alightSoonSpeech, arrivalSpeech, fareQuestion, gpsEvent, gpsHint, minut
 import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
 import { useSpokenQuestion } from '@/lib/use-spoken-question';
 import { lieuViseVers, oublierLieuVise } from '@/lib/lieu-vise';
+import { followCamera, rideCountdown, rideProgress } from '@/lib/ride-progress-core';
+import * as Haptics from 'expo-haptics';
 import { repondreEncoreLa } from '@/lib/lieux';
 
 const { height } = Dimensions.get('window');
@@ -120,6 +122,11 @@ export default function NavigationActiveScreen() {
     return null;
   }, [steps, currentStepIndex]);
   const followPoint = Platform.OS === 'web' && !overview && !arrived ? here ?? stepStart : null;
+  // Lot 2 (docs/etude-guidage-carte.md): stops or distance left on the current ride, and the map view of the step.
+  const stepLeg = steps[Math.min(currentStepIndex, Math.max(steps.length - 1, 0))]?.leg ?? null;
+  const progress = useMemo(() => (stepLeg ? rideProgress(stepLeg, here) : null), [stepLeg, here]);
+  const countdown = stepLeg && progress ? rideCountdown(stepLeg, progress) : null;
+  const camera = useMemo(() => (stepLeg ? followCamera(stepLeg, progress?.metresLeft ?? null) : null), [stepLeg, progress?.metresLeft]);
   const current = steps[Math.min(currentStepIndex, Math.max(steps.length - 1, 0))];
 
   // Re-evaluates confirmed incidents on this journey whenever reports change.
@@ -337,6 +344,9 @@ export default function NavigationActiveScreen() {
             else if (event?.type === 'arrived') setArrived(true);
             else if (event?.type === 'alight-soon') {
               warned.current.add(key);
+              // Get ready to get off: the phone buzzes as well as speaks (as Citymapper and Transit do).
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+              if (Platform.OS === 'web') globalThis.navigator?.vibrate?.([200, 100, 200]);
               void say(alightSoonSpeech(all[index].leg), 'alert');
             } else {
               // Nothing changes: maybe a turn just ahead, or halfway on the bus.
@@ -403,6 +413,7 @@ export default function NavigationActiveScreen() {
         showBuildings={mapSettings.buildings}
         follow={followPoint}
         followPaused={followPaused}
+        followCamera={camera}
         onFollowPause={pauseFollow}
       />
 
@@ -422,6 +433,13 @@ export default function NavigationActiveScreen() {
             <View style={styles.hudTextCol}>
               <Text style={styles.hudInstructionText}>{stepTitle(currentLeg)}</Text>
               <Text style={styles.hudSubtext}>Étape {currentStepIndex + 1}/{steps.length} • {stepDescription(currentLeg)}</Text>
+              {/* « Descends dans 3 arrêts », then « Ton arrêt est le prochain » (stop countdown, as in Transit). */}
+              {countdown && (
+                <View style={[styles.countdown, countdown.urgent && styles.countdownUrgent]} accessibilityLiveRegion="polite">
+                  <Ionicons name={countdown.urgent ? 'notifications' : 'flag-outline'} size={14} color={countdown.urgent ? '#FFFFFF' : '#FDBA74'} />
+                  <Text style={[styles.countdownText, countdown.urgent && styles.countdownTextUrgent]}>{countdown.text}</Text>
+                </View>
+              )}
             </View>
             <TouchableOpacity
               onPress={() => setShowExitConfirm(true)}
@@ -1024,6 +1042,10 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     lineHeight: 16,
   },
+  countdown: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(242, 101, 34, 0.18)' },
+  countdownUrgent: { backgroundColor: '#F26522' },
+  countdownText: { color: '#FDBA74', fontSize: 13.5, fontWeight: '800' },
+  countdownTextUrgent: { color: '#FFFFFF' },
   recenterRow: { position: 'absolute', top: -60, left: 0, right: 0, alignItems: 'center' },
   recenterPill: {
     flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, height: 44, borderRadius: 22,
