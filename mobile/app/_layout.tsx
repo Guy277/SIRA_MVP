@@ -18,6 +18,12 @@ import { loadFollowedZones } from '@/lib/followed-zones';
 import { loadProfilePicture } from '@/lib/profile-picture';
 import { loadReportOpinions } from '@/lib/report-opinions';
 import { loadWebFonts, MONTSERRAT_FONTS } from '@/components/sira-text';
+import { FontDisplay } from 'expo-font';
+
+// Web: Montserrat shows as soon as it arrives (font-display: swap), the phone's own font until then.
+const FONTS = Platform.OS === 'web'
+  ? Object.fromEntries(Object.entries(MONTSERRAT_FONTS).map(([family, source]) => [family, { uri: source, display: FontDisplay.SWAP }]))
+  : MONTSERRAT_FONTS;
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -25,17 +31,18 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   useEffect(() => { void restoreSession(); void loadIntroMemory(); void loadVoiceMode(); void loadSavedPlaces(); void loadTripHistory(); void loadFavorites(); void loadUsage(); void loadFollowedZones(); void loadProfilePicture(); void loadReportOpinions(); }, []);
-  // Montserrat before the first screen, so no text flashes in the system font.
-  // Without it (failed download on web), the screens fall back to the system font.
-  const [fontsLoaded, fontError] = useFonts(MONTSERRAT_FONTS);
-  // Web: the first screen is ready, the loading screen of public/index.html goes away.
+  // Phone app: Montserrat before the first screen, so no text flashes in the system font (the files are in the app).
+  // Web: the first screen does not wait for the 6 weights (about 0.9 MB, several seconds on a mobile connection,
+  // seen on an iPhone on 23 November 2026): the text switches to Montserrat as soon as it arrives.
+  const [fontsLoaded, fontError] = useFonts(FONTS);
+  // Web: the app is drawn, the loading screen of public/index.html goes away.
   useEffect(() => {
-    if (Platform.OS === 'web' && (fontsLoaded || fontError)) globalThis.document?.getElementById('sira-loader')?.remove();
-  }, [fontsLoaded, fontError]);
+    if (Platform.OS === 'web') globalThis.document?.getElementById('sira-loader')?.remove();
+  }, []);
   // Web: every weight starts downloading now, without holding the first screen
   // (about 2 MB of fonts, several seconds on a slow mobile connection).
   useEffect(() => { if (fontsLoaded) void loadWebFonts(); }, [fontsLoaded]);
-  if (!fontsLoaded && !fontError) return null;
+  if (Platform.OS !== 'web' && !fontsLoaded && !fontError) return null;
   return (
     <>
       <Stack

@@ -50,8 +50,13 @@ const FAMILY_BY_WEIGHT: Record<string, keyof typeof MONTSERRAT_FONTS> = {
   '900': 'Montserrat-Black',
 };
 
+// Web: the app no longer waits for Montserrat (app/_layout.tsx); until it arrives, the phone's own font is used,
+// never the browser's default serif font.
+const WEB_FALLBACK = ', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
 export function montserratFamily(weight: TextStyle['fontWeight']) {
-  return FAMILY_BY_WEIGHT[String(weight ?? '400')] ?? 'Montserrat-Regular';
+  const family = FAMILY_BY_WEIGHT[String(weight ?? '400')] ?? 'Montserrat-Regular';
+  return Platform.OS === 'web' ? `${family}${WEB_FALLBACK}` : family;
 }
 
 // A nested <Text> without its own weight inherits its parent's font, as in React Native.
