@@ -92,6 +92,29 @@ const metres = (a: MapPoint, b: MapPoint) =>
 
 // Sens de marche (0 = nord, 90 = est) au point le plus proche du trajet, vers un point ~25 m plus loin :
 // la carte du guidage se tourne pour que la route monte devant le voyageur. null : trajet trop court.
+// ---- Guidage dans l'appli installée (react-native-maps) : la caméra se règle autrement que sur le web. ----
+
+// Mètres par point d'écran à un zoom donné (tuiles de 256 points, projection Web Mercator).
+export const metresPerPoint = (zoom: number, latitude: number) => (156_543.034 * Math.cos(toRad(latitude))) / 2 ** zoom;
+
+// Plans d'Apple (iPhone) règle la caméra par son altitude en mètres, pas par un zoom. Approximation : la hauteur de
+// l'écran couvre au sol ce qu'elle couvrirait à ce zoom, vue sous un angle vertical de 30°. À régler sur un iPhone.
+export const IOS_CAMERA_FOV_DEG = 30;
+export function altitudeForZoom(zoom: number, latitude: number, screenHeightPt: number) {
+  const span = metresPerPoint(zoom, latitude) * screenHeightPt;
+  return Math.round(span / (2 * Math.tan(toRad(IOS_CAMERA_FOV_DEG / 2))));
+}
+
+// Un point à `distance` mètres devant, dans la direction `headingDeg` (0 = nord) : la caméra vise un peu devant le
+// voyageur pour que son point soit dans le bas de l'écran et la route devant lui, comme sur le web (offset).
+export function pointAhead(point: MapPoint, headingDeg: number, distance: number): MapPoint {
+  const angle = toRad(headingDeg);
+  return {
+    latitude: point.latitude + (distance * Math.cos(angle)) / 111_320,
+    longitude: point.longitude + (distance * Math.sin(angle)) / (111_320 * Math.cos(toRad(point.latitude))),
+  };
+}
+
 export function headingAlong(path: MapPoint[], here: MapPoint): number | null {
   if (path.length < 2) return null;
   let nearest = 0;

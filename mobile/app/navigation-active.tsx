@@ -88,7 +88,8 @@ export default function NavigationActiveScreen() {
 
   const targetDestination = search?.arrival.name ?? 'Destination';
   const steps = useMemo(() => journey ? timeline(journey, startedAt) : [], [journey, startedAt]);
-  // Carte du guidage (web, MapLibre) : penchée, elle suit le voyageur, la route montant devant lui, comme un GPS.
+  // Carte du guidage (web : MapLibre ; appli installée : react-native-maps) : penchée, elle suit le voyageur, la
+  // route montant devant lui, comme un GPS.
   // Sans GPS, elle suit le début de l'étape en cours. « Vue d'ensemble » la remet à plat sur tout le trajet.
   const mapSettings = useMapSettings();
   const [here, setHere] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -121,7 +122,7 @@ export default function NavigationActiveScreen() {
     }
     return null;
   }, [steps, currentStepIndex]);
-  const followPoint = Platform.OS === 'web' && !overview && !arrived ? here ?? stepStart : null;
+  const followPoint = !overview && !arrived ? here ?? stepStart : null;
   // Lot 2 (docs/etude-guidage-carte.md): stops or distance left on the current ride, and the map view of the step.
   const stepLeg = steps[Math.min(currentStepIndex, Math.max(steps.length - 1, 0))]?.leg ?? null;
   const progress = useMemo(() => (stepLeg ? rideProgress(stepLeg, here) : null), [stepLeg, here]);
@@ -491,7 +492,7 @@ export default function NavigationActiveScreen() {
             <Ionicons name="warning" size={22} color="#EF4444" />
           </TouchableOpacity>
 
-          {Platform.OS === 'web' && !arrived && (
+          {!arrived && (
             <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={overview ? recenter : showOverview}
               accessibilityRole="button" accessibilityLabel={overview ? 'Reprendre le suivi, carte penchée' : 'Vue d’ensemble du trajet'}>
               <Ionicons name={overview ? 'navigate' : 'map-outline'} size={22} color="#F26522" />
@@ -645,7 +646,7 @@ export default function NavigationActiveScreen() {
         {!arrived && (
         <View style={styles.bottomDashboardCard}>
           {/* « Recentrer », just above the card (as in Google Maps): the map follows the traveller again. */}
-          {Platform.OS === 'web' && (followPaused || overview) && (
+          {(followPaused || overview) && (
             <View style={styles.recenterRow} pointerEvents="box-none">
               <TouchableOpacity style={styles.recenterPill} onPress={recenter} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Recentrer la carte sur moi">
                 <Ionicons name="navigate" size={18} color="#FFFFFF" />

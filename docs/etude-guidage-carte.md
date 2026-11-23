@@ -100,3 +100,13 @@ Ce sont des concurrents directs de SIRA : **à regarder de près, non vérifié 
    de descente à l'écran sur un long trajet faisait reculer la carte jusqu'à perdre la 3D. La carte reste donc assez
    proche pour la 3D (zoom 15 au plus loin), et c'est le bandeau qui donne les arrêts restants.
 4. **Avant d'aller plus loin, regarder AMUGA mon trajet et Moja Ride**, les deux applis locales.
+
+## 5. Lot 3 : l'appli installée (iPhone, Android)
+
+Fait le 22 novembre 2026 (`mobile/components/osm-map-view.tsx`, react-native-maps) : même suivi penché que sur le
+web, « Recentrer », retour automatique, vue d'ensemble à plat, vue selon l'étape.
+- Sur iPhone, l'événement « glisser » de react-native-maps ne marche que si la carte ne défile pas : le glissement
+  est donc lu sur les touchers (un doigt qui bouge de plus de 12 points = pause ; deux doigts = zoom).
+- Plans d'Apple règle la caméra par une altitude en mètres : convertie depuis le zoom par une approximation
+  (angle de vue de 30°, `altitudeForZoom`). **Non vérifié sur un iPhone** : la carte peut paraître trop proche ou
+  trop loin, à régler à l'essai.

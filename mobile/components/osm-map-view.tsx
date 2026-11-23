@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, useWindowDimensions, View, ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Text } from '@/components/sira-text';
 import MapView, {
   Circle,
@@ -10,7 +10,10 @@ import MapView, {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { knownPlace } from '@/lib/places';
 import type { Coordinates, TrafficReport } from '@/lib/sira-api';
-import { routeLabels, type CenterRequest, type MapDisplayOptions, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest } from '@/components/osm-map-types';
+import {
+  altitudeForZoom, headingAlong, metresPerPoint, pointAhead, routeLabels,
+  type CenterRequest, type MapDisplayOptions, type MapPadding, type MapPlace, type MapRoute, type ZoomRequest,
+} from '@/components/osm-map-types';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 // The traveller's dot pulses: a wave grows out from under it and fades, so it is found at a
@@ -110,8 +113,63 @@ export function OsmMapView({
   centerRequest = null,
   style,
   showIntermediateStations = false,
+  follow = null,
+  followPaused = false,
+  followCamera = null,
+  onFollowPause,
 }: OsmMapViewProps) {
   const mapRef = useRef<MapView>(null);
+  const { height: screenHeight } = useWindowDimensions();
+
+  // ---- Guidage : la carte suit le voyageur, penchée, la route devant lui (comme la carte web). ----
+  const followOn = Boolean(follow);
+  const followRef = useRef(followOn);
+  const pauseRef = useRef(onFollowPause);
+  useEffect(() => { followRef.current = followOn; pauseRef.current = onFollowPause; });
+  // Caméra choisie par le voyageur à deux doigts pendant le suivi ; oubliée à une étape d'un autre genre.
+  const userCamera = useRef<{ zoom?: number; altitude?: number } | null>(null);
+  const cameraKind = followCamera?.kind ?? 'marche';
+  useEffect(() => { userCamera.current = null; }, [cameraKind]);
+  const lastHeading = useRef(0);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !follow || followPaused) return;
+    const heading = headingAlong(activeRoute, follow) ?? lastHeading.current;
+    lastHeading.current = heading;
+    const zoom = userCamera.current?.zoom ?? followCamera?.zoom ?? 16.5;
+    // Le voyageur dans le bas de l'écran : la caméra vise un point devant lui (un cinquième de l'écran).
+    const center = pointAhead(follow, heading, metresPerPoint(zoom, follow.latitude) * screenHeight * 0.2);
+    map.animateCamera({
+      center, heading, pitch: followCamera?.pitch ?? 55, zoom,
+      altitude: userCamera.current?.altitude ?? altitudeForZoom(zoom, follow.latitude, screenHeight),
+    }, { duration: 800 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une nouvelle position, un autre trajet ou une autre vue déplace la carte
+  }, [follow?.latitude, follow?.longitude, activeRoute, followPaused, followCamera?.kind, followCamera?.zoom, followCamera?.pitch, screenHeight]);
+
+  // Un doigt qui fait glisser la carte met le suivi en pause (l'écran propose « Recentrer ») ; deux doigts zooment
+  // et le suivi continue, au zoom choisi. Lu sur les touchers bruts : sur iPhone, onPanDrag de react-native-maps
+  // ne marche que si la carte ne défile pas.
+  const gesture = useRef<{ x: number; y: number; pinch: boolean; paused: boolean } | null>(null);
+  const onTouchStart = (event: GestureResponderEvent) => {
+    const { pageX, pageY, touches } = event.nativeEvent;
+    gesture.current = { x: pageX, y: pageY, pinch: touches.length > 1, paused: false };
+  };
+  const onTouchMove = (event: GestureResponderEvent) => {
+    const current = gesture.current;
+    if (!current || !followRef.current) return;
+    const { pageX, pageY, touches } = event.nativeEvent;
+    if (touches.length > 1) { current.pinch = true; return; }
+    if (!current.pinch && !current.paused && Math.hypot(pageX - current.x, pageY - current.y) > 12) {
+      current.paused = true;
+      pauseRef.current?.();
+    }
+  };
+  const onTouchEnd = () => {
+    const ended = gesture.current;
+    gesture.current = null;
+    if (!ended?.pinch || !followRef.current) return;
+    mapRef.current?.getCamera().then((camera) => { userCamera.current = { zoom: camera.zoom, altitude: camera.altitude }; }).catch(() => {});
+  };
 
   // Boutons + / − : une demande de zoom par nouvelle key. Un niveau de zoom = l'écart de la région ×2 ou ÷2.
   const zoomKey = zoomRequest?.key;
@@ -153,8 +211,13 @@ export function OsmMapView({
   const startCoords = origin ?? (departureName ? knownPlace(departureName) ?? undefined : undefined);
   const endCoords = destination ?? (arrivalName ? knownPlace(arrivalName) ?? undefined : undefined);
 
-  // Fit bounds dynamically when route or markers update
+  // Fit bounds dynamically when route or markers update. Not during guidance: the following places the map
+  // (else every new GPS position would frame the whole trip again).
+  const wasFollowing = useRef(false);
   useEffect(() => {
+    if (followOn) { wasFollowing.current = true; return; }
+    // Leaving the following (« Vue d'ensemble »): the map lies flat again, north up, before framing the trip.
+    if (wasFollowing.current) { wasFollowing.current = false; mapRef.current?.setCamera({ pitch: 0, heading: 0 }); }
     if (mapRef.current) {
       if (focusCoordinates && focusCoordinates.length > 1) {
         mapRef.current.fitToCoordinates(focusCoordinates, {
@@ -178,10 +241,10 @@ export function OsmMapView({
         });
       }
     }
-  }, [activeRoute, alternativeRoutes, focusCoordinates, startCoords, endCoords, places, userPosition, padding]);
+  }, [activeRoute, alternativeRoutes, focusCoordinates, startCoords, endCoords, places, userPosition, padding, followOn]);
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, style]} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
       <MapView
         ref={mapRef}
         provider={PROVIDER_DEFAULT}
