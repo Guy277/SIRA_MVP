@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { restoreSession } from '@/lib/session';
 import { loadIntroMemory } from '@/lib/motion';
 import { loadSavedPlaces } from '@/lib/saved-places';
@@ -27,6 +28,10 @@ export default function RootLayout() {
   // Montserrat before the first screen, so no text flashes in the system font.
   // Without it (failed download on web), the screens fall back to the system font.
   const [fontsLoaded, fontError] = useFonts(MONTSERRAT_FONTS);
+  // Web: the first screen is ready, the loading screen of public/index.html goes away.
+  useEffect(() => {
+    if (Platform.OS === 'web' && (fontsLoaded || fontError)) globalThis.document?.getElementById('sira-loader')?.remove();
+  }, [fontsLoaded, fontError]);
   // Web: every weight starts downloading now, without holding the first screen
   // (about 2 MB of fonts, several seconds on a slow mobile connection).
   useEffect(() => { if (fontsLoaded) void loadWebFonts(); }, [fontsLoaded]);

@@ -37,6 +37,23 @@
         height: 100%;
         flex: 1;
       }
+      /* Écran de chargement : visible dès la première seconde, pendant que l'appli se télécharge (au lieu d'une page
+         blanche). L'appli le retire quand son premier écran est prêt (app/_layout.tsx). */
+      #sira-loader {
+        position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 18px; padding: 24px; background: #010101; color: #ffffff; text-align: center;
+        font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+      #sira-loader img { width: 88px; height: 88px; border-radius: 20px; }
+      #sira-loader-spinner {
+        width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(242, 101, 34, 0.25);
+        border-top-color: #f26522; animation: sira-turn 0.9s linear infinite;
+      }
+      #sira-loader-text { font-size: 15px; line-height: 1.5; color: #d1d5db; max-width: 300px; }
+      #sira-loader.sira-old #sira-loader-spinner { display: none; }
+      #sira-loader.sira-old #sira-loader-text { color: #ffffff; }
+      @keyframes sira-turn { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { #sira-loader-spinner { animation-duration: 3s; } }
     </style>
   </head>
 
@@ -45,6 +62,29 @@
     <noscript>
       Active JavaScript pour utiliser SIRA.
     </noscript>
+    <div id="sira-loader" class="notranslate" role="status" aria-live="polite">
+      <img src="/apple-touch-icon.png" alt="SIRA" />
+      <div id="sira-loader-spinner"></div>
+      <div id="sira-loader-text">Chargement de SIRA…</div>
+    </div>
+    <!-- Navigateur trop ancien (avant Chrome 85, août 2020) : l'appli ne peut pas démarrer, on le dit au lieu de
+         laisser une page blanche. Écrit en JavaScript ancien pour tourner partout. Connexion lente : on rassure. -->
+    <script>
+      (function () {
+        var text = document.getElementById('sira-loader-text');
+        var supported = true;
+        try { new Function('var a = null; a ??= 1; class B { #c = 1; d = 2; }'); } catch (error) { supported = false; }
+        if (!supported) {
+          document.getElementById('sira-loader').className = 'sira-old';
+          text.innerHTML = 'Ton navigateur est trop ancien pour SIRA.<br><br>Mets à jour <b>Chrome</b> depuis le Play Store, '
+            + 'ou ouvre ce lien dans <b>Firefox</b> ou <b>Safari</b>.';
+          return;
+        }
+        setTimeout(function () {
+          if (document.getElementById('sira-loader')) text.innerHTML = 'Connexion lente : SIRA se charge,<br>patiente encore un peu…';
+        }, 15000);
+      })();
+    </script>
     <!-- The root element for your Expo app. -->
     <div id="root" class="notranslate"></div>
   </body>

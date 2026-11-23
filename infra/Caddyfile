@@ -2,6 +2,11 @@
 # SIRA_DOMAIN vient de infra/server.env (ex. 13-51-20-30.sslip.io, ou test.sira.ci).
 # Caddy remplace l'en-tête X-Forwarded-For par l'adresse réelle du voyageur : Nginx peut s'y fier.
 {$SIRA_DOMAIN} {
+	# Compression (zstd ou gzip, selon le navigateur). Nginx ne compresse pas ce qui passe par Caddy : Caddy ajoute
+	# l'en-tête « Via », et Nginx ne compresse pas une requête qui le porte (gzip_proxied off par défaut). Sans ça,
+	# un téléphone téléchargeait 2,7 Mo de JavaScript au lieu d'environ 0,7 Mo (mesuré le 23 novembre 2026).
+	encode zstd gzip
+
 	# Page de suivi du serveur (utilisateur « sira », mot de passe SIRA_STATUS_PASSWORD de infra/server.env).
 	# La page vient de infra/status/, ses mesures de scripts/server/status.py (cron, chaque minute).
 	redir /statut /statut/
