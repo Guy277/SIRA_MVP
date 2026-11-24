@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import { useNavigation, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { Dimensions, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Dimensions, Platform, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -30,9 +30,19 @@ export default function SplashScreen() {
   const router = useRouter();
   const navigation = useNavigation();
 
+  // Web: the loading page (public/index.html) already shows this very logo at this very place. The splash takes
+  // over without fading in again, then removes that page once its own logo is drawn: one start screen, no jump.
+  const [fromLoader] = useState(() => Platform.OS === 'web' && Boolean(globalThis.document?.getElementById('sira-loader')));
+  const removeLoader = () => globalThis.document?.getElementById('sira-loader')?.remove();
+  useEffect(() => {
+    if (!fromLoader) return;
+    const fallback = setTimeout(removeLoader, 1500); // the logo never reports loaded: do not keep the page forever
+    return () => clearTimeout(fallback);
+  }, [fromLoader]);
+
   // Animation values
-  const logoOpacity = useSharedValue(0);
-  const logoScale = useSharedValue(0.92);
+  const logoOpacity = useSharedValue(fromLoader ? 1 : 0);
+  const logoScale = useSharedValue(fromLoader ? 1 : 0.92);
 
   const navigateToNextScreen = () => {
     // Only leave the splash if it is still the screen shown: deep links on web
@@ -46,9 +56,11 @@ export default function SplashScreen() {
   };
 
   useEffect(() => {
-    // 1. Logo entry animation
-    logoOpacity.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
-    logoScale.value = withSpring(1, { damping: 15, stiffness: 120 });
+    // 1. Logo entry animation (not after the web loading page, which already showed the logo)
+    if (!fromLoader) {
+      logoOpacity.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
+      logoScale.value = withSpring(1, { damping: 15, stiffness: 120 });
+    }
 
     // 2. Auto transition to onboarding after 2.2s
     const timer = setTimeout(() => {
@@ -77,6 +89,7 @@ export default function SplashScreen() {
           source={require('@/assets/images/sira-logo-white-designer.png')}
           style={styles.logoImage}
           contentFit="contain"
+          onLoad={fromLoader ? removeLoader : undefined}
         />
       </Animated.View>
     </SafeAreaView>

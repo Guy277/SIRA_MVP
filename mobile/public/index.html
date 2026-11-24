@@ -37,22 +37,33 @@
         height: 100%;
         flex: 1;
       }
-      /* Écran de chargement : visible dès la première seconde, pendant que l'appli se télécharge (au lieu d'une page
-         blanche). L'appli le retire quand son premier écran est prêt (app/_layout.tsx). */
+      /* Écran de chargement, pendant que l'appli se télécharge (au lieu d'une page blanche). Il a exactement l'allure
+         de l'écran de démarrage de l'appli (app/index.tsx) : fond #010101, logo blanc du designer, 173 × 176 sur une
+         maquette de 406 × 874, à 338 du haut. L'écran de démarrage prend le relais sans saut, puis le retire.
+         Le cercle et le texte n'apparaissent qu'au bout de 3 secondes (connexion lente). */
       #sira-loader {
-        position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center;
-        justify-content: center; gap: 18px; padding: 24px; background: #010101; color: #ffffff; text-align: center;
+        position: fixed; inset: 0; z-index: 9999; background: #010101; color: #ffffff; text-align: center;
         font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
       }
-      #sira-loader img { width: 88px; height: 88px; border-radius: 20px; }
+      #sira-loader-logo {
+        position: absolute; left: 50%; transform: translateX(-50%);
+        top: calc(338 / 874 * 100%); width: calc(173 / 406 * 100%); height: calc(176 / 874 * 100%); object-fit: contain;
+      }
+      #sira-loader-wait {
+        position: absolute; left: 24px; right: 24px; top: calc(514 / 874 * 100% + 28px);
+        display: flex; flex-direction: column; align-items: center; gap: 14px;
+        opacity: 0; animation: sira-show 0.4s ease-out 3s forwards;
+      }
       #sira-loader-spinner {
-        width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(242, 101, 34, 0.25);
+        width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(242, 101, 34, 0.25);
         border-top-color: #f26522; animation: sira-turn 0.9s linear infinite;
       }
       #sira-loader-text { font-size: 15px; line-height: 1.5; color: #d1d5db; max-width: 300px; }
+      #sira-loader.sira-old #sira-loader-wait { opacity: 1; animation: none; }
       #sira-loader.sira-old #sira-loader-spinner { display: none; }
       #sira-loader.sira-old #sira-loader-text { color: #ffffff; }
       @keyframes sira-turn { to { transform: rotate(360deg); } }
+      @keyframes sira-show { to { opacity: 1; } }
       @media (prefers-reduced-motion: reduce) { #sira-loader-spinner { animation-duration: 3s; } }
     </style>
   </head>
@@ -63,9 +74,11 @@
       Active JavaScript pour utiliser SIRA.
     </noscript>
     <div id="sira-loader" class="notranslate" role="status" aria-live="polite">
-      <img src="/apple-touch-icon.png" alt="SIRA" />
-      <div id="sira-loader-spinner"></div>
-      <div id="sira-loader-text">Chargement de SIRA…</div>
+      <img id="sira-loader-logo" src="/sira-logo-blanc.png" alt="SIRA" />
+      <div id="sira-loader-wait">
+        <div id="sira-loader-spinner"></div>
+        <div id="sira-loader-text">Chargement de SIRA…</div>
+      </div>
     </div>
     <!-- Navigateur trop ancien (avant Chrome 85, août 2020) : l'appli ne peut pas démarrer, on le dit au lieu de
          laisser une page blanche. Écrit en JavaScript ancien pour tourner partout. Connexion lente : on rassure. -->

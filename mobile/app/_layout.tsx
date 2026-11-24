@@ -1,5 +1,5 @@
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
@@ -35,10 +35,12 @@ export default function RootLayout() {
   // Web: the first screen does not wait for the 6 weights (about 0.9 MB, several seconds on a mobile connection,
   // seen on an iPhone on 23 November 2026): the text switches to Montserrat as soon as it arrives.
   const [fontsLoaded, fontError] = useFonts(FONTS);
-  // Web: the app is drawn, the loading screen of public/index.html goes away.
+  // Web: the app is drawn, the loading page of public/index.html goes away. On « / » the start screen
+  // (app/index.tsx) removes it itself once its logo is drawn, so that the two look like one screen.
+  const pathname = usePathname();
   useEffect(() => {
-    if (Platform.OS === 'web') globalThis.document?.getElementById('sira-loader')?.remove();
-  }, []);
+    if (Platform.OS === 'web' && pathname !== '/') globalThis.document?.getElementById('sira-loader')?.remove();
+  }, [pathname]);
   // Web: every weight starts downloading now, without holding the first screen
   // (about 2 MB of fonts, several seconds on a slow mobile connection).
   useEffect(() => { if (fontsLoaded) void loadWebFonts(); }, [fontsLoaded]);
