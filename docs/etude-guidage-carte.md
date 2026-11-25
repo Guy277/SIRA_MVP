@@ -132,3 +132,27 @@ Fait le 25 novembre 2026 (`mobile/lib/route-cards.ts`, `mobile/app/route-detail.
    « prépare-toi après … », les autres lignes possibles et les prix donnés par les voyageurs.
 4. La pastille « SIRA parle » se met sous la barre du haut sur cet écran (elle cachait « Ton trajet »).
 Choix de SIRA (pas de source) : l'ordre des détails, et l'heure de la carte = l'heure d'arrivée à l'arrêt.
+
+## 7. La voix de SIRA pendant le guidage : sous la carte, pas dessus
+
+Vu sur un iPhone le 25 novembre 2026 : la bulle « SIRA VOCAL » et le personnage restaient au milieu de la carte, sur
+le chemin juste devant le voyageur, et répétaient le bandeau du haut. Ce que disent les autres (lu le 25 novembre 2026) :
+- **Google Maps** : l'instruction en haut, l'heure d'arrivée et la sortie en bas
+  ([SDK Navigation](https://developers.google.com/maps/documentation/navigation/ios-sdk/controls)).
+- **Waze** : un mode « moins bavard » pour moins distraire
+  ([iClarified](https://www.iclarified.com/101447/waze-updates-app-with-less-chatty-navigation-and-new-gemini-ai-features)) ;
+  les alertes dans un panneau en bas ([autoevolution](https://www.autoevolution.com/news/google-begins-testing-new-warning-design-in-waze-navigation-app-on-android-142935.html)).
+- **Apple CarPlay** : peu de texte, lire distrait ([HIG](https://developer.apple.com/design/human-interface-guidelines/carplay.md)).
+- **NHTSA** (indicatif, pour les écrans de voiture) : coups d'œil de 2 s au plus, 12 s en tout
+  ([rapport](https://www.nhtsa.gov/sites/nhtsa.gov/files/811781.pdf)).
+
+Fait le 25 novembre 2026 (`mobile/app/navigation-active.tsx`, `stepScreenLine` dans `mobile/lib/journey-format.ts`,
+`useLastSpoken` dans `mobile/lib/voice.ts`) :
+1. Plus de bulle ni de personnage sur la carte.
+2. Ce que dit SIRA s'écrit dans la carte du bas, avec une petite tête ronde, pendant qu'elle parle puis 6 s ;
+   la toucher coupe la voix. Pour la phrase d'une étape, seulement ce que le bandeau ne dit pas (« Marche vers le
+   sud. », « Direction « Cocody Pâtisserie » ») ; en véhicule rien, le compte à rebours du bandeau le dit déjà.
+   Les alertes et réponses s'écrivent telles quelles (3 lignes au plus).
+3. Quand SIRA attend « oui » / « non », la ligne le dit.
+4. Le badge d'incident n'apparaît que s'il y a un incident confirmé.
+Choix de SIRA (pas de source) : les 6 s, la taille de la tête, cacher le badge quand tout va bien.

@@ -162,7 +162,39 @@ export function walkStepText(step: { text: string; landmark: string | null }, de
   return step.landmark ? `${text.replace(/\.$/, '')}, au niveau de « ${step.landmark} ».` : text;
 }
 
-export const toLatLng = ([longitude, latitude]: [number, number]): Coordinates => ({ latitude, longitude });
+// During the guidance, the line under SIRA's voice when a step begins: only what the banner above
+// (« Marche 13 min jusqu'à l'arrêt … », « Attends environ 3 min ») does not say already. null: nothing new.
+export function stepScreenLine(steps: { leg: ApiLeg }[], index: number, destination?: string): string | null {
+  const leg = steps[index]?.leg;
+  if (!leg) return null;
+  switch (leg.mode) {
+    case 'walk':
+    case 'transfer': {
+      // Which way to start (the next turns are said and written on the way).
+      const first = leg.walk_steps?.[0];
+      return first && first.distance_m > 0 ? walkStepText(first, destination) : null;
+    }
+    case 'wait': {
+      const ride = steps[index + 1]?.leg;
+      if (!ride || !isVehicle(ride) || ride.mode === 'taxi') return null;
+      const ends = ride.label.split(':')[1]?.trim();
+      const shows = ride.headsign ? `Direction « ${ride.headsign} »` : ends ? `Ligne ${ends}` : null;
+      const others = [...new Set((ride.alternatives ?? [])
+        .filter((line) => line.mode === ride.mode && line.code && line.code !== ride.line_code)
+        .map((line) => line.code))].slice(0, 3);
+      const orOthers = others.length ? `le ${others.join(', le ')} ${others.length > 1 ? 'vont' : 'va'} aussi` : null;
+      const line = [shows, orOthers].filter(Boolean).join(' · ');
+      return line || null;
+    }
+    default: {
+      if (leg.mode === 'taxi' || !leg.alight_stop) return null;
+      const count = leg.stop_count ? `, dans ${leg.stop_count} arrêt${leg.stop_count > 1 ? 's' : ''}` : '';
+      return `Tu descends ${leg.alight_stop.on_line ? `à « ${leg.alight_stop.name} »` : `vers « ${leg.alight_stop.name} »`}${count}.`;
+    }
+  }
+}
+
+export const toLatLng =([longitude, latitude]: [number, number]): Coordinates => ({ latitude, longitude });
 
 // The stretch of one step, to show it alone on the map.
 export const legPath = (leg: ApiLeg): Coordinates[] => (leg.geometry ?? []).map(toLatLng);

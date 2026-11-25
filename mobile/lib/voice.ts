@@ -106,6 +106,19 @@ export function useSpeaking() {
   );
 }
 
+// The last sentence SIRA started to say (one number per sentence): the guidance writes it
+// in its bottom card, also when SIRA's voice could not be played.
+export type Spoken = { id: number; text: string; kind: SpeechKind };
+let lastSpoken: Spoken | null = null;
+const spokenListeners = new Set<() => void>();
+export function useLastSpoken() {
+  return useSyncExternalStore(
+    (listener) => { spokenListeners.add(listener); return () => spokenListeners.delete(listener); },
+    () => lastSpoken,
+    () => lastSpoken,
+  );
+}
+
 const finished = () => {
   finish?.();
   finish = null;
@@ -238,6 +251,8 @@ export async function say(text: string, kind: SpeechKind = 'guidance', audioBase
   if (needsTouch()) { sayAfterFirstTouch({ text, kind, audioBase64, audioMime }); return false; }
   stopSpeaking();
   const mine = ++sentence;
+  lastSpoken = { id: mine, text, kind };
+  spokenListeners.forEach((listener) => listener());
   const done = new Promise<void>((resolve) => { finish = resolve; });
   const uri = await audioUri(audioBase64, audioMime, text);
   if (mine !== sentence || interrupted === mine) return false;  // a newer sentence took over, or « Stop »

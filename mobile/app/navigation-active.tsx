@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Platform,
+  Pressable,
   StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
@@ -19,7 +20,7 @@ import { TripRatingModal } from '@/components/trip-rating-modal';
 import { notify } from '@/lib/notify';
 import { journeyStore, useJourneyStore } from '@/lib/journey-store';
 import { fetchJourneys, journeyImpact, reportFare, voteReport, type ApiJourney, type LegMode, type ReportImpact } from '@/lib/sira-api';
-import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legPath, stepDescription, stepTitle, timeline } from '@/lib/journey-format';
+import { formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legPath, stepDescription, stepScreenLine, stepTitle, timeline } from '@/lib/journey-format';
 import { useMapSettings } from '@/lib/map-settings';
 import { upsertReport, useLiveReports } from '@/lib/reports';
 import { locateUser, refreshCurrentPlace } from '@/lib/places';
@@ -28,7 +29,7 @@ import { goBack, goHome } from '@/lib/navigation';
 import { currentToken } from '@/lib/session';
 import { arrivalPhrase, placeForTitle } from '@/lib/saved-places';
 import { alightSoonSpeech, arrivalSpeech, fareQuestion, gpsEvent, gpsHint, minutes, spokenJourney, startSpeech, stepSpeech } from '@/lib/guidance';
-import { cycleVoiceMode, say, stopSpeaking, useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
+import { cycleVoiceMode, say, stopSpeaking, useLastSpoken, useSpeaking, useVoiceMode, VOICE_MODE_ICONS, VOICE_MODE_LABELS } from '@/lib/voice';
 import { useSpokenQuestion } from '@/lib/use-spoken-question';
 import { lieuViseVers, oublierLieuVise } from '@/lib/lieu-vise';
 import { followCamera, rideCountdown, rideProgress } from '@/lib/ride-progress-core';
@@ -46,6 +47,8 @@ const MODE_COLORS: Record<LegMode, string> = {
 // Map moved by hand during guidance: it follows the traveller again after this long without a touch.
 // 8 s: a proposal (Waze also comes back by itself after a few seconds), to adjust in real use.
 const RECENTER_AFTER_MS = 8_000;
+// What SIRA says stays written in the bottom card this long after it stops talking (choice of SIRA, no source).
+const VOICE_LINE_AFTER_MS = 6_000;
 // Speaker button, as in Google Maps: all spoken → alerts only → muted.
 
 export default function NavigationActiveScreen() {
@@ -275,6 +278,30 @@ export default function NavigationActiveScreen() {
     void say(sentence, 'guidance');
   }, [journey, steps, currentStepIndex, arrived, destinationName, startedAt, gpsOn]);
 
+  // ── What SIRA says, written in the bottom card (no bubble over the map, docs/etude-guidage-carte.md § 7):
+  // while it talks, then VOICE_LINE_AFTER_MS more. A sentence said before this screen opened is not shown.
+  const spoken = useLastSpoken();
+  const speakingNow = useSpeaking();
+  const spokenBefore = useRef(spoken?.id ?? 0);
+  const [shownId, setShownId] = useState<number | null>(null);
+  useEffect(() => {
+    if (spoken && spoken.id > spokenBefore.current) setShownId(spoken.id);
+  }, [spoken]);
+  useEffect(() => {
+    if (shownId === null || speakingNow) return;
+    const timer = setTimeout(() => setShownId(null), VOICE_LINE_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [shownId, speakingNow]);
+  const shownSentence = spoken && spoken.id === shownId ? spoken.text : null;
+  // The current step's own sentence (also when it starts the trip or follows a detour: it ends the same way,
+  // with or without the GPS): only what is new (« Marche vers le nord sur … »). Any other sentence as said.
+  const isStepSentence = Boolean(shownSentence) && [true, false]
+    .some((followed) => shownSentence?.endsWith(stepSpeech(steps, currentStepIndex, destinationName, followed)));
+  // On board, the banner's countdown already says where to get off (« Descends dans 9 arrêts · … »).
+  const voiceLine = isStepSentence
+    ? (countdown && stepLeg && isVehicle(stepLeg) ? null : stepScreenLine(steps, currentStepIndex, destinationName))
+    : shownSentence;
+
   // Silence when leaving the guidance.
   useEffect(() => () => stopSpeaking(), []);
 
@@ -378,10 +405,6 @@ export default function NavigationActiveScreen() {
       if (answer?.amount) void sendFare(answer.amount);
     })();
   });
-
-  const voiceText = affected.length
-    ? `${affected[0].report.title} confirmé sur ton trajet : environ ${delay} min de retard.`
-    : current ? stepSpeech(steps, currentStepIndex, destinationName, gpsOn) : 'Choisis un trajet pour démarrer le guidage.';
 
   if (!journey || !current) {
     return (
@@ -500,29 +523,12 @@ export default function NavigationActiveScreen() {
           )}
         </View>
 
-        {/* Journey traffic status from confirmed community reports */}
-        <View style={[styles.liveTrafficBadge, belowHud, { maxWidth: screenWidth - 16 - 16 - 44 - 10 }, affected.length > 0 && styles.liveTrafficBadgeAlert]}>
-          <View style={[styles.liveDotPulse, affected.length > 0 && styles.liveDotAlert]} />
-          <Text style={styles.liveTrafficText}>
-            {affected.length ? `${affected[0].report.title} confirmé · +${delay} min` : 'Aucun incident confirmé sur ton trajet'}
-          </Text>
-        </View>
-
-        {/* SIRA's voice: what it says, and when it waits for « oui » / « non » */}
-        {voiceMode !== 'off' && !arrived && (
-          <View style={styles.siraVoiceFloatingBar}>
-            <Image
-              source={require('@/assets/images/sira-character-assistant.png')}
-              style={styles.siraNavAvatar}
-              contentFit="contain"
-            />
-            <View style={styles.siraSpeechBubble}>
-              <View style={styles.voiceWaveHeader}>
-                <Ionicons name="mic" size={12} color="#F26522" />
-                <Text style={styles.voiceLabel}>{question.listening ? 'SIRA T’ÉCOUTE…' : 'SIRA VOCAL'}</Text>
-              </View>
-              <Text style={styles.siraSpeechText}>{question.listening ? 'Réponds « oui » ou « non », ou touche un bouton.' : voiceText}</Text>
-            </View>
+        {/* A confirmed incident on the journey, only when there is one (as Waze shows its alerts):
+            « nothing to report » does not need to cover the map. */}
+        {affected.length > 0 && (
+          <View style={[styles.liveTrafficBadge, belowHud, { maxWidth: screenWidth - 16 - 16 - 44 - 10 }, styles.liveTrafficBadgeAlert]}>
+            <View style={[styles.liveDotPulse, styles.liveDotAlert]} />
+            <Text style={styles.liveTrafficText}>{`${affected[0].report.title} confirmé · +${delay} min`}</Text>
           </View>
         )}
 
@@ -653,6 +659,28 @@ export default function NavigationActiveScreen() {
                 <Text style={styles.recenterText}>Recentrer</Text>
               </TouchableOpacity>
             </View>
+          )}
+          {/* What SIRA says, with its face, only while it talks (and a few seconds after). Touching it stops the voice. */}
+          {(voiceLine || question.listening) && (
+            <Pressable
+              style={styles.voiceLine}
+              onPress={question.listening ? undefined : stopSpeaking}
+              accessibilityRole={question.listening ? undefined : 'button'}
+              accessibilityHint={question.listening ? undefined : 'Arrête la voix de SIRA'}
+              accessibilityLiveRegion="polite"
+            >
+              <Image
+                source={require('@/assets/images/sira-character-assistant.png')}
+                style={styles.voiceLineFace}
+                contentFit="cover"
+                contentPosition="top"
+                accessibilityIgnoresInvertColors
+              />
+              <Ionicons name={question.listening ? 'mic' : 'volume-high'} size={16} color="#F26522" />
+              <Text style={styles.voiceLineText} numberOfLines={3}>
+                {question.listening ? 'Je t’écoute : réponds « oui » ou « non », ou touche un bouton.' : voiceLine}
+              </Text>
+            </Pressable>
           )}
           {/* Progress Bar with Milestones */}
           <View style={styles.progressTrackContainer}>
@@ -1000,48 +1028,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flexShrink: 1,
   },
-  siraVoiceFloatingBar: {
-    marginHorizontal: 16,
-    marginBottom: 10,
+  // SIRA's sentence in the bottom card: a small face, the speaker, three lines at most.
+  voiceLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F6',
   },
-  siraNavAvatar: {
-    width: 54,
-    height: 64,
-  },
-  siraSpeechBubble: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  voiceLineFace: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: '#EEF2F6',
+    backgroundColor: '#FFF3EA',
   },
-  voiceWaveHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 2,
-  },
-  voiceLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#F26522',
-    letterSpacing: 0.5,
-  },
-  siraSpeechText: {
-    fontSize: 12,
+  voiceLineText: {
+    flex: 1,
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#0F172A',
-    lineHeight: 16,
+    lineHeight: 18,
   },
   countdown: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(242, 101, 34, 0.18)' },
   countdownUrgent: { backgroundColor: '#F26522' },
