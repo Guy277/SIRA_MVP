@@ -11,6 +11,9 @@ import { setVoiceMode, stopSpeaking, useSpeaking } from '@/lib/voice';
 
 // The guidance has its own speaker button, next to the map.
 const OWN_VOICE_BUTTON = ['/navigation-active'];
+// Screens whose title sits where the pill goes: the pill goes just under their header bar,
+// over the map (« Ton trajet » was hidden on an iPhone, 25 November 2026).
+const BELOW_HEADER: Record<string, number> = { '/route-detail': 62 };
 
 export function SpeakingPill() {
   const speaking = useSpeaking();
@@ -19,7 +22,7 @@ export function SpeakingPill() {
   if (!speaking || OWN_VOICE_BUTTON.includes(pathname)) return null;
 
   return (
-    <View style={[styles.layer, { top: insets.top + 8 }]} pointerEvents="box-none">
+    <View style={[styles.layer, { top: insets.top + (BELOW_HEADER[pathname] ?? 8) }]} pointerEvents="box-none">
       <Animated.View entering={FadeInUp.duration(200)} exiting={FadeOutUp.duration(200)} style={styles.pill}>
         <TouchableOpacity
           style={styles.stop}

@@ -22,8 +22,9 @@ import { showSuccess } from '@/components/success-card';
 import { journeyStore, selectedJourney, useJourneyStore } from '@/lib/journey-store';
 import { journeyBrief, stepInFull, type SpokenPart } from '@/lib/spoken';
 import { say, stopSpeaking } from '@/lib/voice';
-import { alternativesText, arrivalTime, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legBadges, legCodes, legPath, MODE_NAMES, rideGuide, stepDescription, stepTitle, timeline, walkStepText } from '@/lib/journey-format';
-import { fareSummaries, type ApiLeg, type Coordinates, type FareSummary, type LegMode } from '@/lib/sira-api';
+import { alternativesText, arrivalTime, formatClock, formatDistance, formatDuration, formatPrice, isVehicle, journeyPath, journeyTitle, legBadges, legCodes, legPath, MODE_NAMES, timeline, walkStepText } from '@/lib/journey-format';
+import { routeBlocks } from '@/lib/route-cards';
+import { fareSummaries, type ApiLeg, type Coordinates, type FareSummary, type LegMode, type StopMention } from '@/lib/sira-api';
 import { notify } from '@/lib/notify';
 import { goBack } from '@/lib/navigation';
 import { alertBadge, useAlertCount } from '@/lib/reports';
@@ -32,16 +33,27 @@ const STEP_ICONS: Record<LegMode, keyof typeof Ionicons.glyphMap> = {
   walk: 'walk', wait: 'time', transfer: 'swap-horizontal', sotra: 'bus', gbaka: 'bus-outline', woro: 'car-sport', taxi: 'car', boat: 'boat',
 };
 
-// Three kinds of steps, three looks (as in Google Maps): what you ride is big and
-// on the road, walking is a small dot on a dotted path, waiting a small clock.
+// Three kinds of steps, three looks (as in Google Maps): what you ride is a card on
+// the road, walking a thin line on a dotted path, waiting a small clock.
 type StepKind = 'ride' | 'walk' | 'wait';
-const kindOf = (leg: ApiLeg): StepKind => (isVehicle(leg) ? 'ride' : leg.mode === 'wait' ? 'wait' : 'walk');
 
 // « Bus SOTRA 26 / 85 », « Gbaka », « Taxi »: the line to look for.
 function rideBadge(leg: ApiLeg) {
   const { codes } = legCodes(leg);
   return codes.length ? `${MODE_NAMES[leg.mode]} ${codes.slice(0, 3).join(' / ')}` : MODE_NAMES[leg.mode];
 }
+
+// What the vehicle shows in the direction travelled, else the two ends of the line.
+function rideDirection(leg: ApiLeg) {
+  if (leg.mode === 'taxi') return null;
+  if (leg.headsign) return `Direction « ${leg.headsign} »`;
+  const direction = leg.label.split(':')[1]?.trim();
+  return direction ? `Direction ${direction}` : null;
+}
+
+// « à « Abobo Samaké » » for a stop of the line, « vers « … » » for a landmark only (see lib/journey-format.ts).
+const shortAt = (stop: StopMention) => (stop.on_line ? `à « ${stop.name} »` : `vers « ${stop.name} »`);
+const stopsLabel = (count: number) => `${count} arrêt${count > 1 ? 's' : ''}`;
 
 // Every step sits on the same column: the icon slot is as wide as the biggest icon,
 // so all texts start on one line, never on the road.
@@ -94,11 +106,15 @@ export default function RouteDetailScreen() {
 
   // Touching a step shows its stretch alone on the map; the compass shows all of it.
   const [focusedStep, setFocusedStep] = useState<number | null>(null);
-  // Walks unfolded turn by turn (« Voir le chemin »).
-  const [openWalks, setOpenWalks] = useState<Set<string>>(new Set());
-  const toggleWalk = (id: string) => setOpenWalks((current) => {
+  // One card per vehicle, the walks as one line (lib/route-cards.ts).
+  const blocks = routeBlocks(steps);
+  // What is unfolded on demand: 'walk:<id>' (the way turn by turn), 'stops:<id>' (every stop),
+  // 'details:<id>' (peak hours, other lines, travellers' prices).
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const isOpen = (key: string) => opened.has(key);
+  const toggle = (key: string) => setOpened((current) => {
     const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
   const focusPath: Coordinates[] | null = focusedStep !== null && steps[focusedStep] ? legPath(steps[focusedStep].leg) : null;
@@ -325,97 +341,185 @@ export default function RouteDetailScreen() {
               </View>
             )}
 
-            {steps.map(({ leg, start }, index) => {
-              const kind = kindOf(leg);
-              const lit = litStep(index) || focusedStep === index;
-              const guide = kind === 'ride' ? rideGuide(leg) : null;
-              const walkSteps = kind === 'walk' ? leg.walk_steps ?? [] : [];
-              const walkOpen = openWalks.has(leg.id);
+            {blocks.map((block, position) => {
+              const { leg, index } = block;
+              const delay = 120 + position * 120;
+
+              // Walking, changing on foot or waiting alone: one thin line (« À pied · 13 min · 1,0 km »).
+              // Where it goes is the next card (« Monte à … ») or the arrival: not written twice.
+              if (block.kind !== 'ride') {
+                const lit = litStep(index) || focusedStep === index;
+                const walkSteps = leg.walk_steps ?? [];
+                const walkOpen = isOpen(`walk:${leg.id}`);
+                const line = block.kind === 'wait'
+                  ? `Attente · ≈ ${leg.duration} min`
+                  : `${leg.mode === 'transfer' ? 'Change à pied' : 'À pied'} · ${leg.duration} min${block.metres ? ` · ${formatDistance(block.metres / 1000)}` : ''}`;
+                return (
+                  <Animated.View key={leg.id} entering={FadeInDown.delay(delay).duration(280)}>
+                    <Pressable
+                      style={[styles.stepRow, styles.thinRow]}
+                      onPress={() => touchStep(index)}
+                      // No « button » role: the row holds the « Le chemin » button.
+                      accessibilityHint="SIRA lit cette étape et la montre sur la carte"
+                    >
+                      <RoadPiece kind={block.kind} delay={delay + 100} />
+                      <View style={styles.iconSlot}>
+                        {block.kind === 'wait' ? (
+                          <View style={[styles.waitIcon, lit && styles.iconLit]}>
+                            <Ionicons name="time-outline" size={17} color="#F26522" />
+                          </View>
+                        ) : (
+                          <View style={[styles.walkIcon, lit && styles.iconLit]}>
+                            <Ionicons name={STEP_ICONS[leg.mode] ?? 'walk'} size={14} color="#4B5563" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={[styles.stepBody, styles.thinBody, lit && styles.lit]}>
+                        <View style={styles.thinHead}>
+                          <Text style={styles.thinText}>{line}</Text>
+                          {walkSteps.length > 0 && (
+                            <TouchableOpacity
+                              style={styles.toggle}
+                              onPress={() => toggle(`walk:${leg.id}`)}
+                              activeOpacity={0.7}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              accessibilityRole="button"
+                              accessibilityLabel={walkOpen ? 'Masquer le chemin' : `Voir le chemin, ${walkSteps.length} étapes`}
+                              accessibilityState={{ expanded: walkOpen }}
+                            >
+                              <Text style={styles.toggleText}>Le chemin</Text>
+                              <Ionicons name={walkOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#F26522" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {walkOpen && walkSteps.map((step, stepIndex) => (
+                          <View key={stepIndex} style={styles.walkStepRow}>
+                            <Text style={styles.walkStepDistance}>{step.distance_m > 0 ? `${step.distance_m} m` : ''}</Text>
+                            <Text style={styles.walkStepText}>{walkStepText(step, arrival)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </Pressable>
+                  </Animated.View>
+                );
+              }
+
+              // A vehicle: one card with what you need at the stop. The rest under « Plus de détails ».
+              const { wait } = block;
+              const lit = litStep(index) || (wait !== null && litStep(wait.index)) || focusedStep === index;
+              const between = block.stopsBetween;
+              const stopsOpen = isOpen(`stops:${leg.id}`);
+              const detailsOpen = isOpen(`details:${leg.id}`);
+              const direction = rideDirection(leg);
+              const board = leg.board_stop ? `Monte ${shortAt(leg.board_stop)}` : wait ? 'Attends le véhicule' : null;
+              const alternatives = alternativesText(leg);
+              const fare = leg.line_id ? fares[leg.line_id] : undefined;
+              const details = [
+                wait?.peak ? `Aux heures de pointe, l’attente peut aller jusqu’à ${wait.peak} min.` : null,
+                leg.headsign ? 'La direction est écrite sur le véhicule.' : null,
+                leg.before_alight_stop ? `Prépare-toi à descendre après « ${leg.before_alight_stop} ».` : null,
+                !between.length && leg.via_stops?.length ? `Passe par : ${leg.via_stops.join(' · ')}.` : null,
+                alternatives ? `${alternatives} — prends le premier qui passe.` : null,
+                leg.mode === 'taxi' ? 'Taxi compteur, trajet direct.' : null,
+                fare?.reports
+                  ? fare.validated
+                    ? `Prix confirmé par ${fare.agreeing} voyageurs : ${formatPrice(fare.median_fcfa)}.`
+                    : `${fare.reports} avis de voyageurs : ${formatPrice(fare.median_fcfa)} (à confirmer).`
+                  : null,
+              ].filter((line): line is string => Boolean(line));
               return (
-                <Animated.View key={leg.id} entering={FadeInDown.delay(120 + index * 120).duration(280)}>
+                <Animated.View key={leg.id} entering={FadeInDown.delay(delay).duration(280)}>
                   <Pressable
                     style={styles.stepRow}
                     onPress={() => touchStep(index)}
-                    // No « button » role: the row holds the « Voir le chemin » button.
+                    // No « button » role: the card holds the « arrêts » and « Plus de détails » buttons.
                     accessibilityHint="SIRA lit cette étape et la montre sur la carte"
                   >
-                    <RoadPiece kind={kind} delay={220 + index * 120} />
+                    <RoadPiece kind="ride" delay={delay + 100} />
                     <View style={styles.iconSlot}>
-                      {kind === 'ride' ? (
-                        <View style={[styles.rideIcon, lit && styles.iconLit]}>
-                          <Ionicons name={STEP_ICONS[leg.mode] ?? 'ellipse'} size={22} color="#FFFFFF" />
-                        </View>
-                      ) : kind === 'wait' ? (
-                        <View style={[styles.waitIcon, lit && styles.iconLit]}>
-                          <Ionicons name="time-outline" size={17} color="#F26522" />
-                        </View>
-                      ) : (
-                        <View style={[styles.walkIcon, lit && styles.iconLit]}>
-                          <Ionicons name={STEP_ICONS[leg.mode] ?? 'walk'} size={14} color="#4B5563" />
-                        </View>
-                      )}
-                    </View>
-                    <View style={[styles.stepBody, lit && styles.lit]}>
-                      <View style={styles.stepHead}>
-                        <Text style={[styles.stepTitle, kind !== 'ride' && styles.stepTitleLight]}>{stepTitle(leg, arrival)}</Text>
-                        <Text style={styles.stepClock}>{formatClock(start)}</Text>
+                      <View style={[styles.rideIcon, lit && styles.iconLit]}>
+                        <Ionicons name={STEP_ICONS[leg.mode] ?? 'ellipse'} size={22} color="#FFFFFF" />
                       </View>
-                      {/* The line to look for (a taxi is already said in the title). */}
-                      {kind === 'ride' && leg.mode !== 'taxi' && (
+                    </View>
+                    <View style={[styles.stepBody, styles.rideCard, lit && styles.lit]}>
+                      <View style={styles.stepHead}>
                         <View style={styles.lineBadge}>
-                          <Text style={styles.lineBadgeText}>{rideBadge(leg)}</Text>
+                          <Text style={styles.lineBadgeText}>{leg.mode === 'taxi' ? 'Taxi' : rideBadge(leg)}</Text>
+                        </View>
+                        <View style={styles.flexSpace} />
+                        <Text style={styles.stepClock}>{formatClock(block.start)}</Text>
+                      </View>
+                      {direction && <Text style={styles.directionText}>{direction}</Text>}
+
+                      {board && (
+                        <View style={[styles.guideRow, (reading === `board:${index}` || (wait !== null && reading === `step:${wait.index}`)) && styles.guideLit]}>
+                          <Ionicons name="enter-outline" size={15} color="#15803D" />
+                          <Text style={styles.guideText}>
+                            {board}
+                            {wait ? <Text style={styles.guideExtra}>{` · ≈ ${wait.minutes} min d’attente`}</Text> : null}
+                          </Text>
                         </View>
                       )}
-                      <Text style={styles.stepSubDesc}>{stepDescription(leg)}</Text>
-                      {/* Where to get on, what you pass, where to get off. */}
-                      {guide?.board && (
-                        <View style={[styles.guideRow, reading === `board:${index}` && styles.guideLit]}>
-                          <Ionicons name="enter-outline" size={14} color="#15803D" />
-                          <Text style={styles.guideText}>{guide.board}</Text>
-                        </View>
-                      )}
-                      {guide?.via && <Text style={styles.guideVia}>{guide.via}</Text>}
-                      {guide?.alight && (
+                      {leg.alight_stop && (
                         <View style={[styles.guideRow, reading === `alight:${index}` && styles.guideLit]}>
-                          <Ionicons name="exit-outline" size={14} color="#F26522" />
-                          <Text style={[styles.guideText, styles.guideAlight]}>{guide.alight}</Text>
+                          <Ionicons name="exit-outline" size={15} color="#F26522" />
+                          <Text style={[styles.guideText, styles.guideAlight]}>{`Descends ${shortAt(leg.alight_stop)}`}</Text>
                         </View>
                       )}
-                      {guide?.ready && <Text style={styles.guideVia}>{guide.ready}</Text>}
-                      {/* The walk turn by turn, folded: most people only need where it ends. */}
-                      {walkSteps.length > 0 && (
-                        <TouchableOpacity
-                          style={styles.walkToggle}
-                          onPress={() => toggleWalk(leg.id)}
-                          activeOpacity={0.7}
-                          accessibilityRole="button"
-                          accessibilityState={{ expanded: walkOpen }}
-                        >
-                          <Text style={styles.walkToggleText}>{walkOpen ? 'Masquer le chemin' : `Voir le chemin (${walkSteps.length} étapes)`}</Text>
-                          <Ionicons name={walkOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#F26522" />
-                        </TouchableOpacity>
+                      {/* « 7 arrêts ▾ »: the whole list on touch, as in Yandex Maps (family of Yango). */}
+                      {leg.stop_count ? (
+                        between.length ? (
+                          <TouchableOpacity
+                            style={[styles.toggle, styles.stopsToggle]}
+                            onPress={() => toggle(`stops:${leg.id}`)}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${stopsLabel(leg.stop_count)}, ${stopsOpen ? 'masquer la liste' : 'voir la liste'}`}
+                            accessibilityState={{ expanded: stopsOpen }}
+                          >
+                            <Text style={styles.toggleText}>{stopsLabel(leg.stop_count)}</Text>
+                            <Ionicons name={stopsOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#F26522" />
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.stopsPlain}>{stopsLabel(leg.stop_count)}</Text>
+                        )
+                      ) : null}
+                      {stopsOpen && (
+                        <View style={styles.stopList}>
+                          {[leg.board_stop?.name ?? null, ...between, leg.alight_stop?.name ?? null].map((name, stopIndex, list) => name ? (
+                            <View key={`${stopIndex}:${name}`} style={styles.stopRow}>
+                              <View style={[styles.stopDot, stopIndex === 0 && styles.stopDotBoard, stopIndex === list.length - 1 && styles.stopDotAlight]} />
+                              <Text style={[styles.stopName, (stopIndex === 0 || stopIndex === list.length - 1) && styles.stopNameEnd]}>{name}</Text>
+                            </View>
+                          ) : null)}
+                        </View>
                       )}
-                      {walkOpen && walkSteps.map((step, stepIndex) => (
-                        <View key={stepIndex} style={styles.walkStepRow}>
-                          <Text style={styles.walkStepDistance}>{step.distance_m > 0 ? `${step.distance_m} m` : ''}</Text>
-                          <Text style={styles.walkStepText}>{walkStepText(step, arrival)}</Text>
+
+                      <View style={styles.rideFoot}>
+                        <Text style={styles.rideFootText}>
+                          {formatDuration(leg.duration)} · <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
+                        </Text>
+                        {details.length > 0 && (
+                          <TouchableOpacity
+                            style={styles.toggle}
+                            onPress={() => toggle(`details:${leg.id}`)}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityRole="button"
+                            accessibilityState={{ expanded: detailsOpen }}
+                          >
+                            <Text style={styles.toggleText}>{detailsOpen ? 'Moins' : 'Plus de détails'}</Text>
+                            <Ionicons name={detailsOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#F26522" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      {detailsOpen && details.map((line) => (
+                        <View key={line} style={styles.detailRow}>
+                          <View style={styles.detailBullet} />
+                          <Text style={styles.detailText}>{line}</Text>
                         </View>
                       ))}
-                      {kind === 'ride' && (
-                        <Text style={styles.stepCostText}>
-                          Coût estimé : <Text style={styles.boldText}>{formatPrice(leg.price)}</Text>
-                        </Text>
-                      )}
-                      {kind === 'ride' && alternativesText(leg) && (
-                        <Text style={styles.alternativesText}>{alternativesText(leg)} — prends le premier qui passe.</Text>
-                      )}
-                      {leg.line_id && fares[leg.line_id]?.reports ? (
-                        <Text style={styles.communityFareText}>
-                          {fares[leg.line_id].validated
-                            ? `Prix confirmé par ${fares[leg.line_id].agreeing} voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)}`
-                            : `${fares[leg.line_id].reports} avis de voyageurs : ${formatPrice(fares[leg.line_id].median_fcfa)} (à confirmer)`}
-                        </Text>
-                      ) : null}
                     </View>
                   </Pressable>
                 </Animated.View>
@@ -424,7 +528,7 @@ export default function RouteDetailScreen() {
 
             {/* Arrival: the road stops here. */}
             {journey && arrivalAt && (
-              <Animated.View entering={FadeInDown.delay(120 + steps.length * 120).duration(280)} style={styles.stepRow}>
+              <Animated.View entering={FadeInDown.delay(120 + blocks.length * 120).duration(280)} style={styles.stepRow}>
                 <View style={styles.iconSlot}>
                   <View style={[styles.rideIcon, reading === 'arrival' && styles.iconLit]}>
                     <Ionicons name="location" size={22} color="#FFFFFF" />
@@ -465,12 +569,6 @@ export default function RouteDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  communityFareText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#15803D',
-    marginTop: 2,
-  },
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -758,12 +856,6 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '800',
   },
-  alternativesText: {
-    fontSize: 12,
-    color: '#2D6A4F',
-    fontWeight: '600',
-    marginTop: 2,
-  },
   stepTitle: {
     flex: 1,
     fontSize: 15,
@@ -771,10 +863,135 @@ const styles = StyleSheet.create({
     color: '#000000',
     lineHeight: 19,
   },
-  stepTitleLight: {
-    fontSize: 14,
+  directionText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#000000',
+    lineHeight: 19,
+    marginTop: 6,
+  },
+  // A vehicle's card, on the right of the road.
+  rideCard: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+  },
+  flexSpace: {
+    flex: 1,
+  },
+  // Walking, changing, waiting: one line, centred on its icon.
+  thinRow: {
+    paddingBottom: 10,
+  },
+  thinBody: {
+    minHeight: ICON_SLOT,
+    justifyContent: 'center',
+  },
+  thinHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    columnGap: 12,
+    rowGap: 2,
+  },
+  thinText: {
+    fontSize: 13.5,
     fontWeight: '700',
+    color: '#374151',
+  },
+  toggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 3,
+    paddingVertical: 2,
+  },
+  toggleText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#F26522',
+  },
+  stopsToggle: {
+    marginTop: 2,
+    marginLeft: 21,
+  },
+  stopsPlain: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginTop: 2,
+    marginLeft: 21,
+  },
+  stopList: {
+    marginTop: 4,
+    marginLeft: 21,
+    paddingLeft: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: '#E5E7EB',
+    gap: 4,
+  },
+  stopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stopDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginLeft: -14.5,
+    backgroundColor: '#9CA3AF',
+  },
+  stopDotBoard: {
+    backgroundColor: '#15803D',
+  },
+  stopDotAlight: {
+    backgroundColor: '#F26522',
+  },
+  stopName: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#4B5563',
+  },
+  stopNameEnd: {
+    fontWeight: '800',
+    color: '#111111',
+  },
+  rideFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+  },
+  rideFootText: {
+    fontSize: 13,
+    color: '#333333',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 6,
+  },
+  detailBullet: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    marginTop: 6,
+    backgroundColor: '#9CA3AF',
+  },
+  detailText: {
+    flex: 1,
+    fontSize: 12.5,
     color: '#1F2937',
+    lineHeight: 17,
   },
   stepSubDesc: {
     fontSize: 12.5,
@@ -803,25 +1020,10 @@ const styles = StyleSheet.create({
   guideAlight: {
     color: '#C2410C',
   },
-  guideVia: {
-    fontSize: 12,
+  // « · ≈ 5 min d'attente » after « Monte à … ».
+  guideExtra: {
+    fontWeight: '600',
     color: '#4B5563',
-    marginTop: 2,
-    marginLeft: 20,
-    lineHeight: 16,
-  },
-  walkToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 4,
-    marginTop: 4,
-    paddingVertical: 2,
-  },
-  walkToggleText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#F26522',
   },
   walkStepRow: {
     flexDirection: 'row',
@@ -841,11 +1043,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: '#1F2937',
     lineHeight: 16,
-  },
-  stepCostText: {
-    fontSize: 12,
-    color: '#333333',
-    marginTop: 2,
   },
   boldText: {
     fontWeight: '900',

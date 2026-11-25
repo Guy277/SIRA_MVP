@@ -110,3 +110,25 @@ web, « Recentrer », retour automatique, vue d'ensemble à plat, vue selon l'é
 - Plans d'Apple règle la caméra par une altitude en mètres : convertie depuis le zoom par une approximation
   (angle de vue de 30°, `altitudeForZoom`). **Non vérifié sur un iPhone** : la carte peut paraître trop proche ou
   trop loin, à régler à l'essai.
+
+## 6. L'écran « Ton trajet » en résumé
+
+Vu sur un iPhone le 25 novembre 2026 : jusqu'à 8 lignes par étape, et le même arrêt écrit 3 fois (marcher jusqu'à
+lui, l'attendre, y monter). Ce que font les autres (aides officielles, lues le 25 novembre 2026) :
+- **Yandex Maps** (famille de Yango) : pour chaque véhicule, le premier et le dernier arrêt ; on touche le nombre
+  d'arrêts pour voir la liste complète ([aide](https://yandex.com/support/m-maps/concept/ot.html)).
+- **Yango** : le détail d'un trajet s'ouvre par « Details » ([aide](https://maps.yango.com/web-support/en/concept/rout)).
+- **Moovit** : la ligne à prendre, le temps d'attente et le nombre d'arrêts d'abord
+  ([blog](https://moovit.com/blog/navigating-with-moovit/)).
+- **Divulgation progressive** : l'essentiel d'abord, le reste à la demande
+  ([NN/g](https://www.nngroup.com/videos/progressive-disclosure/), [IxDF](https://ixdf.org/encyclopedia/progressive_disclosure.html)).
+- Pas trouvé de source pour une liste d'arrêts dépliable chez Bonjour RATP ni Google Maps.
+
+Fait le 25 novembre 2026 (`mobile/lib/route-cards.ts`, `mobile/app/route-detail.tsx`) :
+1. **Une carte par véhicule** : la ligne, la direction, « Monte à … · ≈ 5 min d'attente » (l'attente avant le
+   véhicule est rangée dans sa carte), « Descends à … », le nombre d'arrêts, la durée et le prix.
+2. **Marche et changement à pied sur une ligne** : « À pied · 6 min · 468 m », le chemin tourne par tourne au toucher.
+3. **Au toucher** : « 9 arrêts ▾ » ouvre la liste complète ; « Plus de détails ▾ » donne les heures de pointe,
+   « prépare-toi après … », les autres lignes possibles et les prix donnés par les voyageurs.
+4. La pastille « SIRA parle » se met sous la barre du haut sur cet écran (elle cachait « Ton trajet »).
+Choix de SIRA (pas de source) : l'ordre des détails, et l'heure de la carte = l'heure d'arrivée à l'arrêt.
